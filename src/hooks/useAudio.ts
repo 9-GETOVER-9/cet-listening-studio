@@ -11,6 +11,18 @@ interface UseAudioReturn {
   changeSpeed: (speed: number) => void
 }
 
+// Supabase Storage 配置
+const SUPABASE_STORAGE_URL = 'https://xntvurmmuiairvhfzeys.supabase.co/storage/v1/object/public/audio2'
+
+/**
+ * 获取音频 URL
+ * 优先使用 Supabase Storage，本地路径作为 fallback
+ */
+function getAudioUrl(audioFile: string): string {
+  // 优先使用 Supabase Storage
+  return `${SUPABASE_STORAGE_URL}/audio/${audioFile}`
+}
+
 /**
  * 音频播放 Hook
  * 使用原生 HTML5 Audio，直接支持 playbackRate 速度调节
@@ -54,7 +66,8 @@ export function useAudio(
     stopCurrent()
     setPlayState('loading')
 
-    const audioUrl = `/data/audio/${audioFile}`
+    // 使用 Supabase Storage URL
+    const audioUrl = getAudioUrl(audioFile)
     const audio = new Audio(audioUrl)
     audioRef.current = audio
     audio.playbackRate = speedRef.current

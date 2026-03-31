@@ -23,7 +23,7 @@ export async function initializeData(
     return // 已初始化，跳过
   }
 
-  const response = await fetch('/data/cards.json')
+  const response = await fetch('https://xntvurmmuiairvhfzeys.supabase.co/storage/v1/object/public/audio2/data/cards.json')
   if (!response.ok) {
     throw new Error('Failed to fetch cards.json')
   }

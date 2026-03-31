@@ -36,8 +36,8 @@ export default function Login() {
   }
 
   const handleVerify = async () => {
-    if (!otp.trim() || otp.trim().length !== 6) {
-      toast.error('请输入 6 位验证码')
+   if (!otp.trim() || otp.trim().length < 6 || otp.trim().length > 8) {
+  toast.error('请输入验证码（6-8 位）')
       return
     }
     setSubmitting(true)
@@ -110,12 +110,12 @@ export default function Login() {
                   </p>
                   <Input
                     type="text"
-                    placeholder="6 位验证码"
+                    placeholder="输入验证码"
                     value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 8))}
                     onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
                     className="text-center text-2xl tracking-[0.5em] font-mono"
-                    maxLength={6}
+                    maxLength={8}
                   />
                 </div>
                 <Button

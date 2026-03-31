@@ -30,3 +30,9 @@ dist-ssr
 "*.mp3" 
 "*.wav" 
 "output/" 
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example

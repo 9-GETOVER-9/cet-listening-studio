@@ -137,7 +137,7 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="space-y-4 p-4">
+      <div className="quiet-page space-y-4">
         <Skeleton className="h-32 w-full" />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
@@ -150,17 +150,18 @@ export default function Home() {
   }
 
   return (
-    <div className="space-y-6 p-4">
+    <div className="quiet-page space-y-8">
       {/* 欢迎区 + Streak */}
-      <div className="rounded-2xl bg-gradient-to-r from-brand to-blue-400 p-6 text-white">
+      <section className="min-h-[320px] bg-[var(--app-ink)] p-7 text-[var(--app-surface)] shadow-[var(--app-shadow)] md:p-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20">
-              <span className="text-3xl">🎧</span>
+            <div className="grid h-14 w-14 place-items-center rounded-full border border-white/40">
+              <Headphones className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">CET Listening Studio</h1>
-              <p className="mt-1 text-sm text-white/80">四六级 & 新概念听力智能学习</p>
+              <p className="quiet-kicker !text-[#b8c1bd]">Today · Listening Edit</p>
+              <h1 className="quiet-display mt-2 text-4xl md:text-6xl">今天，听清一个细节。</h1>
+              <p className="mt-3 text-sm text-white/70">四六级与新概念听力，按记忆节奏慢慢听懂。</p>
             </div>
           </div>
           <StreakBadge days={stats.streak} />
@@ -168,7 +169,7 @@ export default function Home() {
 
         {/* 今日复习进度 */}
         {stats.todayReview > 0 && (
-          <div className="mt-4">
+          <div className="mt-16 border-t border-white/25 pt-5">
             <div className="flex items-center justify-between text-sm">
               <span>今日待复习</span>
               <span className="font-medium">{stats.todayReview} 张卡片</span>
@@ -179,7 +180,7 @@ export default function Home() {
             />
           </div>
         )}
-      </div>
+      </section>
 
       {/* 今日任务卡片 */}
       {isGuestTrial && (
@@ -267,7 +268,7 @@ export default function Home() {
       )}
 
       {/* 统计卡片 */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard icon={Target} label="今日已复习" value={stats.todayStudied} subtext="张" color="bg-blue-100 text-blue-600" />
         <StatCard icon={TrendingUp} label="连续打卡" value={stats.streak} subtext="天" color="bg-orange-100 text-orange-600" />
         <StatCard icon={BookOpen} label="累计掌握" value={stats.studiedCards} subtext={`共 ${stats.totalCards} 张`} color="bg-green-100 text-green-600" />
@@ -275,7 +276,7 @@ export default function Home() {
 
       {/* 快捷入口 */}
       <div>
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">快捷入口</h2>
+        <h2 className="quiet-display mb-4 text-3xl">继续学习</h2>
         <div className="space-y-3">
           <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => safeNavigate('/cet')}>
             <CardContent className="flex items-center gap-4 p-4">
@@ -332,7 +333,7 @@ export default function Home() {
 
       {/* 四六级分类 */}
       <div>
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">四六级听力</h2>
+        <h2 className="quiet-display mb-4 text-3xl">四六级听力</h2>
         <div className="grid grid-cols-2 gap-3">
           <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => safeNavigate('/cet')}>
             <CardContent className="flex items-center gap-3 p-4">
@@ -362,7 +363,7 @@ export default function Home() {
 
       {/* 新概念英语入口 */}
       <div>
-        <h2 className="mb-3 text-lg font-semibold text-gray-900">新概念英语</h2>
+        <h2 className="quiet-display mb-4 text-3xl">新概念英语</h2>
         <div className="grid grid-cols-2 gap-3">
           <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => safeNavigate('/nce')}>
             <CardContent className="flex items-center gap-3 p-4">

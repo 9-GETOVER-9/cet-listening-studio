@@ -155,19 +155,25 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-gray-50 p-4">
-      <Card className="w-full max-w-sm">
+    <div className="grid min-h-dvh bg-[var(--app-paper)] lg:grid-cols-[minmax(0,1.2fr)_minmax(420px,.8fr)]">
+      <section className="hidden flex-col justify-between bg-[var(--app-ink)] p-12 text-[var(--app-surface)] lg:flex xl:p-20">
+        <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-full border border-white/50 font-serif text-xs font-bold">LS</span><div><strong className="block font-serif">Listening Studio</strong><small className="uppercase tracking-[.18em] text-white/50">Quiet Edition</small></div></div>
+        <div className="max-w-2xl"><p className="quiet-kicker !text-[#c98070]">Listen · Notice · Remember</p><h1 className="quiet-display mt-5 text-7xl">听见那些，<br />曾经错过的细节。</h1><p className="mt-7 max-w-xl leading-8 text-white/55">把真题、新概念与 FSRS 记忆节奏放在一个安静的学习空间里。每次只专注一个声音片段。</p></div>
+        <p className="font-serif text-sm text-white/45">CET Listening Studio · 2026</p>
+      </section>
+      <div className="flex flex-col items-center justify-center p-5 md:p-10">
+      <Card className="w-full max-w-md border-0 bg-transparent shadow-none hover:shadow-none">
         <CardContent className="p-6">
           <div className="mb-4 flex flex-col items-center gap-2">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand">
-              <span className="text-3xl">听</span>
+            <div className="grid h-16 w-16 place-items-center rounded-full border border-[var(--app-ink)] font-serif text-2xl">
+              LS
             </div>
-            <h1 className="text-xl font-bold text-gray-900">CET Listening Studio</h1>
+            <h1 className="quiet-display text-3xl">欢迎回来</h1>
           </div>
 
           <div className="mb-4 text-center">
-            <p className="text-base font-semibold text-gray-800">用科学算法练四六级听力</p>
-            <p className="mt-1 text-sm text-gray-500">听一遍记得住，越学越轻松</p>
+            <p className="text-base font-semibold text-gray-800">继续今天的听力编辑</p>
+            <p className="mt-1 text-sm text-gray-500">算法安排节奏，你只需要认真听。</p>
           </div>
 
           <div className="mb-5 flex justify-center gap-6">
@@ -326,6 +332,7 @@ export default function Login() {
       <p className="mt-4 max-w-sm text-center text-xs text-gray-400">
         注册时用邮箱验证码确认身份；以后登录只需要邮箱和密码。
       </p>
+      </div>
     </div>
   )
 }

@@ -39,6 +39,7 @@ deploy-*.zip
 
 # Local tools, browser state, and nested repositories
 .playwright-cli/
+.worktrees/
 agency-agents/
 backup/
 supabase/.temp/

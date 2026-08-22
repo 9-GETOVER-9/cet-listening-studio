@@ -1,5 +1,12 @@
 import Dexie, { type Table } from 'dexie'
-import type { Card, NotebookItem, Module, StudyLogItem } from '@/types'
+import type {
+  Card,
+  NotebookItem,
+  Module,
+  StudyLogItem,
+  SyncOutboxItem,
+} from '@/types'
+import { normalizeFSRSState } from '@/lib/fsrsState'
 
 class AppDB extends Dexie {
   cards!: Table<Card>
@@ -7,26 +14,36 @@ class AppDB extends Dexie {
   notebook!: Table<NotebookItem>
   modules!: Table<Module>
   studyLog!: Table<StudyLogItem>
+  syncOutbox!: Table<SyncOutboxItem>
   settings!: Table<{ key: string; value: unknown }>
 
   constructor() {
     super('cet-listening-studio')
 
     this.version(1).stores({
-      // cards: 主键 cardId，按 moduleId 查询，按 level/examDate 过滤
-      // NCE 新增: book, lessonNum 索引
-      cards: 'cardId, moduleId, [fsrsMain.due+moduleId], level, examDate, section, type, difficulty, book, lessonNum',
-      // audio: 按 cardId 存储音频 Blob
+      cards: 'cardId, moduleId, [fsrsMain.due+moduleId], level, examDate, section, type, difficulty, book, lessonNum, aiUnlocked',
       audio: 'cardId',
-      // notebook: 难点本，按 type/createdAt 查询
       notebook: 'notebookId, type, sourceCardId, createdAt, [fsrsNotebook.due+type]',
-      // modules: 模块统计缓存
-      // NCE 新增: book, lessonNum 索引
       modules: 'moduleId, examDate, section, type, level, book, lessonNum',
-      // studyLog: 学习日志，按时间查询
       studyLog: '++id, cardId, timestamp',
-      // settings: 键值对存储
       settings: 'key',
+    })
+
+    this.version(2).stores({
+      cards: 'cardId, moduleId, [fsrsMain.due+moduleId], level, examDate, section, type, difficulty, book, lessonNum, aiUnlocked',
+      audio: 'cardId',
+      notebook: 'notebookId, type, sourceCardId, createdAt, [fsrsNotebook.due+type]',
+      modules: 'moduleId, examDate, section, type, level, book, lessonNum',
+      studyLog: '++id, &operationId, cardId, timestamp',
+      syncOutbox: '&operationId, cardId, kind, nextAttemptAt, createdAt',
+      settings: 'key',
+    }).upgrade(async (transaction) => {
+      await transaction.table('cards').toCollection().modify((card) => {
+        if (card.fsrsMain) card.fsrsMain = normalizeFSRSState(card.fsrsMain)
+      })
+      await transaction.table('notebook').toCollection().modify((item) => {
+        if (item.fsrsNotebook) item.fsrsNotebook = normalizeFSRSState(item.fsrsNotebook)
+      })
     })
   }
 }

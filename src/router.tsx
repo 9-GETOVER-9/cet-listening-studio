@@ -1,24 +1,34 @@
-import { lazy } from 'react'
 import { createBrowserRouter } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { AuthGuard } from '@/components/AuthGuard'
+import { RouteErrorFallback } from '@/components/RouteErrorFallback'
+import { lazyWithRecovery } from '@/lib/lazyWithRecovery'
 
-const Home = lazy(() => import('@/pages/Home'))
-const Login = lazy(() => import('@/pages/Login'))
-const ContentSelector = lazy(() => import('@/pages/ContentSelector'))
-const NCESelector = lazy(() => import('@/pages/NCESelector'))
-const CardFlash = lazy(() => import('@/pages/CardFlash'))
-const Notebook = lazy(() => import('@/pages/Notebook'))
-const Profile = lazy(() => import('@/pages/Profile'))
-const Feedback = lazy(() => import('@/pages/Feedback'))
+const Home = lazyWithRecovery(() => import('@/pages/Home'))
+const Login = lazyWithRecovery(() => import('@/pages/Login'))
+const ContentSelector = lazyWithRecovery(() => import('@/pages/ContentSelector'))
+const NCESelector = lazyWithRecovery(() => import('@/pages/NCESelector'))
+const CardFlash = lazyWithRecovery(() => import('@/pages/CardFlash'))
+const Review = lazyWithRecovery(() => import('@/pages/Review'))
+const Notebook = lazyWithRecovery(() => import('@/pages/Notebook'))
+const Profile = lazyWithRecovery(() => import('@/pages/Profile'))
+const Feedback = lazyWithRecovery(() => import('@/pages/Feedback'))
+const Admin = lazyWithRecovery(() => import('@/pages/Admin'))
 
 export const router = createBrowserRouter([
   {
     path: '/login',
     element: <Login />,
+    errorElement: <RouteErrorFallback />,
+  },
+  {
+    path: '/admin-9x7k',
+    element: <Admin />,
+    errorElement: <RouteErrorFallback />,
   },
   {
     path: '/',
+    errorElement: <RouteErrorFallback />,
     element: (
       <AuthGuard>
         <Layout />
@@ -29,6 +39,7 @@ export const router = createBrowserRouter([
       { path: 'cet', element: <ContentSelector /> },
       { path: 'nce', element: <NCESelector /> },
       { path: 'card/:moduleId', element: <CardFlash /> },
+      { path: 'review', element: <Review /> },
       { path: 'notebook', element: <Notebook /> },
       { path: 'notebook/review/:type', element: <Notebook /> },
       { path: 'profile', element: <Profile /> },

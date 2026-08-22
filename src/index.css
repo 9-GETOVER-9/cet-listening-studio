@@ -24,6 +24,15 @@
   --radius-sm: 0.25rem;
 }
 
+/* 安全区域工具类（iPhone 刘海/底部横条） */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
 /* 基础样式 */
 @layer base {
   * {

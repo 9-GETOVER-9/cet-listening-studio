@@ -1,95 +1,98 @@
-import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent, MouseEvent, PointerEvent } from 'react'
 import { toast } from 'sonner'
-import type { Rating } from '@/types'
-import { rateCard } from '@/lib/fsrs'
-import { addStudyLog } from '@/db/crud'
+import { getCard, refreshModuleStats } from '@/db/crud'
+import { commitCardRating, type CommitCardRatingResult } from '@/db/reviewRepository'
+import { previewFSRSRatings } from '@/lib/fsrs'
+import { formatReviewInterval } from '@/lib/reviewInterval'
+import { cn } from '@/lib/utils'
+import type { FSRSState, Rating } from '@/types'
+import { Button } from '@/components/ui/button'
 
 interface FSRSButtonsProps {
   cardId: string
+  fsrsState: FSRSState
   disabled?: boolean
   className?: string
-  onRated?: () => void
+  onRated?: (result: CommitCardRatingResult) => void
 }
 
-/**
- * FSRS 四按钮评分组件
- * Again（重来） / Hard（困难） / Good（掌握） / Easy（简单）
- */
-export function FSRSButtons({
-  cardId,
-  disabled,
-  className,
-  onRated,
-}: FSRSButtonsProps) {
+const RATING_LABELS: Record<Rating, string> = { 1: '重来', 2: '困难', 3: '掌握', 4: '简单' }
+const BUTTON_STYLES: Record<Rating, string> = {
+  1: 'border-red-500 bg-red-500 hover:bg-red-600',
+  2: 'border-yellow-500 bg-yellow-500 hover:bg-yellow-600',
+  3: 'border-blue-500 bg-blue-500 hover:bg-blue-600',
+  4: 'border-green-500 bg-green-500 hover:bg-green-600',
+}
+
+export function FSRSButtons({ cardId, fsrsState, disabled, className, onRated }: FSRSButtonsProps) {
   const [loading, setLoading] = useState(false)
+  const interactionLock = useRef(false)
+  const [previewAt] = useState(() => new Date())
+  const previews = useMemo(() => previewFSRSRatings(fsrsState, previewAt), [fsrsState, previewAt])
 
   const handleRate = async (rating: Rating) => {
-    if (loading) return
-
+    if (interactionLock.current || loading || disabled) return
+    interactionLock.current = true
     setLoading(true)
     try {
-      await rateCard(cardId, rating)
-
-      // 记录学习日志
-      await addStudyLog({
+      const result = await commitCardRating({
         cardId,
-        action: 'review',
         rating,
-        timestamp: Date.now(),
+        operationId: crypto.randomUUID(),
+        reviewedAt: new Date(),
       })
-
-      // 提示
-      const labels = { 1: '重来', 2: '困难', 3: '掌握', 4: '简单' }
-      toast.success(`已标记：${labels[rating]}`)
-
-      onRated?.()
+      const card = await getCard(cardId)
+      if (card) await refreshModuleStats(card.moduleId)
+      toast.success(`已标记：${RATING_LABELS[rating]}`)
+      onRated?.(result)
     } catch (error) {
       console.error('Failed to rate card:', error)
-      toast.error('评分失败，请重试')
+      toast.error('评分失败，请稍后重试')
     } finally {
+      interactionLock.current = false
       setLoading(false)
     }
   }
 
+  const handlePointerDown = (event: PointerEvent<HTMLButtonElement>, rating: Rating) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    void handleRate(rating)
+  }
+
+  const handleKeyboard = (event: KeyboardEvent<HTMLButtonElement>, rating: Rating) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    event.stopPropagation()
+    void handleRate(rating)
+  }
+
+  const swallowClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
   return (
-    <div className={cn('flex gap-2 sm:gap-3', className)}>
-      <Button
-        onClick={() => handleRate(1)}
-        disabled={disabled || loading}
-        className="flex-1 bg-red-500 hover:bg-red-600 text-white border-red-500"
-      >
-        <span className="font-medium">重来</span>
-        <span className="ml-1 text-xs opacity-80">Again</span>
-      </Button>
-
-      <Button
-        onClick={() => handleRate(2)}
-        disabled={disabled || loading}
-        className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500"
-      >
-        <span className="font-medium">困难</span>
-        <span className="ml-1 text-xs opacity-80">Hard</span>
-      </Button>
-
-      <Button
-        onClick={() => handleRate(3)}
-        disabled={disabled || loading}
-        className="flex-1 bg-blue-500 hover:bg-blue-600 text-white border-blue-500"
-      >
-        <span className="font-medium">掌握</span>
-        <span className="ml-1 text-xs opacity-80">Good</span>
-      </Button>
-
-      <Button
-        onClick={() => handleRate(4)}
-        disabled={disabled || loading}
-        className="flex-1 bg-green-500 hover:bg-green-600 text-white border-green-500"
-      >
-        <span className="font-medium">简单</span>
-        <span className="ml-1 text-xs opacity-80">Easy</span>
-      </Button>
+    <div className={cn('grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3', className)}>
+      {([1, 2, 3, 4] as Rating[]).map((rating) => (
+        <Button
+          key={rating}
+          data-interactive
+          disabled={disabled || loading}
+          className={cn('min-w-0 px-3 text-white', BUTTON_STYLES[rating])}
+          onPointerDown={(event) => handlePointerDown(event, rating)}
+          onKeyDown={(event) => handleKeyboard(event, rating)}
+          onClick={swallowClick}
+          style={{ touchAction: 'manipulation' }}
+        >
+          <span className="flex flex-col leading-tight">
+            <span className="font-medium">{RATING_LABELS[rating]}</span>
+            <span className="text-xs opacity-80">{formatReviewInterval(previews[rating].due, previewAt)}</span>
+          </span>
+        </Button>
+      ))}
     </div>
   )
 }

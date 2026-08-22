@@ -1,154 +1,330 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Loader2, Lock, Mail, ShieldCheck, UserPlus } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Mail, ArrowLeft, Loader2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { toast } from 'sonner'
 
-type Step = 'email' | 'otp'
+type Mode = 'login' | 'register'
+
+function isValidEmail(email: string): boolean {
+  return Boolean(email && email.includes('@'))
+}
+
+function validatePassword(password: string): boolean {
+  if (!password) {
+    toast.error('请输入密码')
+    return false
+  }
+
+  if (password.length < 6) {
+    toast.error('密码至少 6 位')
+    return false
+  }
+
+  return true
+}
 
 export default function Login() {
   const navigate = useNavigate()
-  const { signInWithEmail, verifyOtp } = useAuth()
+  const [searchParams] = useSearchParams()
+  const { signIn, sendRegistrationCode, verifyRegistrationCode } = useAuth()
 
-  const [step, setStep] = useState<Step>('email')
+  const [mode, setMode] = useState<Mode>(searchParams.get('mode') === 'register' ? 'register' : 'login')
   const [email, setEmail] = useState('')
-  const [otp, setOtp] = useState('')
+  const [password, setPassword] = useState('')
+  const [verificationCode, setVerificationCode] = useState('')
+  const [codeSent, setCodeSent] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  const handleSendOtp = async () => {
-    if (!email.trim() || !email.includes('@')) {
+  const resetForm = () => {
+    setEmail('')
+    setPassword('')
+    setVerificationCode('')
+    setCodeSent(false)
+  }
+
+  const switchMode = (newMode: Mode) => {
+    setMode(newMode)
+    resetForm()
+  }
+
+  const validateEmail = (value: string): boolean => {
+    if (!isValidEmail(value)) {
       toast.error('请输入有效的邮箱地址')
-      return
+      return false
     }
+    return true
+  }
+
+  const handleLogin = async () => {
+    const trimmedEmail = email.trim().toLowerCase()
+    if (!validateEmail(trimmedEmail) || !validatePassword(password)) return
+
     setSubmitting(true)
     try {
-      await signInWithEmail(email.trim())
-      setStep('otp')
-      toast.success('验证码已发送，请查收邮件')
+      const { user } = await signIn(trimmedEmail, password)
+
+      if (!user?.email_confirmed_at) {
+        toast.error('请先完成邮箱验证后再登录')
+        return
+      }
+
+      toast.success('登录成功')
+      navigate('/')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '发送失败')
+      const message = err instanceof Error ? err.message : '登录失败'
+      if (message.includes('Invalid login credentials')) {
+        toast.error('邮箱或密码错误')
+      } else if (message.includes('Email not confirmed')) {
+        toast.error('请先完成邮箱验证')
+      } else {
+        toast.error(message)
+      }
     } finally {
       setSubmitting(false)
     }
   }
 
-  const handleVerify = async () => {
-   if (!otp.trim() || otp.trim().length < 6 || otp.trim().length > 8) {
-  toast.error('请输入验证码（6-8 位）')
-      return
-    }
+  const handleSendCode = async () => {
+    const trimmedEmail = email.trim().toLowerCase()
+    if (!validateEmail(trimmedEmail)) return
+
     setSubmitting(true)
     try {
-      await verifyOtp(email.trim(), otp.trim())
-      toast.success('登录成功')
-      navigate('/')
+      await sendRegistrationCode(trimmedEmail)
+      setCodeSent(true)
+      toast.success('验证码已发送，请查收邮箱', { duration: 5000 })
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '验证失败')
+      const message = err instanceof Error ? err.message : '验证码发送失败'
+      toast.error(message)
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleRegister = async () => {
+    const trimmedEmail = email.trim().toLowerCase()
+    const trimmedCode = verificationCode.replace(/\s+/g, '')
+    if (!validateEmail(trimmedEmail) || !validatePassword(password)) return
+
+    if (!trimmedCode) {
+      toast.error('请输入邮箱验证码')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const { user } = await verifyRegistrationCode(trimmedEmail, trimmedCode, password)
+
+      if (user) {
+        toast.success('注册成功，已自动登录')
+        navigate('/')
+        return
+      }
+
+      toast.success('注册成功，请登录')
+      switchMode('login')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '注册失败'
+      if (message.includes('Token has expired') || message.includes('invalid')) {
+        toast.error('验证码无效或已过期，请重新获取')
+      } else {
+        toast.error(message)
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleSubmit = (event: React.KeyboardEvent) => {
+    if (event.key !== 'Enter') return
+    if (mode === 'login') {
+      void handleLogin()
+      return
+    }
+
+    if (!codeSent) {
+      void handleSendCode()
+      return
+    }
+
+    void handleRegister()
   }
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-gray-50 p-4">
       <Card className="w-full max-w-sm">
         <CardContent className="p-6">
-          {/* Logo */}
-          <div className="mb-6 flex flex-col items-center gap-2">
+          <div className="mb-4 flex flex-col items-center gap-2">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand">
-              <span className="text-3xl">🎧</span>
+              <span className="text-3xl">听</span>
             </div>
             <h1 className="text-xl font-bold text-gray-900">CET Listening Studio</h1>
-            <p className="text-sm text-gray-500">登录以开始学习</p>
           </div>
 
-          {step === 'email' ? (
-            <>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">邮箱地址</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <Input
-                      type="email"
-                      placeholder="your@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSendOtp()}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                <Button
-                  className="w-full"
-                  onClick={handleSendOtp}
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      发送中...
-                    </>
-                  ) : (
-                    '发送验证码'
-                  )}
-                </Button>
+          <div className="mb-4 text-center">
+            <p className="text-base font-semibold text-gray-800">用科学算法练四六级听力</p>
+            <p className="mt-1 text-sm text-gray-500">听一遍记得住，越学越轻松</p>
+          </div>
+
+          <div className="mb-5 flex justify-center gap-6">
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-xl">复</span>
+              <div className="text-center">
+                <p className="text-xs font-medium text-gray-700">FSRS 算法</p>
+                <p className="text-[10px] text-gray-400">只复习快忘的</p>
               </div>
-            </>
-          ) : (
-            <>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">
-                    输入验证码
-                  </label>
-                  <p className="text-xs text-gray-500">
-                    已发送到 <span className="font-medium text-gray-700">{email}</span>
-                  </p>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-xl">析</span>
+              <div className="text-center">
+                <p className="text-xs font-medium text-gray-700">AI 解析</p>
+                <p className="text-[10px] text-gray-400">发音语法一起看</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-xl">题</span>
+              <div className="text-center">
+                <p className="text-xs font-medium text-gray-700">真题练习</p>
+                <p className="text-[10px] text-gray-400">CET4/6 + NCE</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-4 flex rounded-lg border border-gray-200 bg-gray-100 p-0.5">
+            <button
+              className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
+                mode === 'login'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+              onClick={() => switchMode('login')}
+              type="button"
+            >
+              登录
+            </button>
+            <button
+              className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
+                mode === 'register'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+              onClick={() => switchMode('register')}
+              type="button"
+            >
+              注册
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium text-gray-700">邮箱地址</label>
+              <div className="relative mt-1">
+                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input
+                  type="email"
+                  placeholder="your@email.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  onKeyDown={handleSubmit}
+                  className="pl-10"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {mode === 'register' && codeSent && (
+              <div>
+                <label className="text-sm font-medium text-gray-700">邮箱验证码</label>
+                <div className="relative mt-1">
+                  <ShieldCheck className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                   <Input
-                    type="text"
-                    placeholder="输入验证码"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                    onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
-                    className="text-center text-2xl tracking-[0.5em] font-mono"
-                    maxLength={8}
+                    inputMode="numeric"
+                    placeholder="输入 6 位验证码"
+                    value={verificationCode}
+                    onChange={(event) => setVerificationCode(event.target.value.replace(/\s+/g, ''))}
+                    onKeyDown={handleSubmit}
+                    className="pl-10 tracking-widest"
                   />
                 </div>
+              </div>
+            )}
+
+            {(mode === 'login' || codeSent) && (
+              <div>
+                <label className="text-sm font-medium text-gray-700">
+                  {mode === 'register' ? '设置密码' : '密码'}
+                </label>
+                <div className="relative mt-1">
+                  <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                  <Input
+                    type="password"
+                    placeholder="至少 6 位"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                    onKeyDown={handleSubmit}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+            )}
+
+            {mode === 'login' ? (
+              <Button
+                className="w-full"
+                onClick={() => void handleLogin()}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />登录中...</>
+                ) : (
+                  '登录'
+                )}
+              </Button>
+            ) : !codeSent ? (
+              <Button
+                className="w-full"
+                onClick={() => void handleSendCode()}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />发送中...</>
+                ) : (
+                  <><Mail className="mr-2 h-4 w-4" />发送验证码</>
+                )}
+              </Button>
+            ) : (
+              <div className="space-y-2">
                 <Button
                   className="w-full"
-                  onClick={handleVerify}
+                  onClick={() => void handleRegister()}
                   disabled={submitting}
                 >
                   {submitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      验证中...
-                    </>
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />注册中...</>
                   ) : (
-                    '登录'
+                    <><UserPlus className="mr-2 h-4 w-4" />完成注册</>
                   )}
                 </Button>
                 <Button
-                  variant="ghost"
                   className="w-full"
-                  onClick={() => { setStep('email'); setOtp('') }}
+                  variant="ghost"
+                  onClick={() => void handleSendCode()}
+                  disabled={submitting}
                 >
-                  <ArrowLeft className="mr-1 h-4 w-4" />
-                  返回修改邮箱
+                  重新发送验证码
                 </Button>
               </div>
-            </>
-          )}
+            )}
+          </div>
         </CardContent>
       </Card>
 
-      <p className="mt-4 text-xs text-gray-400 text-center">
-        登录即表示同意使用条款<br />
-        首次登录将自动创建账号
+      <p className="mt-4 max-w-sm text-center text-xs text-gray-400">
+        注册时用邮箱验证码确认身份；以后登录只需要邮箱和密码。
       </p>
     </div>
   )

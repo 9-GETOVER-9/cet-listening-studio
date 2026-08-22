@@ -1,14 +1,18 @@
 import { useEffect, useState, useMemo } from 'react'
+import { liveQuery } from 'dexie'
 import { useNavigate } from 'react-router-dom'
-import { Filter } from 'lucide-react'
+import { Lock } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getAllModules, getModuleStats } from '@/db/crud'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
+import { Button } from '@/components/ui/button'
+import { getCETModules } from '@/db/crud'
 import type { Module } from '@/types'
 import { cn } from '@/lib/utils'
+import { usePro } from '@/hooks/usePro'
 
 /**
  * 内容选择页
@@ -17,6 +21,8 @@ import { cn } from '@/lib/utils'
  */
 export default function ContentSelector() {
   const navigate = useNavigate()
+  const { isPro: isProActive } = usePro()
+  const [showProSheet, setShowProSheet] = useState(false)
 
   // 加载状态
   const [loading, setLoading] = useState(true)
@@ -29,28 +35,21 @@ export default function ContentSelector() {
 
   // 模块数据
   const [modules, setModules] = useState<Module[]>([])
-  const [moduleStats, setModuleStats] = useState<Record<string, { total: number; studied: number }>>({})
 
   // 加载模块
   useEffect(() => {
-    const loadModules = async () => {
-      try {
-        const allModules = await getAllModules()
+    const subscription = liveQuery(() => getCETModules()).subscribe({
+      next: (allModules) => {
         setModules(allModules)
-
-        // 加载每个模块的统计
-        const stats: Record<string, { total: number; studied: number }> = {}
-        for (const m of allModules) {
-          const stat = await getModuleStats(m.moduleId)
-          stats[m.moduleId] = { total: stat.total, studied: stat.studied }
-        }
-        setModuleStats(stats)
-      } finally {
         setLoading(false)
-      }
-    }
+      },
+      error: (error) => {
+        console.error('Failed to load CET modules:', error)
+        setLoading(false)
+      },
+    })
 
-    loadModules()
+    return () => subscription.unsubscribe()
   }, [])
 
   // 获取所有可选的考试日期（去重）
@@ -84,12 +83,10 @@ export default function ContentSelector() {
   }
 
   // 状态标签
-  const getStatusBadge = (moduleId: string) => {
-    const stat = moduleStats[moduleId]
-    if (!stat) return null
+  const getStatusBadge = (module: Module) => {
+    const rate = module.totalCards > 0 ? module.studiedCards / module.totalCards : 0
 
-    const rate = stat.total > 0 ? stat.studied / stat.total : 0
-    if (stat.studied === 0) {
+    if (module.studiedCards === 0) {
       return <Badge variant="not_started">未开始</Badge>
     } else if (rate < 1) {
       return <Badge variant="incomplete">进行中</Badge>
@@ -99,6 +96,10 @@ export default function ContentSelector() {
   }
 
   const handleModuleClick = (module: Module) => {
+    if (module.level === 'CET6' && !isProActive) {
+      setShowProSheet(true)
+      return
+    }
     navigate(`/card/${encodeURIComponent(module.moduleId)}`)
   }
 
@@ -218,14 +219,15 @@ export default function ContentSelector() {
       <div className="flex-1 overflow-auto p-4">
         {filteredModules.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-            <Filter className="mb-2 h-12 w-12" />
+            <Lock className="mb-2 h-12 w-12" />
             <p>没有找到匹配的模块</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {filteredModules.map((module) => {
-              const stat = moduleStats[module.moduleId] || { total: 0, studied: 0 }
-              const progress = stat.total > 0 ? Math.round((stat.studied / stat.total) * 100) : 0
+              const progress = module.totalCards > 0
+                ? Math.round((module.studiedCards / module.totalCards) * 100)
+                : 0
 
               return (
                 <Card
@@ -245,7 +247,10 @@ export default function ContentSelector() {
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-1">
-                        {getStatusBadge(module.moduleId)}
+                        {module.level === 'CET6' && !isProActive && (
+                          <Lock className="h-4 w-4 text-gray-400" />
+                        )}
+                        {getStatusBadge(module)}
                         <Badge variant={getDifficultyVariant(module.difficulty)}>
                           {module.difficulty}
                         </Badge>
@@ -256,7 +261,7 @@ export default function ContentSelector() {
                     <div className="mt-3 space-y-1">
                       <div className="flex justify-between text-xs text-gray-500">
                         <span>
-                          {stat.studied}/{stat.total} 已学习
+                          {module.studiedCards}/{module.totalCards} 已学习
                         </span>
                         <span>{progress}%</span>
                       </div>
@@ -280,6 +285,38 @@ export default function ContentSelector() {
           </div>
         )}
       </div>
+
+      <Sheet open={showProSheet} onOpenChange={setShowProSheet}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-yellow-500" />
+              CET-6 为 PRO 内容
+            </SheetTitle>
+            <SheetDescription>
+              解锁四六级全部真题，系统提升听力水平。
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 space-y-3">
+            <div className="rounded-lg bg-yellow-50 p-4 text-sm text-yellow-900">
+              <p className="font-medium mb-2">PRO 会员权益</p>
+              <ul className="space-y-1 text-xs">
+                <li>✓ CET-6 全部真题模块</li>
+                <li>✓ 新概念 Book 3 & Book 4</li>
+                <li>✓ 难点本无上限</li>
+                <li>✓ 句子拼接无限次</li>
+                <li>✓ AI 解析无限次</li>
+              </ul>
+            </div>
+            <Button className="w-full bg-yellow-500 hover:bg-yellow-600 text-white">
+              开通 PRO
+            </Button>
+            <Button variant="outline" className="w-full" onClick={() => setShowProSheet(false)}>
+              先学习免费内容
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

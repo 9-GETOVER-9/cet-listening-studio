@@ -28,6 +28,7 @@ export interface FSRSState {
   scheduled_days: number
   reps: number
   lapses: number
+  learning_steps: number
   state: State
   last_review?: Date
 }
@@ -81,6 +82,16 @@ export interface Card {
   lessonNum?: string
   lessonTitle?: string
   seq?: number
+
+  // 拼接卡片专用
+  // 拼接卡片专用
+  isMerged?: boolean           // 是否拼接卡片
+  mergedFrom?: string[]        // 来源原始卡片ID列表（已展开）
+  mergedLevel?: number         // 包含的原始句子总数
+  mergedAudioFiles?: string[]  // 各句音频文件名列表（源卡删除后仍可播放）
+
+  // AI 解析权限
+  aiUnlocked?: boolean         // 是否解锁了AI解析
 }
 
 // cards.json 中导入时的卡片类型（不含 fsrsMain）
@@ -119,10 +130,23 @@ export interface Module {
 // ── 学习日志 ──────────────────────────────────────────────
 export interface StudyLogItem {
   id?: number
+  operationId?: string
   cardId: string
   action: 'review' | 'bookmark' | 'merge'
   rating?: Rating
   timestamp: number
+}
+
+export interface SyncOutboxItem {
+  operationId: string
+  kind: 'card-review'
+  cardId: string
+  rating: Rating
+  reviewedAt: number
+  fsrsState: FSRSState
+  attempts: number
+  nextAttemptAt: number
+  createdAt: number
 }
 
 // ── cards.json 根结构 ──────────────────────────────────────────────

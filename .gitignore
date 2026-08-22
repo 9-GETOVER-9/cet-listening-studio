@@ -23,10 +23,23 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment variables
-.env.local
-.env.*.local
-"public/data/" 
-"*.mp3" 
-"*.wav" 
-"output/" 
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Large local datasets and generated deployment packages
+public/data/
+output/
+*.mp3
+*.wav
+deploy-static.zip
+deploy-static.tar.gz
+deploy-*.zip
+
+# Local tools, browser state, and nested repositories
+.playwright-cli/
+agency-agents/
+backup/
+supabase/.temp/
+supabase/100_invitation_codes.sql

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+﻿import { useState, useRef, useCallback, useEffect } from 'react'
 
 export type PlayState = 'idle' | 'loading' | 'playing' | 'paused' | 'error'
 
@@ -9,24 +9,14 @@ interface UseAudioReturn {
   pause: () => void
   resume: () => void
   changeSpeed: (speed: number) => void
+  playMultiple: (audioFiles: string[]) => void
+  isPlaying: boolean
 }
 
-// Supabase Storage 配置
-const SUPABASE_STORAGE_URL = 'https://xntvurmmuiairvhfzeys.supabase.co/storage/v1/object/public/audio2'
-
-/**
- * 获取音频 URL
- * 优先使用 Supabase Storage，本地路径作为 fallback
- */
 function getAudioUrl(audioFile: string): string {
-  // 优先使用 Supabase Storage
-  return `${SUPABASE_STORAGE_URL}/audio/${audioFile}`
+  return `/data/audio/${audioFile}`
 }
 
-/**
- * 音频播放 Hook
- * 使用原生 HTML5 Audio，直接支持 playbackRate 速度调节
- */
 export function useAudio(
   audioFile: string,
   options: { defaultSpeed?: number } = {}
@@ -35,61 +25,156 @@ export function useAudio(
 
   const [playState, setPlayState] = useState<PlayState>('idle')
   const [speed, setSpeed] = useState(defaultSpeed)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
   const speedRef = useRef(defaultSpeed)
 
-  // 清理
+  const currentTokenRef = useRef<number>(0)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  // 仅在组件卸载时销毁 Audio 元素。
+  // audioFile 变化时的播放切换由 currentTokenRef 令牌机制处理（play() → stopAndGetToken() 递增令牌使旧播放作废）。
+  // Audio 元素必须跨 audioFile 复用以保持浏览器 autoplay policy 授予的播放权限，因此不将 audioFile 加入依赖数组。
   useEffect(() => {
     return () => {
+      currentTokenRef.current += 1
       if (audioRef.current) {
         audioRef.current.pause()
         audioRef.current.src = ''
         audioRef.current = null
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const stopCurrent = useCallback(() => {
+  const stopAndGetToken = useCallback((): number => {
+    currentTokenRef.current += 1
     if (audioRef.current) {
       audioRef.current.pause()
-      audioRef.current.src = ''
-      audioRef.current = null
+      // 不销毁 audio 元素，复用它以保持浏览器的播放权限
     }
+    return currentTokenRef.current
   }, [])
+
+  /**
+   * 获取或创建一个可复用的 Audio 元素。
+   * 复用同一个元素可以避免浏览器 autoplay policy 拦截后续播放。
+   * 用户首次交互时创建的 Audio 元素会被浏览器"解锁"，
+   * 后续切换 src 并 play() 不会触发 NotAllowedError。
+   */
+  const getOrCreateAudio = useCallback((): HTMLAudioElement => {
+    if (audioRef.current) return audioRef.current
+    const audio = new Audio()
+    audioRef.current = audio
+    return audio
+  }, [])
+
+  /**
+   * 用复用的 Audio 元素播放单个音频文件。
+   * 通过切换 src 而非创建新 Audio 来规避 autoplay 限制。
+   */
+  const playOne = useCallback((audioFileName: string, token: number): Promise<void> => {
+    if (currentTokenRef.current !== token) {
+      return Promise.reject(new Error('cancelled'))
+    }
+
+    const audioUrl = getAudioUrl(audioFileName)
+    const audio = getOrCreateAudio()
+    audio.playbackRate = speedRef.current
+
+    return new Promise<void>((resolve, reject) => {
+      if (currentTokenRef.current !== token) {
+        reject(new Error('cancelled'))
+        return
+      }
+
+      const onCanPlay = () => {
+        if (currentTokenRef.current !== token) return
+        setPlayState('playing')
+      }
+      const onEnded = () => {
+        cleanup()
+        if (currentTokenRef.current !== token) return
+        resolve()
+      }
+      const onError = () => {
+        cleanup()
+        if (currentTokenRef.current !== token) return
+        reject(new Error(`Audio load failed: ${audioUrl}`))
+      }
+
+      const cleanup = () => {
+        audio.removeEventListener('canplay', onCanPlay)
+        audio.removeEventListener('ended', onEnded)
+        audio.removeEventListener('error', onError)
+      }
+
+      audio.addEventListener('canplay', onCanPlay)
+      audio.addEventListener('ended', onEnded)
+      audio.addEventListener('error', onError)
+
+      audio.src = audioUrl
+      audio.load()
+      audio.play().catch((err) => {
+        cleanup()
+        if (currentTokenRef.current !== token) return
+        reject(err)
+      })
+    })
+  }, [getOrCreateAudio])
 
   const play = useCallback(() => {
     if (!audioFile) {
       setPlayState('error')
       return
     }
-
-    stopCurrent()
+    const token = stopAndGetToken()
     setPlayState('loading')
 
-    // 使用 Supabase Storage URL
-    const audioUrl = getAudioUrl(audioFile)
-    const audio = new Audio(audioUrl)
-    audioRef.current = audio
-    audio.playbackRate = speedRef.current
+    playOne(audioFile, token)
+      .then(() => {
+        if (currentTokenRef.current !== token) return
+        setPlayState('idle')
+      })
+      .catch((err) => {
+        if (currentTokenRef.current !== token) return
+        if (err?.message === 'cancelled') return
+        setPlayState('error')
+      })
+  }, [audioFile, stopAndGetToken, playOne])
 
-    audio.addEventListener('canplaythrough', () => {
-      setPlayState('playing')
-    }, { once: true })
-
-    audio.addEventListener('ended', () => {
+  const playMultiple = useCallback((audioFiles: string[]) => {
+    if (audioFiles.length === 0) {
       setPlayState('idle')
-    })
+      return
+    }
 
-    audio.addEventListener('error', (e) => {
-      console.error('Audio error:', audioUrl, e)
-      setPlayState('error')
-    })
+    const token = stopAndGetToken()
+    setPlayState('loading')
 
-    audio.play().catch((err) => {
-      console.error('Audio play failed:', audioUrl, err)
-      setPlayState('error')
-    })
-  }, [audioFile, stopCurrent])
+    const playNext = async (index: number): Promise<void> => {
+      if (currentTokenRef.current !== token) return
+      if (index >= audioFiles.length) {
+        setPlayState('idle')
+        return
+      }
+
+      try {
+        await playOne(audioFiles[index], token)
+        if (currentTokenRef.current !== token) return
+        await new Promise(resolve => setTimeout(resolve, 50))
+        if (currentTokenRef.current !== token) return
+        await playNext(index + 1)
+      } catch (err) {
+        if (currentTokenRef.current !== token) return
+        if ((err as Error)?.message === 'cancelled') return
+        console.error(`Audio ${index + 1} playback failed:`, err)
+        await new Promise(resolve => setTimeout(resolve, 50))
+        if (currentTokenRef.current !== token) return
+        await playNext(index + 1)
+      }
+    }
+
+    playNext(0)
+  }, [stopAndGetToken, playOne])
 
   const pause = useCallback(() => {
     if (audioRef.current) {
@@ -108,19 +193,12 @@ export function useAudio(
   const changeSpeed = useCallback((newSpeed: number) => {
     setSpeed(newSpeed)
     speedRef.current = newSpeed
-
-    // 直接设置 playbackRate，即时生效
     if (audioRef.current) {
       audioRef.current.playbackRate = newSpeed
     }
   }, [])
 
-  return {
-    playState,
-    speed,
-    play,
-    pause,
-    resume,
-    changeSpeed,
-  }
+  const isPlaying = playState === 'playing'
+
+  return { playState, speed, play, pause, resume, changeSpeed, playMultiple, isPlaying }
 }

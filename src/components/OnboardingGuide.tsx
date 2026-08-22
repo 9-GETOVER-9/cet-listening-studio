@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -41,7 +40,6 @@ const STEPS = [
  * 展示四个步骤，帮助用户快速了解应用功能
  */
 export function OnboardingGuide({ onComplete }: OnboardingGuideProps) {
-  const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(0)
 
   const handleNext = () => {
@@ -60,7 +58,7 @@ export function OnboardingGuide({ onComplete }: OnboardingGuideProps) {
 
   const handleStartLearning = () => {
     handleComplete()
-    navigate('/cet')
+    window.location.href = '/cet'
   }
 
   const current = STEPS[currentStep]

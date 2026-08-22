@@ -21,10 +21,17 @@ export default defineConfig({
         runtimeCaching: [
           {
             urlPattern: /\/data\/cards\.json$/,
-            handler: 'CacheFirst',
+            handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'cards-data',
               expiration: { maxAgeSeconds: 7 * 24 * 3600 },
+            },
+          },
+          {
+            urlPattern: /\/data\/audio\/.*\.mp3$/,
+            handler: 'NetworkOnly',
+            options: {
+              cacheName: 'audio-files',
             },
           },
         ],

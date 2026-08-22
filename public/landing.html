@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CET Listening Studio — 四六级听力提分神器</title>
+  <meta name="description" content="四六级真题听力 + 新概念英语，AI逐句解析，FSRS科学复习，系统提升听力水平。">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --card-hover: #273549;
+      --primary: #3b82f6;
+      --primary-dark: #2563eb;
+      --accent: #4ade80;
+      --accent-dark: #22c55e;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --border: #334155;
+      --badge: #f59e0b;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container { max-width: 480px; margin: 0 auto; padding: 0 20px 80px; }
+
+    /* Hero */
+    .hero { text-align: center; padding: 56px 0 40px; }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 999px; padding: 4px 14px; font-size: 12px; color: var(--primary);
+      margin-bottom: 24px;
+    }
+
+    .hero-title { font-size: 32px; font-weight: 800; line-height: 1.2; margin-bottom: 16px; letter-spacing: -0.5px; }
+    .hero-title em { font-style: normal; color: var(--accent); }
+
+    .hero-subtitle { font-size: 16px; color: var(--text-muted); margin-bottom: 32px; line-height: 1.7; }
+
+    .hero-cta {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--primary); color: white; text-decoration: none;
+      padding: 14px 32px; border-radius: 999px; font-size: 16px; font-weight: 600;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .hero-cta:hover { background: var(--primary-dark); }
+    .hero-cta:active { transform: scale(0.97); }
+
+    .section-title { font-size: 20px; font-weight: 700; margin-bottom: 16px; text-align: center; }
+
+    /* Features */
+    .features { display: flex; flex-direction: column; gap: 12px; margin-bottom: 40px; }
+
+    .feature-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 20px; display: flex; gap: 16px; align-items: flex-start;
+      transition: background 0.2s;
+    }
+    .feature-card:hover { background: var(--card-hover); }
+
+    .feature-icon { font-size: 32px; line-height: 1; flex-shrink: 0; }
+    .feature-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .feature-desc { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+    /* Pricing */
+    .pricing { margin-bottom: 40px; }
+    .pricing-grid { display: flex; flex-direction: column; gap: 12px; }
+
+    .pricing-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 20px; position: relative; overflow: hidden;
+    }
+    .pricing-card.popular { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+    .pricing-card.popular::before {
+      content: '推荐'; position: absolute; top: 0; right: 20px;
+      background: var(--primary); color: white; font-size: 11px; font-weight: 700;
+      padding: 2px 10px; border-radius: 0 0 8px 8px;
+    }
+
+    .pricing-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+    .pricing-label { font-size: 14px; font-weight: 700; }
+    .pricing-price { font-size: 24px; font-weight: 800; color: var(--accent); }
+    .pricing-price .unit { font-size: 12px; font-weight: 400; color: var(--text-muted); }
+    .pricing-tagline { font-size: 12px; color: var(--text-dim); margin-bottom: 12px; }
+
+    .pricing-features { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    .pricing-features li { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+    .pricing-features li::before { content: '✓'; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+
+    /* How to Buy */
+    .how-to-buy {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 24px 20px; margin-bottom: 40px;
+    }
+    .how-to-buy h3 { font-size: 16px; font-weight: 700; margin-bottom: 20px; text-align: center; }
+
+    .steps { display: flex; flex-direction: column; gap: 0; }
+    .step { display: flex; gap: 14px; padding: 12px 0; }
+    .step:not(:last-child) { border-bottom: 1px solid var(--border); }
+
+    .step-num {
+      width: 28px; height: 28px; border-radius: 50%; background: var(--primary);
+      color: white; font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+
+    .step-content { padding-top: 4px; }
+    .step-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .step-desc { font-size: 12px; color: var(--text-muted); }
+
+    .qr-section { margin-top: 16px; text-align: center; }
+    .qr-label { font-size: 13px; color: var(--text-muted); margin-bottom: 10px; }
+    .qr-img {
+      width: 180px; height: 180px; border-radius: 12px; border: 2px solid var(--border);
+      object-fit: cover; display: block; margin: 0 auto; background: white;
+    }
+    .qr-contact { margin-top: 8px; font-size: 13px; color: var(--text-muted); }
+    .qr-contact strong { color: var(--text); }
+
+    /* Footer */
+    .footer {
+      text-align: center; padding: 20px 0; font-size: 12px;
+      color: var(--text-dim); border-top: 1px solid var(--border);
+    }
+    .footer-brand { font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
+
+    /* Sticky CTA */
+    .sticky-cta {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: 12px 20px; background: linear-gradient(to top, var(--bg) 70%, transparent);
+      z-index: 10;
+    }
+    .sticky-inner { max-width: 480px; margin: 0 auto; }
+    .sticky-cta a {
+      display: block; text-align: center; background: var(--primary); color: white;
+      text-decoration: none; padding: 14px; border-radius: 999px; font-size: 15px; font-weight: 600;
+      transition: background 0.2s;
+    }
+    .sticky-cta a:hover { background: var(--primary-dark); }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <section class="hero">
+      <div class="hero-badge">🎧 四六级听力提分必备</div>
+      <h1 class="hero-title">听懂每一句<br><em>考出真水平</em></h1>
+      <p class="hero-subtitle">
+        四六级历年真题听力 + 新概念英语，AI逐句解析词汇语法发音，<br>
+        FSRS算法科学安排复习，记得住不遗忘
+      </p>
+      <a href="YOUR_APP_URL" class="hero-cta">免费开始练习 →</a>
+    </section>
+
+    <section>
+      <h2 class="section-title">为什么选择我们</h2>
+      <div class="features">
+        <div class="feature-card">
+          <span class="feature-icon">🎯</span>
+          <div>
+            <p class="feature-title">真题原声，纯正练习</p>
+            <p class="feature-desc">四六级历年真题 + 新概念英语全套，原汁原味听力素材，贴近真实考试难度</p>
+          </div>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🤖</span>
+          <div>
+            <p class="feature-title">AI逐句解析，搞懂每句话</p>
+            <p class="feature-desc">词汇详解、语法拆解、连读弱读发音技巧，AI帮你把每句话都嚼透</p>
+          </div>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">🧠</span>
+          <div>
+            <p class="feature-title">科学复习，记得住不遗忘</p>
+            <p class="feature-desc">采用FSRS间隔重复算法，根据记忆曲线智能安排复习节奏，高效对抗遗忘</p>
+          </div>
+        </div>
+        <div class="feature-card">
+          <span class="feature-icon">📝</span>
+          <div>
+            <p class="feature-title">难点收集，随时复盘</p>
+            <p class="feature-desc">遇到不懂的词汇、短语、发音，一键收藏到难点本，集中攻克薄弱点</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pricing">
+      <h2 class="section-title">套餐对比</h2>
+      <div class="pricing-grid">
+        <div class="pricing-card">
+          <div class="pricing-header">
+            <span class="pricing-label">Free · 免费</span>
+          </div>
+          <p class="pricing-tagline">适合入门体验</p>
+          <ul class="pricing-features">
+            <li>CET-4 全部真题模块</li>
+            <li>新概念英语 Book 1 &amp; Book 2</li>
+            <li>每日 5 次 AI 解析</li>
+            <li>难点本 20 条上限</li>
+          </ul>
+        </div>
+
+        <div class="pricing-card popular">
+          <div class="pricing-header">
+            <span class="pricing-label">Pro · 月付</span>
+            <span class="pricing-price">¥6.9 <span class="unit">/月</span></span>
+          </div>
+          <p class="pricing-tagline">适合短期冲刺</p>
+          <ul class="pricing-features">
+            <li>Free 全部内容</li>
+            <li>CET-6 全部真题模块</li>
+            <li>新概念 Book 3 &amp; Book 4</li>
+            <li>AI 解析无限次</li>
+            <li>难点本无限收藏</li>
+            <li>句子拼接无限次</li>
+          </ul>
+        </div>
+
+        <div class="pricing-card">
+          <div class="pricing-header">
+            <span class="pricing-label">Pro · 年付</span>
+            <span class="pricing-price">¥49.9 <span class="unit">/年</span></span>
+          </div>
+          <p class="pricing-tagline">月均 ¥4.2，省 40%，适合长期备考</p>
+          <ul class="pricing-features">
+            <li>月付全部权益</li>
+            <li>相当于月均 ¥4.2，无需月月续费</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="how-to-buy">
+      <h3>如何开通 Pro？</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <p class="step-title">微信扫码付款</p>
+            <p class="step-desc">月付 ¥6.9 或年付 ¥49.9</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <p class="step-title">截图发给客服</p>
+            <p class="step-desc">微信号：<strong>hxwd2222</strong></p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <p class="step-title">收到激活码，App 内输入</p>
+            <p class="step-desc">秒开 Pro，解锁全部功能</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="qr-section">
+        <p class="qr-label">👇 微信扫码付款（备注您的联系方式）</p>
+        <img src="wechat-pay.jpg" alt="微信收款码" class="qr-img"
+          onerror="this.outerHTML='<div style=\'width:180px;height:180px;margin:0 auto;display:flex;align-items:center;justify-content:center;background:#1e293b;border-radius:12px;color:#64748b;font-size:13px;border:2px dashed #334155;line-height:1.6;\'>请上传收款码图片<br>wechat-pay.jpg</div>'">
+        <p class="qr-contact">客服微信：<strong>hxwd2222</strong></p>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <p class="footer-brand">CET Listening Studio</p>
+      <p>专注四六级听力提升 · Powered by FSRS</p>
+    </footer>
+
+  </div>
+
+  <div class="sticky-cta">
+    <div class="sticky-inner">
+      <a href="YOUR_APP_URL">免费开始练习 →</a>
+    </div>
+  </div>
+</body>
+</html>

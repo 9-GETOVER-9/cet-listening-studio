@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
+import { liveQuery } from 'dexie'
 import { BookOpen, Lock } from 'lucide-react'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
-import { getNCEModulesByBook, isNCEBookAccessible, getModuleStats } from '@/db/crud'
+import { getNCEModulesByBook, isNCEBookAccessible } from '@/db/crud'
 import { ModuleCard } from '@/components/ModuleCard'
 import type { Module, NCEBook } from '@/types'
-import { useSettingsStore } from '@/store/settingsStore'
+import { usePro } from '@/hooks/usePro'
 
 const BOOKS: { value: NCEBook; label: string }[] = [
   { value: 'Book1', label: 'Book 1' },
@@ -17,32 +18,27 @@ const BOOKS: { value: NCEBook; label: string }[] = [
 ]
 
 export default function NCESelector() {
-  const { isPro } = useSettingsStore()
+  const { isPro } = usePro()
 
   const [selectedBook, setSelectedBook] = useState<NCEBook>('Book1')
   const [modules, setModules] = useState<Module[]>([])
-  const [moduleStats, setModuleStats] = useState<Record<string, { total: number; studied: number }>>({})
   const [loading, setLoading] = useState(true)
   const [showLockSheet, setShowLockSheet] = useState(false)
   const [lockedBook, setLockedBook] = useState<NCEBook>('Book3')
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true)
-      try {
-        const mods = await getNCEModulesByBook(selectedBook)
+    const subscription = liveQuery(() => getNCEModulesByBook(selectedBook)).subscribe({
+      next: (mods) => {
         setModules(mods)
-        const stats: Record<string, { total: number; studied: number }> = {}
-        for (const m of mods) {
-          const s = await getModuleStats(m.moduleId)
-          stats[m.moduleId] = { total: s.total, studied: s.studied }
-        }
-        setModuleStats(stats)
-      } finally {
         setLoading(false)
-      }
-    }
-    load()
+      },
+      error: (error) => {
+        console.error('Failed to load NCE modules:', error)
+        setLoading(false)
+      },
+    })
+
+    return () => subscription.unsubscribe()
   }, [selectedBook])
 
   const handleLockedClick = (book: NCEBook) => {
@@ -51,11 +47,11 @@ export default function NCESelector() {
   }
 
   // 汇总统计
-  const totalCards = Object.values(moduleStats).reduce((s, v) => s + v.total, 0)
-  const studiedCards = Object.values(moduleStats).reduce((s, v) => s + v.studied, 0)
+  const totalCards = modules.reduce((sum, module) => sum + module.totalCards, 0)
+  const studiedCards = modules.reduce((sum, module) => sum + module.studiedCards, 0)
   const totalModules = modules.length
-  const completedModules = Object.values(moduleStats).filter(
-    (v) => v.total > 0 && v.studied === v.total
+  const completedModules = modules.filter(
+    (module) => module.totalCards > 0 && module.studiedCards === module.totalCards
   ).length
 
   return (
@@ -79,7 +75,11 @@ export default function NCESelector() {
         <ToggleGroup
           type="single"
           value={selectedBook}
-          onValueChange={(v) => v && setSelectedBook(v as NCEBook)}
+          onValueChange={(v) => {
+            if (!v) return
+            setLoading(true)
+            setSelectedBook(v as NCEBook)
+          }}
           className="justify-start"
         >
           {BOOKS.map(({ value, label }) => {
@@ -118,10 +118,7 @@ export default function NCESelector() {
             {modules.map((mod) => (
               <ModuleCard
                 key={mod.moduleId}
-                module={{
-                  ...mod,
-                  studiedCards: moduleStats[mod.moduleId]?.studied ?? 0,
-                }}
+                module={mod}
                 isLocked={!isNCEBookAccessible(mod.book!, isPro)}
                 isPro={isPro}
                 onLockedClick={handleLockedClick}

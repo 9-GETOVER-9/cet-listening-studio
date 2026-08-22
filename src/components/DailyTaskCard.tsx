@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
-import { getTodayReviewCount, getTodayStudiedCount } from '@/db/crud'
 
 interface DailyTaskCardProps {
   className?: string
+  total: number
+  completed: number
+  remaining: number
+  loading?: boolean
 }
 
 /**
@@ -15,36 +17,21 @@ interface DailyTaskCardProps {
  * 显示今日待复习数量和进度
  * 全部完成时显示庆祝动画
  */
-export function DailyTaskCard({ className = '' }: DailyTaskCardProps) {
-  const [total, setTotal] = useState(0)
-  const [studied, setStudied] = useState(0)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [t, s] = await Promise.all([
-          getTodayReviewCount(),
-          getTodayStudiedCount(),
-        ])
-        setTotal(t)
-        setStudied(s)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [])
-
-  const remaining = Math.max(0, total - studied)
-  const progress = total > 0 ? Math.min(100, (studied / total) * 100) : 0
+export function DailyTaskCard({
+  className = '',
+  total,
+  completed,
+  remaining,
+  loading = false,
+}: DailyTaskCardProps) {
+  const progress = total > 0 ? Math.min(100, (completed / total) * 100) : 0
   const isComplete = remaining === 0 && total > 0
 
   const getMessage = () => {
     if (loading) return '加载中...'
     if (total === 0) return '今日没有待复习的卡片'
     if (isComplete) return '太棒了！今日任务全部完成 🎉'
-    if (studied === 0) return `今日待复习 ${remaining} 张`
+    if (completed === 0) return `今日待复习 ${remaining} 张`
     return `再复习 ${remaining} 张就完成了`
   }
 
@@ -56,7 +43,7 @@ export function DailyTaskCard({ className = '' }: DailyTaskCardProps) {
           <h3 className="text-base font-semibold text-gray-900">今日任务</h3>
           {total > 0 && (
             <span className="text-sm text-gray-500">
-              {studied} / {total}
+              {completed} / {total}
             </span>
           )}
         </div>

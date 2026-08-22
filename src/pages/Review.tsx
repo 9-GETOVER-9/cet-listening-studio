@@ -187,7 +187,7 @@ export default function Review() {
   // ── Loading ──
   if (phase === 'loading') {
     return (
-      <div className="flex min-h-dvh flex-col p-4">
+      <div className="quiet-page flex min-h-dvh flex-col">
         <Skeleton className="mb-4 h-12 w-full" />
         <Skeleton className="h-80 w-full" />
       </div>
@@ -284,9 +284,9 @@ export default function Review() {
     : 0
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="quiet-page flex min-h-dvh flex-col">
       {/* Top bar */}
-      <div className="sticky top-0 z-10 border-b bg-white px-4 py-3">
+      <div className="mb-5 border-b border-[var(--app-line)] pb-4">
         <div className="flex items-center justify-between">
           <Button size="sm" variant="ghost" onClick={() => navigate('/')}>
             <ArrowLeft className="mr-1 h-4 w-4" />
@@ -301,17 +301,17 @@ export default function Review() {
       </div>
 
       {/* Card area */}
-      <div className="flex flex-1 justify-center overflow-y-auto p-4">
-        <div className="w-full max-w-lg">
+      <div className="flex flex-1 justify-center">
+        <div className="w-full max-w-4xl">
           <Card
-            className="w-full cursor-pointer select-none touch-manipulation"
+            className="min-h-[620px] w-full cursor-pointer select-none touch-manipulation shadow-[var(--app-shadow)]"
             onClick={(e) => {
               const target = e.target as HTMLElement
               if (target.closest('button') || target.closest('input') || target.closest('[data-interactive]')) return
               handleFlip()
             }}
           >
-            <CardContent className="p-6">
+            <CardContent className="p-6 md:p-10">
               {/* Top badges */}
               <div className="mb-4 flex items-center justify-between">
                 <Badge variant="outline">

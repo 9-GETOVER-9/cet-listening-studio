@@ -145,11 +145,12 @@ export default function Notebook() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <div className="sticky top-0 z-10 bg-gray-50 p-4 pb-0">
+    <div className="quiet-page flex min-h-dvh flex-col">
+      <div className="mb-5 border-b border-[var(--app-line)] pb-5">
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">难点收集本</h1>
+            <p className="quiet-kicker mb-2">Listening Notes</p>
+            <h1 className="quiet-display text-4xl md:text-6xl">难点收集本。</h1>
             <p className="mt-1 text-sm text-gray-500">共 {totalCount} 条收藏</p>
           </div>
           {/* ✅ 修复问题6：专项复习改为从第一条开始连续复习 */}

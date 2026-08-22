@@ -108,7 +108,7 @@ export default function Admin() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white p-6">
+    <div className="min-h-screen bg-[var(--app-ink)] p-6 text-white">
       <div className="max-w-2xl mx-auto space-y-6">
 
         <div>

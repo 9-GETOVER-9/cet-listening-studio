@@ -118,17 +118,18 @@ export default function ContentSelector() {
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="quiet-page flex flex-col">
       {/* 标题 */}
-      <div className="sticky top-0 z-10 bg-gray-50 p-4 pb-2">
-        <h1 className="text-xl font-bold text-gray-900">选择学习内容</h1>
+      <div className="mb-6 border-b border-[var(--app-line)] pb-6">
+        <p className="quiet-kicker mb-2">Exam Archive</p>
+        <h1 className="quiet-display text-4xl md:text-6xl">四六级听力档案。</h1>
         <p className="mt-1 text-sm text-gray-500">
           {filteredModules.length} 个模块可用
         </p>
       </div>
 
       {/* 筛选器 */}
-      <div className="space-y-3 bg-white p-4 shadow-sm">
+      <div className="quiet-surface space-y-3 p-4 md:p-6">
         {/* 四六级选择 */}
         <div className="space-y-2">
           <p className="text-xs font-medium text-gray-500">考试级别</p>
@@ -216,7 +217,7 @@ export default function ContentSelector() {
       </div>
 
       {/* 模块卡片列表 */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 py-6">
         {filteredModules.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-gray-400">
             <Lock className="mb-2 h-12 w-12" />

@@ -19,10 +19,10 @@ interface FSRSButtonsProps {
 
 const RATING_LABELS: Record<Rating, string> = { 1: '重来', 2: '困难', 3: '掌握', 4: '简单' }
 const BUTTON_STYLES: Record<Rating, string> = {
-  1: 'border-red-500 bg-red-500 hover:bg-red-600',
-  2: 'border-yellow-500 bg-yellow-500 hover:bg-yellow-600',
-  3: 'border-blue-500 bg-blue-500 hover:bg-blue-600',
-  4: 'border-green-500 bg-green-500 hover:bg-green-600',
+  1: '[--rating:#b94735]',
+  2: '[--rating:#a36b18]',
+  3: '[--rating:#285c77]',
+  4: '[--rating:#41724e]',
 }
 
 export function FSRSButtons({ cardId, fsrsState, disabled, className, onRated }: FSRSButtonsProps) {
@@ -81,7 +81,8 @@ export function FSRSButtons({ cardId, fsrsState, disabled, className, onRated }:
           key={rating}
           data-interactive
           disabled={disabled || loading}
-          className={cn('min-w-0 px-3 text-white', BUTTON_STYLES[rating])}
+          variant="outline"
+          className={cn('min-h-16 min-w-0 justify-start border-[var(--app-line)] bg-transparent px-3 text-left text-[var(--app-ink)] before:mr-1 before:h-8 before:w-0.5 before:bg-[var(--rating)] hover:border-[var(--rating)] hover:bg-[color-mix(in_srgb,var(--rating)_7%,transparent)]', BUTTON_STYLES[rating])}
           onPointerDown={(event) => handlePointerDown(event, rating)}
           onKeyDown={(event) => handleKeyboard(event, rating)}
           onClick={swallowClick}
@@ -89,7 +90,7 @@ export function FSRSButtons({ cardId, fsrsState, disabled, className, onRated }:
         >
           <span className="flex flex-col leading-tight">
             <span className="font-medium">{RATING_LABELS[rating]}</span>
-            <span className="text-xs opacity-80">{formatReviewInterval(previews[rating].due, previewAt)}</span>
+            <span className="text-xs text-[var(--app-muted)]">{formatReviewInterval(previews[rating].due, previewAt)}</span>
           </span>
         </Button>
       ))}

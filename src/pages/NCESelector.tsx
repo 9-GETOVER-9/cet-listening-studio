@@ -55,12 +55,12 @@ export default function NCESelector() {
   ).length
 
   return (
-    <div className="flex flex-col min-h-dvh">
+    <div className="quiet-page flex min-h-dvh flex-col">
       {/* 顶部标题 */}
-      <div className="sticky top-0 z-10 bg-gray-50 px-4 pt-4 pb-2">
+      <div className="mb-6 border-b border-[var(--app-line)] pb-6">
         <div className="flex items-center gap-2 mb-1">
           <BookOpen className="h-5 w-5 text-purple-600" />
-          <h1 className="text-xl font-bold text-gray-900">新概念英语</h1>
+          <h1 className="quiet-display text-4xl md:text-6xl">新概念英语。</h1>
         </div>
         <p className="text-sm text-gray-500">
           {totalModules > 0
@@ -70,7 +70,7 @@ export default function NCESelector() {
       </div>
 
       {/* 册数选择器 */}
-      <div className="bg-white px-4 py-3 shadow-sm">
+      <div className="quiet-surface px-4 py-4 md:px-6">
         <p className="text-xs font-medium text-gray-500 mb-2">选择册数</p>
         <ToggleGroup
           type="single"
@@ -100,7 +100,7 @@ export default function NCESelector() {
       </div>
 
       {/* 课程列表 */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 py-6">
         {loading ? (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[1, 2, 3, 4, 5, 6].map((i) => (

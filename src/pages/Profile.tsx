@@ -266,8 +266,9 @@ export default function Profile() {
   const studyRate = stats.totalCards > 0 ? Math.round((stats.studiedCards / stats.totalCards) * 100) : 0
 
   return (
-    <ScrollArea className="h-[calc(100dvh-4rem)]">
-      <div className="space-y-4 p-4">
+    <ScrollArea className="h-dvh">
+      <div className="quiet-page space-y-4">
+        <div className="mb-8"><p className="quiet-kicker mb-2">Identity & Rhythm</p><h1 className="quiet-display text-4xl md:text-6xl">我的学习设置。</h1></div>
         <Card>
           <CardContent className="flex items-center gap-4 p-4">
             <Avatar className="h-16 w-16">

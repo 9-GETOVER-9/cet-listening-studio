@@ -44,17 +44,17 @@ export default function Feedback() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-gray-50">
+    <div className="quiet-page flex min-h-dvh flex-col">
       {/* 顶部导航 */}
-      <div className="sticky top-0 z-10 flex items-center gap-3 border-b bg-white px-4 py-3">
+      <div className="mb-6 flex items-center gap-3 border-b border-[var(--app-line)] pb-4">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
           <ArrowLeft className="mr-1 h-4 w-4" />
           返回
         </Button>
-        <h1 className="text-lg font-semibold text-gray-900">意见反馈</h1>
+        <h1 className="quiet-display text-3xl">意见反馈。</h1>
       </div>
 
-      <div className="flex-1 p-4">
+      <div className="flex-1">
         <Card>
           <CardContent className="p-4 space-y-4">
             {/* 分类选择 */}

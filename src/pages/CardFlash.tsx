@@ -432,8 +432,8 @@ export default function CardFlash() {
   }, 0)
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-4 py-3">
+    <div className="quiet-page flex min-h-dvh flex-col">
+      <div className="mb-5 flex items-center justify-between border-b border-[var(--app-line)] pb-4">
         <Button
           size="sm"
           variant="ghost"
@@ -465,10 +465,10 @@ export default function CardFlash() {
         </div>
       </div>
 
-      <div className="flex flex-1 justify-center overflow-y-auto p-4">
-        <div className="w-full max-w-lg">
+      <div className="flex flex-1 justify-center">
+        <div className="w-full max-w-4xl">
           <Card
-            className="w-full cursor-pointer select-none touch-manipulation"
+            className="min-h-[620px] w-full cursor-pointer select-none touch-manipulation shadow-[var(--app-shadow)]"
             role="button"
             tabIndex={0}
             aria-pressed={isFlipped}
@@ -481,7 +481,7 @@ export default function CardFlash() {
             }}
             onKeyDown={handleCardKeyDown}
           >
-            <CardContent className="p-6">
+            <CardContent className="p-6 md:p-10">
               <div className="mb-4 flex items-center justify-between">
                 <Badge variant="outline">{currentIndex + 1} / {cards.length}</Badge>
                 <div className="flex items-center gap-2">

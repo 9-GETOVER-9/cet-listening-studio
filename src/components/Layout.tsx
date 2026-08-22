@@ -1,10 +1,11 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { BookOpen, Headphones, Home, RotateCcw, Star, User } from 'lucide-react'
+import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 import { cn } from '@/lib/utils'
 
-const navItems = [
+export const NAV_ITEMS = [
   { to: '/', icon: Home, label: '首页', index: '01', mobile: true },
   { to: '/cet', icon: Headphones, label: '四六级', index: '02', mobile: true },
   { to: '/nce', icon: BookOpen, label: '新概念', index: '03', mobile: true },
@@ -17,7 +18,11 @@ const pageVariants = { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 
 
 export function Layout() {
   const location = useLocation()
-  const mobileItems = navItems.filter((item) => item.mobile)
+  const mobileItems = NAV_ITEMS.filter((item) => item.mobile)
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0 })
+  }, [location.pathname])
 
   return (
     <div className="min-h-dvh bg-[var(--app-paper)] text-[var(--app-ink)] lg:grid lg:grid-cols-[224px_minmax(0,1fr)]">
@@ -28,7 +33,7 @@ export function Layout() {
           <span><strong className="block font-serif text-base leading-tight">Listening Studio</strong><small className="block text-[10px] uppercase tracking-[.16em] text-[var(--app-muted)]">Quiet Edition</small></span>
         </NavLink>
         <nav aria-label="主导航" className="grid gap-1">
-          {navItems.map(({ to, icon: Icon, label, index }) => (
+          {NAV_ITEMS.map(({ to, icon: Icon, label, index }) => (
             <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => cn('grid min-h-12 grid-cols-[28px_1fr_auto] items-center rounded-[var(--app-radius)] px-2.5 text-sm font-semibold text-[var(--app-muted)] transition-colors hover:bg-white/40 hover:text-[var(--app-ink)]', isActive && 'bg-[var(--app-surface)] text-[var(--app-ink)] shadow-[inset_2px_0_var(--app-accent)]')}>
               <span className="font-serif text-xs font-normal text-[var(--app-muted)]">{index}</span><span>{label}</span><Icon className="h-4 w-4" aria-hidden="true" />
             </NavLink>

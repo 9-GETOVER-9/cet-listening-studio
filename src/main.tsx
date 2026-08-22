@@ -2,8 +2,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import { AppInitializer } from '@/components/AppInitializer'
+import { applyAppTheme } from '@/config/theme'
 import { reloadForFreshChunks } from '@/lib/chunkRecovery'
 import './index.css'
+
+applyAppTheme()
 
 if ('caches' in window) {
   void caches.delete('audio-files')

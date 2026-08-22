@@ -4,16 +4,16 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--app-radius)] text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--app-accent)] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-brand text-white hover:bg-brand-dark shadow-sm",
+        default: "border border-[var(--app-accent)] bg-[var(--app-accent)] text-white hover:brightness-90",
         destructive: "bg-red-500 text-white hover:bg-red-600 shadow-sm",
-        outline: "border border-gray-200 bg-white hover:bg-gray-100 hover:text-gray-900",
-        secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200",
-        ghost: "hover:bg-gray-100 hover:text-gray-900",
-        link: "text-brand underline-offset-4 hover:underline",
+        outline: "border border-[var(--app-line)] bg-[var(--app-surface)] text-[var(--app-ink)] hover:border-[var(--app-ink)]",
+        secondary: "bg-[var(--app-accent-soft)] text-[var(--app-ink)] hover:brightness-95",
+        ghost: "text-[var(--app-muted)] hover:bg-white/40 hover:text-[var(--app-ink)]",
+        link: "text-[var(--app-accent)] underline-offset-4 hover:underline",
         success: "bg-green-500 text-white hover:bg-green-600 shadow-sm",
         warning: "bg-yellow-500 text-white hover:bg-yellow-600 shadow-sm",
         info: "bg-blue-500 text-white hover:bg-blue-600 shadow-sm",

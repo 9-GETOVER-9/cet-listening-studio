@@ -1,5 +1,35 @@
 @import "tailwindcss";
 
+:root {
+  --app-paper: #f9fafb;
+  --app-paper-2: #f3f4f6;
+  --app-surface: #ffffff;
+  --app-ink: #111827;
+  --app-muted: #6b7280;
+  --app-line: #e5e7eb;
+  --app-accent: #2563eb;
+  --app-accent-soft: #dbeafe;
+  --app-alert: #ef4444;
+  --app-shadow: 0 10px 30px rgb(15 23 42 / 0.08);
+  --app-radius: 0.625rem;
+  --app-serif: Georgia, 'Times New Roman', 'Songti SC', serif;
+  --app-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+html[data-theme='quiet-studio'] {
+  --app-paper: #f1efe9;
+  --app-paper-2: #e7e3da;
+  --app-surface: #faf9f5;
+  --app-ink: #192321;
+  --app-muted: #6f7772;
+  --app-line: #cbc8bf;
+  --app-accent: #244d66;
+  --app-accent-soft: #dbe5e8;
+  --app-alert: #b94735;
+  --app-shadow: 0 18px 50px rgb(29 38 35 / 0.08);
+  --app-radius: 0.2rem;
+}
+
 @theme {
   /* 品牌色 */
   --color-brand: #2563EB;
@@ -41,12 +71,92 @@
 
   body {
     margin: 0;
-    @apply bg-gray-50 text-gray-900 antialiased;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--app-paper);
+    color: var(--app-ink);
+    @apply antialiased;
+    font-family: var(--app-sans);
   }
 
   #root {
     min-height: 100dvh;
     @apply flex flex-col;
+  }
+}
+
+@layer components {
+  .quiet-surface {
+    border: 1px solid var(--app-line);
+    border-radius: var(--app-radius);
+    background: var(--app-surface);
+  }
+
+  .quiet-kicker {
+    color: var(--app-alert);
+    font-size: 0.68rem;
+    font-weight: 750;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+  }
+
+  .quiet-display {
+    font-family: var(--app-serif);
+    font-weight: 500;
+    letter-spacing: -0.045em;
+    line-height: 1.02;
+  }
+
+  .quiet-rule {
+    border-color: var(--app-line);
+  }
+
+  .quiet-page {
+    width: min(100%, 1180px);
+    margin-inline: auto;
+    padding: 2rem clamp(1.25rem, 5vw, 4.625rem) 5.5rem;
+  }
+}
+
+html[data-theme='quiet-studio'] body {
+  background-image: radial-gradient(circle at 82% 8%, rgb(255 255 255 / 0.5), transparent 30rem);
+}
+
+html[data-theme='quiet-studio'] ::selection {
+  background: var(--app-accent-soft);
+}
+
+html[data-theme='quiet-studio'] :focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 3px;
+}
+
+/* Bridge the existing Tailwind surfaces into the theme while pages migrate. */
+html[data-theme='quiet-studio'] .bg-white { background-color: var(--app-surface) !important; }
+html[data-theme='quiet-studio'] .bg-gray-50 { background-color: var(--app-paper) !important; }
+html[data-theme='quiet-studio'] .bg-gray-100 { background-color: var(--app-paper-2) !important; }
+html[data-theme='quiet-studio'] .text-gray-900,
+html[data-theme='quiet-studio'] .text-gray-800,
+html[data-theme='quiet-studio'] .text-gray-700 { color: var(--app-ink) !important; }
+html[data-theme='quiet-studio'] .text-gray-600,
+html[data-theme='quiet-studio'] .text-gray-500,
+html[data-theme='quiet-studio'] .text-gray-400 { color: var(--app-muted) !important; }
+html[data-theme='quiet-studio'] .border-gray-100,
+html[data-theme='quiet-studio'] .border-gray-200,
+html[data-theme='quiet-studio'] .border-gray-300 { border-color: var(--app-line) !important; }
+html[data-theme='quiet-studio'] .rounded-xl,
+html[data-theme='quiet-studio'] .rounded-lg { border-radius: var(--app-radius) !important; }
+html[data-theme='quiet-studio'] .shadow-sm,
+html[data-theme='quiet-studio'] .shadow-md,
+html[data-theme='quiet-studio'] .shadow-lg { box-shadow: var(--app-shadow) !important; }
+
+@media (max-width: 840px) {
+  .quiet-page { padding: 1.5rem 1.125rem 6.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

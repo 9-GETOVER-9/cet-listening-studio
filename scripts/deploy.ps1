@@ -15,6 +15,7 @@ $remotePackage = '/tmp/cet-listening-release.zip'
 $remoteScript = '/tmp/cet-listening-install.sh'
 
 Import-Module (Join-Path $PSScriptRoot 'Deploy.Package.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'Deploy.Hash.psm1') -Force
 
 function Invoke-Checked([string]$Program, [string[]]$Arguments) {
     & $Program @Arguments
@@ -31,7 +32,7 @@ try {
     Write-Host '[2/6] Validating and packaging (data/audio excluded)...' -ForegroundColor Cyan
     Assert-DeployArtifact -DistPath $distPath
     New-DeployPackage -DistPath $distPath -PackagePath $packagePath
-    $indexHash = (Get-FileHash -LiteralPath (Join-Path $distPath 'index.html') -Algorithm SHA256).Hash.ToLowerInvariant()
+    $indexHash = Get-Sha256FileHash -Path (Join-Path $distPath 'index.html')
 
     $target = $SshTarget
     Write-Host '[3/6] Uploading to a temporary server directory...' -ForegroundColor Cyan

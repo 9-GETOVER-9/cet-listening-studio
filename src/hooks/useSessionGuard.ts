@@ -1,22 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { getOrCreateDeviceSessionId } from '@/lib/sessionPolicy'
 
 const SESSION_CHECK_INTERVAL = 30_000 // 30秒轮询一次
-const SESSION_ID_KEY = 'cet-session-id'
-
-function generateSessionId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-/** 获取或创建当前标签页的 session ID */
-function getOrCreateSessionId(): string {
-  let id = sessionStorage.getItem(SESSION_ID_KEY)
-  if (!id) {
-    id = generateSessionId()
-    sessionStorage.setItem(SESSION_ID_KEY, id)
-  }
-  return id
-}
 
 /**
  * 单设备登录守卫
@@ -34,7 +20,7 @@ export function useSessionGuard(
 
   // 注册当前设备的 session
   const registerSession = useCallback(async (uid: string) => {
-    const sessionId = getOrCreateSessionId()
+    const sessionId = getOrCreateDeviceSessionId()
     sessionIdRef.current = sessionId
     kickedRef.current = false
 

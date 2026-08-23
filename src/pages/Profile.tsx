@@ -313,9 +313,10 @@ export default function Profile() {
                 <LogOut className="mr-1 h-4 w-4" />退出
               </Button>
             ) : (
-              <Button size="sm" onClick={() => navigate('/login?mode=register')}>
-                注册
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => navigate('/login?mode=login')}>登录</Button>
+                <Button size="sm" onClick={() => navigate('/login?mode=register')}>注册</Button>
+              </div>
             )}
           </CardContent>
         </Card>

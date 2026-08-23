@@ -20,6 +20,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { mergeRemoteDataToLocal } from '@/lib/sync'
 import { processReviewOutboxForCurrentUser } from '@/lib/reviewSync'
+import { signOutCurrentDevice } from '@/lib/sessionPolicy'
 import { router } from '@/router'
 import { useSettingsStore } from '@/store/settingsStore'
 
@@ -50,7 +51,7 @@ export function AppInitializer() {
 
   const handleSessionKicked = useCallback(async () => {
     toast.error('账号已在其他设备登录，当前设备已退出')
-    await supabase.auth.signOut()
+    await signOutCurrentDevice(supabase.auth)
     setCurrentUserId(null)
     window.location.href = '/login'
   }, [])

@@ -1,18 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { BookOpen, Headphones, Home, RotateCcw, Star, User } from 'lucide-react'
 import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
+import { NAV_ITEMS } from '@/config/navigation'
 import { cn } from '@/lib/utils'
-
-export const NAV_ITEMS = [
-  { to: '/', icon: Home, label: '首页', index: '01', mobile: true },
-  { to: '/cet', icon: Headphones, label: '四六级', index: '02', mobile: true },
-  { to: '/nce', icon: BookOpen, label: '新概念', index: '03', mobile: true },
-  { to: '/review', icon: RotateCcw, label: '综合复习', index: '04', mobile: true },
-  { to: '/notebook', icon: Star, label: '难点本', index: '05', mobile: true },
-  { to: '/profile', icon: User, label: '我的', index: '06', mobile: false },
-]
 
 const pageVariants = { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -6 } }
 
@@ -47,7 +38,7 @@ export function Layout() {
       <main id="content" className="min-w-0 pb-20 lg:pb-0">
         <AnimatePresence mode="wait"><motion.div key={location.pathname} initial={pageVariants.initial} animate={pageVariants.animate} exit={pageVariants.exit} transition={{ type: 'tween', ease: 'easeOut', duration: 0.24 }}><Outlet /></motion.div></AnimatePresence>
       </main>
-      <nav aria-label="主导航" className="fixed inset-x-2 bottom-2 z-50 grid grid-cols-5 border border-[var(--app-line)] bg-[color-mix(in_srgb,var(--app-surface)_94%,transparent)] p-1 shadow-[var(--app-shadow)] backdrop-blur-xl lg:hidden">
+      <nav aria-label="主导航" className="fixed inset-x-2 bottom-2 z-50 grid grid-cols-6 border border-[var(--app-line)] bg-[color-mix(in_srgb,var(--app-surface)_94%,transparent)] p-1 shadow-[var(--app-shadow)] backdrop-blur-xl lg:hidden">
         {mobileItems.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => cn('flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[10px] text-[var(--app-muted)]', isActive && 'bg-[var(--app-ink)] text-white')}>
             <Icon className="h-4 w-4" aria-hidden="true" /><span>{label}</span>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { NAV_ITEMS } from './Layout'
+import { NAV_ITEMS } from '@/config/navigation'
 
 describe('Quiet Studio navigation', () => {
   it('keeps every primary destination available', () => {
@@ -14,13 +14,14 @@ describe('Quiet Studio navigation', () => {
     ])
   })
 
-  it('keeps the five study destinations in the mobile navigation', () => {
+  it('keeps every primary destination in the mobile navigation', () => {
     expect(NAV_ITEMS.filter((item) => item.mobile).map((item) => item.to)).toEqual([
       '/',
       '/cet',
       '/nce',
       '/review',
       '/notebook',
+      '/profile',
     ])
   })
 })

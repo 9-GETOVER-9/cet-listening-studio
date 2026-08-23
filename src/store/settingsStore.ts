@@ -3,8 +3,7 @@ import { persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase'
 import { REGISTERED_TRIAL_DAYS } from '@/lib/guestTrial'
 import { getLocalDateStr, getYesterdayStr } from '@/lib/utils'
-
-const DEVELOPER_EMAILS = ['2118645938@qq.com']
+import { isLifetimeProEmail, resolveMembership } from '@/lib/membershipPolicy'
 
 interface SettingsStore {
   nickname: string
@@ -40,7 +39,7 @@ interface SettingsStore {
   addProDays: (days: number) => void
 
   // 从Supabase加载当前用户的签到/AI次数状态
-  loadUserState: (userId: string, emailConfirmed?: boolean) => Promise<void>
+  loadUserState: (userId: string, emailConfirmed?: boolean, email?: string) => Promise<void>
   // 签到（写入Supabase）
   signIn: () => Promise<{ success: boolean; message: string; bonus: number }>
   // 消耗AI次数（写入Supabase）
@@ -110,7 +109,7 @@ export const useSettingsStore = create<SettingsStore>()(
       },
 
       // 切换账号时调用：从Supabase读取该用户的签到状态和AI次数
-      loadUserState: async (userId: string, emailConfirmed = false) => {
+      loadUserState: async (userId: string, emailConfirmed = false, email = '') => {
         const state = get()
         if (state.currentUserId !== userId) {
           set({ aiCredits: 0, lastCheckinDate: '', consecutiveDays: 0, currentUserId: userId })
@@ -176,15 +175,19 @@ export const useSettingsStore = create<SettingsStore>()(
           }
         }
 
+        const membership = resolveMembership({
+          email,
+          profileIsPro: isPro,
+          profileExpiresAt: proExpiresAt,
+        })
+
         set({
           aiCredits: profile.ai_credits ?? 0,
           lastCheckinDate: profile.last_checkin_date ?? '',
           consecutiveDays: profile.consecutive_days ?? 0,
           currentUserId: userId,
-          isPro,
-          proExpiresAt: proExpiresAt
-            ? new Date(proExpiresAt).getTime()
-            : null,
+          isPro: membership.isPro,
+          proExpiresAt: membership.proExpiresAt,
         })
       },
 
@@ -290,7 +293,7 @@ export const useSettingsStore = create<SettingsStore>()(
 
       checkDeveloperPro: (email) => {
         const normalizedEmail = email.toLowerCase().trim()
-        if (DEVELOPER_EMAILS.includes(normalizedEmail)) {
+        if (isLifetimeProEmail(normalizedEmail)) {
           set({ isPro: true, proExpiresAt: null })
         }
       },

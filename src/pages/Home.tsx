@@ -18,6 +18,7 @@ import {
 } from '@/db/crud'
 import { useSettingsStore } from '@/store/settingsStore'
 import { usePro } from '@/hooks/usePro'
+import { shouldShowProReminder } from '@/lib/membershipPolicy'
 
 interface Stats {
   totalCards: number
@@ -58,7 +59,7 @@ export default function Home() {
     nceBook2Cards: 0,
     nceBook2Studied: 0,
   })
-  const showProReminder = Boolean(proExpiresAt) && (!isPro || proDaysLeft <= 7)
+  const showProReminder = shouldShowProReminder({ isGuestTrial, isPro, proDaysLeft, proExpiresAt })
 
   useEffect(() => {
     const loadData = async () => {

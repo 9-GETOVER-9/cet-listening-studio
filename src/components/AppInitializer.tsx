@@ -132,13 +132,15 @@ export function AppInitializer() {
     const restoreSession = async () => {
       try {
         const result = await withTimeout(supabase.auth.getSession(), 5000)
-        session = result?.data?.session ?? null
+        if (!result) return
+
+        session = result.data.session ?? null
 
         if (session?.user) {
           setCurrentUserId(session.user.id)
           initInviteCode(session.user.id)
           void withTimeout(
-            useSettingsStore.getState().loadUserState(session.user.id, Boolean(session.user.email_confirmed_at)),
+            useSettingsStore.getState().loadUserState(session.user.id, Boolean(session.user.email_confirmed_at), session.user.email),
             5000,
           ).catch(() => {})
         } else {
@@ -187,7 +189,7 @@ export function AppInitializer() {
 
         window.setTimeout(() => {
           void useSettingsStore.getState()
-            .loadUserState(session.user.id, Boolean(session.user.email_confirmed_at))
+            .loadUserState(session.user.id, Boolean(session.user.email_confirmed_at), session.user.email)
             .catch((error) => {
               console.warn('User state sync after auth change failed:', error)
             })

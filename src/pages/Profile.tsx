@@ -27,6 +27,7 @@ import { usePro } from '@/hooks/usePro'
 import { AchievementGrid, type Achievement } from '@/components/AchievementBadge'
 import { clearAllData } from '@/lib/dataLoader'
 import { activateInviteCode } from '@/lib/supabase'
+import { clearRemoteLearningData } from '@/lib/sync'
 import { getLocalDateStr } from '@/lib/utils'
 import { useSettingsStore } from '@/store/settingsStore'
 import type { StudyLogItem } from '@/types'
@@ -164,6 +165,9 @@ export default function Profile() {
 
   const handleClearData = async () => {
     try {
+      if (user?.id) {
+        await clearRemoteLearningData(user.id)
+      }
       await clearAllData()
       toast.success('数据已清除')
       window.location.reload()
@@ -202,7 +206,7 @@ export default function Profile() {
         return
       }
 
-      await useSettingsStore.getState().loadUserState(user.id, Boolean(user.email_confirmed_at))
+      await useSettingsStore.getState().loadUserState(user.id, Boolean(user.email_confirmed_at), user.email)
       setActivationCode('')
       toast.success(result.message || `已获得 ${result.days} 天 Pro 会员`, { duration: 4000 })
     } catch {
@@ -501,7 +505,7 @@ export default function Profile() {
 
             <AlertDialog>
               <div className="flex items-center justify-between py-3">
-                <div><p className="font-medium text-red-600">清除本地数据</p><p className="text-sm text-gray-500">重置所有学习进度和收藏</p></div>
+                <div><p className="font-medium text-red-600">清除学习数据</p><p className="text-sm text-gray-500">重置本机与云端的学习进度和收藏</p></div>
                 <AlertDialogTrigger asChild>
                   <Button className="text-red-500" size="sm" variant="outline"><Trash2 className="mr-1 h-4 w-4" />清除</Button>
                 </AlertDialogTrigger>
@@ -509,7 +513,7 @@ export default function Profile() {
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>确认清除数据</AlertDialogTitle>
-                  <AlertDialogDescription>这会清除所有学习进度、收藏和本地设置，且无法恢复。</AlertDialogDescription>
+                  <AlertDialogDescription>这会清除当前账号在本机和云端的所有学习进度、待复习任务和难点收藏，且无法恢复。</AlertDialogDescription>
                 </AlertDialogHeader>
                 <div className="space-y-3">
                   <p>请输入 <strong className="text-red-600">清除数据</strong> 以确认：</p>

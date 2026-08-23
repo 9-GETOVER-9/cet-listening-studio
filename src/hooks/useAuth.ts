@@ -52,12 +52,12 @@ function withAuthTimeout<T>(
 async function syncUserStateAfterAuth(
   user: User,
   email: string,
-  loadUserState: (userId: string, emailConfirmed?: boolean) => Promise<void>,
+  loadUserState: (userId: string, emailConfirmed?: boolean, email?: string) => Promise<void>,
   checkDeveloperPro: (email: string) => void,
 ): Promise<void> {
   try {
     await withAuthTimeout(
-      loadUserState(user.id, Boolean(user.email_confirmed_at)),
+      loadUserState(user.id, Boolean(user.email_confirmed_at), email),
       '同步账号状态',
       PROFILE_SYNC_TIMEOUT_MS,
     )

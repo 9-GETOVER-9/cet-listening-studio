@@ -602,6 +602,7 @@ export async function clearAllData(): Promise<void> {
     db.notebook.clear(),
     db.modules.clear(),
     db.studyLog.clear(),
+    db.syncOutbox.clear(),
     db.settings.clear(),
   ])
 }

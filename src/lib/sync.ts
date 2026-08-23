@@ -235,6 +235,18 @@ export async function mergeRemoteDataToLocal(userId: string): Promise<{
   return { cardsMerged, notebooksMerged }
 }
 
+export async function clearRemoteLearningData(userId: string): Promise<void> {
+  const [cardStatesResult, notebookResult] = await Promise.all([
+    supabase.from('card_states').delete().eq('user_id', userId),
+    supabase.from('notebook_items_sync').delete().eq('user_id', userId),
+  ])
+
+  const error = cardStatesResult.error ?? notebookResult.error
+  if (error) {
+    throw new Error(`云端学习数据清除失败：${error.message}`)
+  }
+}
+
 // ── Full Upload (for initial backup / catch-up) ─────────────
 
 export async function fullUpload(userId: string): Promise<void> {

@@ -1,4 +1,53 @@
-# React + TypeScript + Vite
+# CET Listening Studio · 四六级与新概念听力训练
+
+从听音辨词到精听纠错、难点收藏和间隔复习，把一次听力练习变成可持续的学习记录。
+
+**React · TypeScript · Vite · IndexedDB · FSRS**
+
+## 一句话介绍
+
+一个在浏览器中使用的听力训练应用，提供四六级与新概念英语内容入口、卡片训练、难点本和综合复习。
+
+## 快速开始
+
+```bash
+git clone https://github.com/9-GETOVER-9/cet-listening-studio.git
+cd cet-listening-studio
+pnpm install
+pnpm dev
+```
+
+## 功能矩阵
+
+| 功能 | 说明 |
+|---|---|
+| 内容选择 | 进入四六级或新概念英语听力材料 |
+| 卡片训练 | 按材料逐步完成听力练习 |
+| 难点本 | 收藏并回顾词语、短语及发音难点 |
+| 综合复习 | 根据学习记录安排待复习卡片 |
+| 学习概览 | 查看当天任务与进度 |
+
+## 核心工作流
+
+```text
+选材料 → 听力训练 → 标记难点 → 难点本 → 综合复习
+```
+
+## 项目结构
+
+| 路径 | 用途 |
+|---|---|
+| `src/pages/` | 页面与训练流程 |
+| `src/db/` | 本地学习记录 |
+| `src/lib/fsrs.ts` | 复习调度 |
+| `supabase/` | 云端相关配置与脚本 |
+| `DEPLOY.md` | 部署说明 |
+
+## 验证与部署
+
+`pnpm test`、`pnpm lint` 和 `pnpm build` 分别运行测试、静态检查与构建。部署步骤见 [DEPLOY.md](DEPLOY.md)。
+
+## 详细说明
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

@@ -35,11 +35,13 @@ expect(scoreShadowing('John lives in London.', 'John live in London', ['John','L
 - [x] 实现token归一化、明确contraction/number等价、有序对齐与有限免判段，提供可修正的名字标记。以原句位置存储，防止名单导致普通同拼写词全局豁免。
 - [x] 持久化按owner/module/range/mode，序列化写入防旧草稿回写；不改fsrsMain。保存首轮和重练分别展示，重新输入立即失效旧分数。失败不跳句。
 - [x] 实现两种模式、手机多行输入与composition保护，语音入口说明、原音控制、禁用“个人录音回放 · 待开发”，原句标注权限，课程和卡片入口。
-- [ ] Run新增测试+lint+tsc；两阶段审查、整合浏览器375px与刷新、分支feature/新概念输入法跟读提交推送，PR以前置Task1为base。
+- [x] Run新增测试+lint+tsc；两阶段审查、整合浏览器375px与刷新、分支feature/新概念输入法跟读提交推送，PR以前置Task1为base。
 
 ## Task 3: 整合验收、生产发布与记忆
 
-- [ ] Run `D:/node.exe node_modules/vitest/vitest.mjs run`、eslint、tsc、vite build，排除材料/音频/配置/截图的Git变化。
-- [ ] 用隔离Playwright访客验收来源入口、错误重拼、正确等待、IME/笔记、设置刷新、上一词不重复、隐藏模式、免判/错词、暂停与保存错误、空态及手机宽度；只本机生产浏览器，不绕过既有线上浏览器限制。
-- [ ] 复用scripts/deploy.ps1 -FrontendOnly的release-only备份，发布前实际空间核算和既有词库SHA快照；全发布文件SHA与HTTPS/相关页面JS身份一致才宣称上线。
-- [ ] 更新规格/验收和分支说明，Git实际端点/PR验证，memoryctl prewrite→更新相关项目note→claim→closeout dry-run，历史脏变更不混提交。
+- [x] Run `D:/node.exe node_modules/vitest/vitest.mjs run`、eslint、tsc、vite build，排除材料/音频/配置/截图的Git变化。
+- [x] 用隔离Playwright访客验收来源入口、错误重拼、正确等待、IME/笔记、设置刷新、上一词不重复、隐藏模式、免判/错词、暂停与保存错误、空态及手机宽度；只本机生产浏览器，不绕过既有线上浏览器限制。
+- [x] 复用scripts/deploy.ps1 -FrontendOnly的release-only备份，发布前实际空间核算和既有词库SHA快照；全发布文件SHA与HTTPS/相关页面JS身份一致才宣称上线。
+- [x] 更新规格/验收和分支说明，Git实际端点/PR验证，memoryctl prewrite→更新相关项目note→claim→closeout dry-run，历史脏变更不混提交。
+
+记忆补充：已完成prewrite、更新相关项目note及claim，closeout dry-run因既有未认领改动停止；没有认领其他会话或历史文件，没有宣称自动归档成功。产品上线与源码上传均已完成。

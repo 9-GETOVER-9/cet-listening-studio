@@ -15,6 +15,7 @@ const CardFlash = lazyWithRecovery(() => import('@/pages/CardFlash'))
 const Review = lazyWithRecovery(() => import('@/pages/Review'))
 const Walkman = lazyWithRecovery(() => import('@/pages/Walkman'))
 const Notebook = lazyWithRecovery(() => import('@/pages/Notebook'))
+const WordPractice = lazyWithRecovery(() => import('@/pages/WordPractice'))
 const Profile = lazyWithRecovery(() => import('@/pages/Profile'))
 const LearningStats = lazyWithRecovery(() => import('@/pages/LearningStats'))
 const Feedback = lazyWithRecovery(() => import('@/pages/Feedback'))
@@ -50,6 +51,7 @@ export const router = createBrowserRouter([
       { path: 'review', element: <Review /> },
       { path: 'walkman', element: <Walkman /> },
       { path: 'notebook', element: <Notebook /> },
+      { path: 'word-practice', element: <WordPractice /> },
       { path: 'notebook/review/:type', element: <Notebook /> },
       { path: 'profile', element: <Profile /> },
       { path: 'profile/stats', element: <LearningStats /> },

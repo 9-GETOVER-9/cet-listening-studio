@@ -24,6 +24,7 @@
 | `feature/雅思阅读538` | 雅思专区、三类阅读、多选/回忆、FSRS、自动批注与备份 | `src/pages/IELTSReading.tsx`、`src/lib/ieltsReadingStore.ts` |
 | `feature/原句发音与短语标注` | 四六级/新概念学习及复习原句标注、设置中心开关 | `src/components/AnnotatedSentence.tsx`、`src/lib/sentenceAnnotations.ts` |
 | `chore/按发布范围备份与回退` | 前端及白名单 JSON 的独立备份、回退及空间核算 | `scripts/server-install.sh`、`docs/RELEASE_BACKUP_SCOPE.md` |
+| `feature/单词练习完善` | 雅思与词汇难点本的统一拼写、首次作答统计、复习计划及设置 | `src/pages/WordPractice.tsx`、`src/lib/wordPractice.ts` |
 
 这些分支按表格顺序依赖前一分支，共享的播放与存储接口先进入前置提交。合并请求按前置顺序审阅；第一个指向 dev，后续先指向前置功能分支以展示本功能的增量。前置内容进入 dev 后，将下一请求的目标切换为 dev，再同步与验证。各分支端点分别运行测试和 TypeScript 检查。
 

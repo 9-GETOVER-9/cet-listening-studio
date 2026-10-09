@@ -10,16 +10,16 @@
 
 Files: src/lib/wordPractice.ts, wordPracticeStore.ts, wordPracticeSources.ts, wordPracticeAudio.ts及对应test；src/pages/WordPractice.tsx；src/components/WordPracticeControls.tsx；modify IELTSDictation.tsx、IELTSFrequencyReview.tsx、Notebook.tsx。根代理修改router.tsx。
 
-- [ ] 写RED：首次错误重试后结果仍false，重复确认receipt仅一次；meaning模式不改变高频进度；notebook只更新fsrsNotebook；错误持久化后恢复、owner/上下文隔离、确认失败重试。
+- [x] 写RED：首次错误重试后结果仍false，重复确认receipt仅一次；meaning模式不改变高频进度；notebook只更新fsrsNotebook；错误持久化后恢复、owner/上下文隔离、确认失败重试。
 ```ts
 expect(checkSpelling(' CHECK. ', ['cheque','check'])).toBe(true)
 expect(checkSpelling('live', ['lives'])).toBe(false)
 ```
-- [ ] Run `D:/node.exe node_modules/vitest/vitest.mjs run src/lib/wordPractice*.test.ts`，确认新行为缺失失败。
-- [ ] 实现纯核对状态（firstPassed保留首判，重复查看不改变results）与事务receipt；失败保留当前题。推荐队列读真实frequency progress与notebook FSRS。meaning为独立练习。
-- [ ] 实现播放原音/可用设备英美合成音、取消token、重复与倍速；缺原音/音标显示真实缺失。设置/有效时长/倒计时在后台、IME、笔记编辑/存储失败处暂停。
-- [ ] 实现26项UI与手机布局，添加源页面入口；输入法Enter只在答案输入与成功等待处动作，其他控件保留原生键。
-- [ ] Run 新增核心/存储/播放测试、lint和tsc；根代理验证浏览器与全部回归，并两阶段审查。
+- [x] Run `D:/node.exe node_modules/vitest/vitest.mjs run src/lib/wordPractice*.test.ts`，确认新行为缺失失败。
+- [x] 实现纯核对状态（firstPassed保留首判，重复查看不改变results）与事务receipt；失败保留当前题。推荐队列读真实frequency progress与notebook FSRS。meaning为独立练习。
+- [x] 实现播放原音/可用设备英美合成音、取消token、重复与倍速；缺原音/音标显示真实缺失。设置/有效时长/倒计时在后台、IME、笔记编辑/存储失败处暂停。
+- [x] 实现26项UI与手机布局，添加源页面入口；输入法Enter只在答案输入与成功等待处动作，其他控件保留原生键。
+- [x] Run 新增核心/存储/播放测试、lint和tsc；根代理验证浏览器与全部回归，并两阶段审查。
 - [ ] 仅明确Task1文件提交“功能：完善单词拼写与错词复习”，feature/单词练习完善推送并创建依赖前置chore分支的草稿PR。
 
 ## Task 2: 新概念文本对齐、免判、持久化与页面

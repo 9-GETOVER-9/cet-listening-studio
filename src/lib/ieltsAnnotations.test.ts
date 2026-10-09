@@ -30,7 +30,7 @@ it('upgrades populated v1 progress and receipts intact before saving a v2 annota
   } finally { legacy.close() }
 
   await frequencyDB.open()
-  expect(frequencyDB.verno).toBe(2)
+  expect(frequencyDB.verno).toBe(3)
   expect(await readFrequencyProgress('alice')).toEqual([progress])
   expect(await frequencyDB.receipts.get(['alice', 'legacy-round', 'f1'])).toEqual(receipt)
   expect(await api.readFrequencyAnnotations('alice')).toEqual([])

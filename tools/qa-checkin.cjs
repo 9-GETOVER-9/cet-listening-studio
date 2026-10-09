@@ -1,0 +1,31 @@
+const { execFileSync } = require('node:child_process')
+const { writeFileSync } = require('node:fs')
+const { join } = require('node:path')
+const assert = require('node:assert/strict')
+const origin = 'http://127.0.0.1:5189'
+const binary = join(process.env.USERPROFILE, '.gstack/repos/gstack/browse/dist/browse.exe')
+const run = (...args) => execFileSync(binary, args, { encoding: 'utf8', timeout: 30000, env: { ...process.env, BROWSE_PARENT_PID: '0' } }).trim()
+const js = s => run('js', s)
+const results = []
+try {
+  run('goto', `${origin}/tools/checkin-fixture.html`); run('wait', 'button:text-is("今日签到")')
+  run('click', 'button:text-is("今日签到")')
+  js(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent.includes('签到')).click()`)
+  run('wait', '[role="dialog"]')
+  assert.equal(js('window.qaCheckInCalls'), '1')
+  assert.equal(js(`document.querySelector('[role="dialog"]').innerText.includes('连续签到 1 天')`), 'true')
+  assert.equal(js(`document.querySelector('[role="dialog"] p.py-5').textContent.length > 10`), 'true')
+  run('screenshot', join(process.cwd(), 'docs/checkin-dialog-20261007.png'))
+  run('click', 'button:text-is("继续加油")')
+  assert.equal(js(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='今天已签到').disabled`), 'true')
+  results.push({ name: 'successful mock check-in shows encouragement and prevents repeat submissions', passed: true })
+  run('goto', `${origin}/tools/checkin-fixture.html?fail=1`); run('wait', 'button:text-is("今日签到")')
+  run('click', 'button:text-is("今日签到")'); run('wait', '[data-sonner-toast]')
+  assert.equal(js(`document.querySelector('[role="dialog"]') === null`), 'true')
+  assert.equal(js(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='今日签到').disabled`), 'false')
+  assert.equal(js(`document.body.innerText.includes('签到失败，请重试')`), 'true')
+  results.push({ name: 'failed mock check-in gives retry feedback without a success dialog', passed: true })
+  const errors = run('console', '--errors'); assert(errors.includes('(no console errors)'), errors)
+  console.log('PASS both check-in component scenarios (mock server responses)')
+} catch(error) { results.push({ name: 'check-in component QA', passed: false, error: error.message }); console.error(error.message); process.exitCode = 1 }
+finally { writeFileSync('docs/checkin-browser-results.json', JSON.stringify({ origin, mockServerResponses: true, results }, null, 2)) }

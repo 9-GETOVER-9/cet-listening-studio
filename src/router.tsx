@@ -8,6 +8,7 @@ const Home = lazyWithRecovery(() => import('@/pages/Home'))
 const Login = lazyWithRecovery(() => import('@/pages/Login'))
 const ContentSelector = lazyWithRecovery(() => import('@/pages/ContentSelector'))
 const NCESelector = lazyWithRecovery(() => import('@/pages/NCESelector'))
+const IELTSDictation = lazyWithRecovery(() => import('@/pages/IELTSDictation'))
 const CardFlash = lazyWithRecovery(() => import('@/pages/CardFlash'))
 const Review = lazyWithRecovery(() => import('@/pages/Review'))
 const Walkman = lazyWithRecovery(() => import('@/pages/Walkman'))
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Home /> },
       { path: 'cet', element: <ContentSelector /> },
       { path: 'nce', element: <NCESelector /> },
+      { path: 'ielts', element: <IELTSDictation /> },
       { path: 'card/:moduleId', element: <CardFlash /> },
       { path: 'review', element: <Review /> },
       { path: 'walkman', element: <Walkman /> },

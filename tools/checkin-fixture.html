@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><title>Local check-in component QA</title><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body><div id="fixture"></div><script type="module">
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import { MemoryRouter } from 'react-router-dom'
+import { DailyCheckIn } from '/src/components/DailyCheckIn.tsx'
+import { Toaster } from '/src/components/ui/sonner.tsx'
+import { useSettingsStore } from '/src/store/settingsStore.ts'
+import { getLocalDateStr } from '/src/lib/utils.ts'
+import '/src/index.css'
+if (!['localhost','127.0.0.1'].includes(location.hostname)) throw new Error('Local QA only')
+const fail = new URL(location.href).searchParams.get('fail') === '1'
+window.qaCheckInCalls = 0
+useSettingsStore.setState({ currentUserId: 'local-fixture', lastCheckinDate: '', consecutiveDays: 0,
+  signIn: async () => {
+    window.qaCheckInCalls++
+    await new Promise(resolve => setTimeout(resolve, 500))
+    if (fail) return { success: false, message: '签到失败，请重试', bonus: 0 }
+    useSettingsStore.setState({ lastCheckinDate: getLocalDateStr(), consecutiveDays: 1 })
+    return { success: true, message: '签到成功 +5 次', bonus: 5 }
+  },
+})
+createRoot(document.getElementById('fixture')).render(React.createElement(MemoryRouter, {},
+  React.createElement('main', { className: 'quiet-page' }, React.createElement(DailyCheckIn, { userId: 'local-fixture', ready: true }), React.createElement(Toaster))))
+</script></body></html>

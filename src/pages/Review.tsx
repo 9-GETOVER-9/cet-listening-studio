@@ -5,6 +5,7 @@ import { ArrowLeft, CheckCircle2, Headphones, RotateCcw, Star, Trash2 } from 'lu
 import { toast } from 'sonner'
 import { AIPanel } from '@/components/AIPanel'
 import { AnnotatedSentence } from '@/components/AnnotatedSentence'
+import { NCEPracticeActions } from '@/components/NCEPracticeActions'
 import { FSRSButtons } from '@/components/FSRSButtons'
 import { JourneyCompletionDialog } from '@/components/JourneyCompletionDialog'
 import {
@@ -589,6 +590,7 @@ export default function Review() {
             </CardContent>
           </Card>
 
+          <NCEPracticeActions card={currentCard} />
           <div className="mt-4 flex justify-center pb-safe text-xs text-gray-400">
             <span>空格：播放</span>
           </div>

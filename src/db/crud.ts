@@ -1,10 +1,12 @@
 import Dexie from 'dexie'
 import { db } from './schema'
 import { createInitialFSRSState } from '@/lib/fsrs'
+import { buildJourneyProgress, getCompletionFeedbackKind, normalizeCompletionDates } from '@/lib/hundredDayJourney'
+import { summarizeLearningVolume, type LearningVolumeSummary } from '@/lib/learningStats'
 import { getLocalDateStr } from '@/lib/utils'
 import { syncNotebookItem, deleteNotebookItemSync } from '@/lib/sync'
 import { supabase } from '@/lib/supabase'
-import type { Card, NotebookItem, NotebookType, Module, StudyLogItem, LevelType, NCEBook } from '@/types'
+import type { Card, ListeningLogItem, NotebookItem, NotebookType, Module, StudyLogItem, LevelType, NCEBook } from '@/types'
 
 type ModuleStats = {
   total: number
@@ -19,6 +21,7 @@ export type TodayTaskStats = {
 }
 
 const MODULE_STATS_CACHE_VERSION = 1
+const HUNDRED_DAY_COMPLETION_DATES_KEY = 'hundredDayCompletionDates'
 
 function createEmptyModuleStats(): ModuleStats {
   return {
@@ -56,6 +59,7 @@ export function getModuleCards(moduleId: string): Promise<Card[]> {
   return db.cards
     .where('moduleId')
     .equals(moduleId)
+    .filter((card) => !card.isTitle)
     .toArray()
     .then((cards) => {
       // 先给没有 seq 的卡片按 cardId 字典序分配临时 seq
@@ -111,11 +115,23 @@ export async function mergeCards(cardIds: string[]): Promise<Card> {
   if (sourceCards.length !== cardIds.length) {
     throw new Error('部分卡片不存在')
   }
+  if (sourceCards.some(card => card.isTitle)) {
+    throw new Error('标题卡不能参与句子拼接')
+  }
 
-  // 按传入顺序排序（确保正确合并）
-  const sortedCards = cardIds
-    .map(id => sourceCards.find(c => c.cardId === id))
-    .filter((c): c is Card => c !== undefined)
+  const moduleIds = new Set(sourceCards.map(card => card.moduleId))
+  if (moduleIds.size > 1) {
+    throw new Error('只能合并同一模块内的卡片')
+  }
+
+  const moduleCards = await getModuleCards(sourceCards[0].moduleId)
+  const moduleOrder = new Map(moduleCards.map((card, index) => [card.cardId, index]))
+
+  // 按卡片在原模块中的自然顺序排序，避免点击顺序影响拼接后的文本和音频
+  const sortedCards = [...sourceCards].sort((a, b) => (
+    (moduleOrder.get(a.cardId) ?? Number.MAX_SAFE_INTEGER)
+    - (moduleOrder.get(b.cardId) ?? Number.MAX_SAFE_INTEGER)
+  ))
 
   // 检查是否已达到拼接数量限制（计算最终拼接卡片包含的原始句子数量）
   let totalSentences = 0
@@ -263,6 +279,7 @@ export async function getAdjacentCards(cardId: string, moduleId: string): Promis
 }> {
   const cards = await getModuleCards(moduleId)
   const currentIndex = cards.findIndex(c => c.cardId === cardId)
+  if (currentIndex < 0) return { prev: null, next: null }
 
   return {
     prev: currentIndex > 0 ? cards[currentIndex - 1] : null,
@@ -608,6 +625,22 @@ export function getCardLogs(cardId: string): Promise<StudyLogItem[]> {
   return db.studyLog.where('cardId').equals(cardId).toArray()
 }
 
+// ── 随身听日志 ──────────────────────────────────────────────
+
+export function addListeningLog(log: Omit<ListeningLogItem, 'id'>): Promise<number> {
+  return db.listeningLog.add(log as ListeningLogItem)
+}
+
+export function getListeningLogsInRange(
+  startDate: Date,
+  endDate: Date,
+): Promise<ListeningLogItem[]> {
+  return db.listeningLog
+    .where('timestamp')
+    .between(startDate.getTime(), endDate.getTime(), true, true)
+    .toArray()
+}
+
 // ── 统计 ──────────────────────────────────────────────
 
 /**
@@ -692,6 +725,48 @@ export async function getTodayTaskStats(): Promise<TodayTaskStats> {
     completed,
     remaining: dueCards.length,
   }
+}
+
+export async function getHundredDayCompletionDates(): Promise<string[]> {
+  const dates = await getSetting<string[]>(HUNDRED_DAY_COMPLETION_DATES_KEY, [])
+  return normalizeCompletionDates(dates)
+}
+
+export async function recordDailyTaskCompletion(dateStr = getLocalDateStr()) {
+  const currentDates = await getHundredDayCompletionDates()
+  const isNewCompletion = !currentDates.includes(dateStr)
+  const dates = isNewCompletion
+    ? normalizeCompletionDates([...currentDates, dateStr])
+    : currentDates
+
+  if (isNewCompletion) {
+    await setSetting(HUNDRED_DAY_COMPLETION_DATES_KEY, dates)
+  }
+
+  const progress = buildJourneyProgress(dates, dateStr)
+
+  return {
+    isNewCompletion,
+    dates,
+    progress,
+    feedbackKind: getCompletionFeedbackKind(progress.completedDays),
+  }
+}
+
+export async function getLearningVolumeSummary(
+  startDate: Date,
+  endDate: Date,
+): Promise<LearningVolumeSummary> {
+  const [reviewLogs, listeningLogs] = await Promise.all([
+    db.studyLog
+      .where('timestamp')
+      .between(startDate.getTime(), endDate.getTime(), true, true)
+      .filter((log) => log.action === 'review')
+      .toArray(),
+    getListeningLogsInRange(startDate, endDate),
+  ])
+
+  return summarizeLearningVolume({ reviewLogs, listeningLogs })
 }
 
 // ── 设置 ──────────────────────────────────────────────

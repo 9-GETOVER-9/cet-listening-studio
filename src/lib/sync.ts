@@ -1,14 +1,19 @@
 import { supabase } from '@/lib/supabase'
 import { normalizeFSRSState } from '@/lib/fsrsState'
+import { createInitialFSRSState } from '@/lib/fsrsScheduler'
 import type { FSRSState, NotebookItem } from '@/types'
 
 // ── Card State Sync ─────────────────────────────────────────
 
-interface CardStateRow {
+export interface CardStateRow {
   card_id: string
   fsrs_main: FSRSState
   ai_unlocked: boolean
   updated_at: string
+}
+
+interface SyncWriteOptions {
+  throwOnError?: boolean
 }
 
 export async function syncCardState(
@@ -16,6 +21,7 @@ export async function syncCardState(
   cardId: string,
   fsrsMain: FSRSState,
   aiUnlocked: boolean,
+  options: SyncWriteOptions = {},
 ): Promise<void> {
   const { error } = await supabase
     .from('card_states')
@@ -28,6 +34,7 @@ export async function syncCardState(
     }, { onConflict: 'user_id,card_id' })
 
   if (error) {
+    if (options.throwOnError) throw error
     console.warn('[sync] card_states upsert failed:', error.message)
   }
 }
@@ -35,6 +42,7 @@ export async function syncCardState(
 export async function batchSyncCardStates(
   userId: string,
   cards: Array<{ cardId: string; fsrsMain: FSRSState; aiUnlocked: boolean }>,
+  options: SyncWriteOptions = {},
 ): Promise<void> {
   if (cards.length === 0) return
 
@@ -51,6 +59,7 @@ export async function batchSyncCardStates(
     .upsert(rows, { onConflict: 'user_id,card_id' })
 
   if (error) {
+    if (options.throwOnError) throw error
     console.warn('[sync] batch card_states upsert failed:', error.message)
   }
 }
@@ -69,8 +78,7 @@ export async function pullCardStates(userId: string): Promise<CardStateRow[]> {
       .range(page * pageSize, (page + 1) * pageSize - 1)
 
     if (error) {
-      console.warn('[sync] pullCardStates failed:', error.message)
-      break
+      throw new Error(`[sync] pullCardStates failed: ${error.message}`)
     }
 
     if (!data || data.length === 0) break
@@ -99,6 +107,7 @@ interface NotebookItemRow {
 export async function syncNotebookItem(
   userId: string,
   item: NotebookItem,
+  options: SyncWriteOptions = {},
 ): Promise<void> {
   const { error } = await supabase
     .from('notebook_items_sync')
@@ -116,6 +125,7 @@ export async function syncNotebookItem(
     }, { onConflict: 'user_id,notebook_id' })
 
   if (error) {
+    if (options.throwOnError) throw error
     console.warn('[sync] notebook_items_sync upsert failed:', error.message)
   }
 }
@@ -149,8 +159,7 @@ export async function pullNotebookItems(userId: string): Promise<NotebookItemRow
       .range(page * pageSize, (page + 1) * pageSize - 1)
 
     if (error) {
-      console.warn('[sync] pullNotebookItems failed:', error.message)
-      break
+      throw new Error(`[sync] pullNotebookItems failed: ${error.message}`)
     }
 
     if (!data || data.length === 0) break
@@ -235,6 +244,73 @@ export async function mergeRemoteDataToLocal(userId: string): Promise<{
   return { cardsMerged, notebooksMerged }
 }
 
+export async function applyRemoteCardSnapshotToLocal(remoteCards: CardStateRow[]): Promise<{
+  cardsApplied: number
+  cardsReset: number
+}> {
+  const { db } = await import('@/db/schema')
+  const remoteCardMap = new Map(remoteCards.map((remote) => [remote.card_id, remote]))
+  const localCards = await db.cards.toArray()
+  let cardsApplied = 0
+  let cardsReset = 0
+
+  for (const local of localCards) {
+    const remote = remoteCardMap.get(local.cardId)
+
+    if (remote) {
+      await db.cards.update(local.cardId, {
+        fsrsMain: normalizeFSRSState(remote.fsrs_main),
+        aiUnlocked: remote.ai_unlocked,
+      })
+      cardsApplied++
+      continue
+    }
+
+    if (local.fsrsMain.reps > 0 || local.aiUnlocked) {
+      await db.cards.update(local.cardId, {
+        fsrsMain: createInitialFSRSState(),
+        aiUnlocked: false,
+      })
+      cardsReset++
+    }
+  }
+
+  return { cardsApplied, cardsReset }
+}
+
+export async function replaceLocalDataWithRemote(userId: string): Promise<{
+  cardsApplied: number
+  cardsReset: number
+  notebooksApplied: number
+}> {
+  const { db } = await import('@/db/schema')
+  const [remoteCards, remoteNotebooks] = await Promise.all([
+    pullCardStates(userId),
+    pullNotebookItems(userId),
+  ])
+
+  const cardResult = await applyRemoteCardSnapshotToLocal(remoteCards)
+
+  await db.notebook.clear()
+  if (remoteNotebooks.length > 0) {
+    await db.notebook.bulkPut(remoteNotebooks.map((remote) => ({
+      notebookId: remote.notebook_id,
+      type: remote.type as NotebookItem['type'],
+      content: remote.content,
+      exampleSentence: remote.example_sentence,
+      sourceCardId: remote.source_card_id,
+      sourceTag: remote.source_tag,
+      fsrsNotebook: normalizeFSRSState(remote.fsrs_notebook),
+      createdAt: remote.created_at,
+    })))
+  }
+
+  return {
+    ...cardResult,
+    notebooksApplied: remoteNotebooks.length,
+  }
+}
+
 export async function clearRemoteLearningData(userId: string): Promise<void> {
   const [cardStatesResult, notebookResult] = await Promise.all([
     supabase.from('card_states').delete().eq('user_id', userId),
@@ -249,7 +325,10 @@ export async function clearRemoteLearningData(userId: string): Promise<void> {
 
 // ── Full Upload (for initial backup / catch-up) ─────────────
 
-export async function fullUpload(userId: string): Promise<void> {
+export async function fullUpload(userId: string): Promise<{
+  cardsUploaded: number
+  notebooksUploaded: number
+}> {
   const { db } = await import('@/db/schema')
 
   // Upload all studied card states
@@ -257,20 +336,38 @@ export async function fullUpload(userId: string): Promise<void> {
     .filter(c => c.fsrsMain.reps > 0 || (c.aiUnlocked ?? false))
     .toArray()
 
+  const chunkSize = 500
   if (studiedCards.length > 0) {
-    await batchSyncCardStates(
-      userId,
-      studiedCards.map(c => ({
-        cardId: c.cardId,
-        fsrsMain: c.fsrsMain,
-        aiUnlocked: c.aiUnlocked ?? false,
-      })),
-    )
+    for (let i = 0; i < studiedCards.length; i += chunkSize) {
+      const chunk = studiedCards.slice(i, i + chunkSize)
+      await batchSyncCardStates(
+        userId,
+        chunk.map(c => ({
+          cardId: c.cardId,
+          fsrsMain: c.fsrsMain,
+          aiUnlocked: c.aiUnlocked ?? false,
+        })),
+        { throwOnError: true },
+      )
+    }
   }
 
   // Upload all notebook items
   const notebookItems = await db.notebook.toArray()
   for (const item of notebookItems) {
-    await syncNotebookItem(userId, item)
+    await syncNotebookItem(userId, item, { throwOnError: true })
   }
+
+  return {
+    cardsUploaded: studiedCards.length,
+    notebooksUploaded: notebookItems.length,
+  }
+}
+
+export async function replaceRemoteLearningDataWithLocal(userId: string): Promise<{
+  cardsUploaded: number
+  notebooksUploaded: number
+}> {
+  await clearRemoteLearningData(userId)
+  return fullUpload(userId)
 }

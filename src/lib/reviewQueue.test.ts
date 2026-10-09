@@ -6,6 +6,7 @@ import {
   isReviewSessionComplete,
   nextDueAt,
   recordScheduledCard,
+  removeCardFromReviewSession,
 } from './reviewQueue'
 
 describe('reviewQueue', () => {
@@ -59,5 +60,22 @@ describe('reviewQueue', () => {
       waiting: [],
       reviewedCount: 1,
     })).toBe(true)
+  })
+
+  it('removes a deleted card from ready and waiting queues', () => {
+    const session = {
+      ready: ['card-1', 'card-2'],
+      waiting: [
+        { cardId: 'card-2', dueAt: 100 },
+        { cardId: 'card-3', dueAt: 200 },
+      ],
+      reviewedCount: 4,
+    }
+
+    expect(removeCardFromReviewSession(session, 'card-2')).toEqual({
+      ready: ['card-1'],
+      waiting: [{ cardId: 'card-3', dueAt: 200 }],
+      reviewedCount: 4,
+    })
   })
 })

@@ -71,3 +71,14 @@ export function nextDueAt(session: ReviewSession): number | undefined {
 export function isReviewSessionComplete(session: ReviewSession): boolean {
   return session.ready.length === 0 && session.waiting.length === 0
 }
+
+export function removeCardFromReviewSession(
+  session: ReviewSession,
+  cardId: string,
+): ReviewSession {
+  return {
+    ...session,
+    ready: session.ready.filter((id) => id !== cardId),
+    waiting: session.waiting.filter((item) => item.cardId !== cardId),
+  }
+}

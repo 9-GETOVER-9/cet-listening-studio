@@ -137,6 +137,14 @@ export interface StudyLogItem {
   timestamp: number
 }
 
+export interface ListeningLogItem {
+  id?: number
+  cardId: string
+  sentenceCount: number
+  durationSeconds: number
+  timestamp: number
+}
+
 export interface SyncOutboxItem {
   operationId: string
   kind: 'card-review'

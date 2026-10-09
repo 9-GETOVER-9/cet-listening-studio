@@ -45,10 +45,20 @@ export function ModuleCard({ module, isLocked, isPro, onLockedClick }: ModuleCar
   return (
     <Card
       className={cn(
-        'cursor-pointer transition-shadow hover:shadow-md',
+        'cursor-pointer transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand',
         isLocked && !isPro && 'opacity-75'
       )}
       onClick={handleClick}
+      role="button"
+      tabIndex={0}
+      aria-label={`${module.title}${subtitle ? ` · ${subtitle}` : ''}${isLocked && !isPro ? ' · 解锁课程' : ''}`}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          if (!event.repeat) handleClick()
+        }
+      }}
     >
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-2 gap-2">

@@ -305,6 +305,19 @@ export default function Home() {
             </CardContent>
           </Card>
 
+          <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => safeNavigate('/walkman')}>
+            <CardContent className="flex items-center gap-4 p-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100">
+                <Headphones className="h-6 w-6 text-emerald-700" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900">随身听</h3>
+                <p className="mt-1 text-sm text-gray-500">按今日复习顺序连续听，不消耗复习任务</p>
+              </div>
+              <ChevronRight className="h-5 w-5 text-gray-400" />
+            </CardContent>
+          </Card>
+
           <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => safeNavigate('/cet')}>
             <CardContent className="flex items-center gap-4 p-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-light">

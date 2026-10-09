@@ -38,7 +38,7 @@ export function Layout() {
       <main id="content" className="min-w-0 pb-20 lg:pb-0">
         <AnimatePresence mode="wait"><motion.div key={location.pathname} initial={pageVariants.initial} animate={pageVariants.animate} exit={pageVariants.exit} transition={{ type: 'tween', ease: 'easeOut', duration: 0.24 }}><Outlet /></motion.div></AnimatePresence>
       </main>
-      <nav aria-label="主导航" className="fixed inset-x-2 bottom-2 z-50 grid grid-cols-6 border border-[var(--app-line)] bg-[color-mix(in_srgb,var(--app-surface)_94%,transparent)] p-1 shadow-[var(--app-shadow)] backdrop-blur-xl lg:hidden">
+      <nav aria-label="主导航" style={{ gridTemplateColumns: `repeat(${mobileItems.length}, minmax(0, 1fr))` }} className="fixed inset-x-2 bottom-2 z-50 grid border border-[var(--app-line)] bg-[color-mix(in_srgb,var(--app-surface)_94%,transparent)] p-1 shadow-[var(--app-shadow)] backdrop-blur-xl lg:hidden">
         {mobileItems.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => cn('flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[10px] text-[var(--app-muted)]', isActive && 'bg-[var(--app-ink)] text-white')}>
             <Icon className="h-4 w-4" aria-hidden="true" /><span>{label}</span>

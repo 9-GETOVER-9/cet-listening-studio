@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import dayjs from 'dayjs'
 import { useNavigate } from 'react-router-dom'
 import { BarChart3, Cloud, Gift, LogOut, MessageSquare, Settings, Trash2, User } from 'lucide-react'
@@ -28,6 +28,9 @@ import { AchievementGrid, type Achievement } from '@/components/AchievementBadge
 import { ListeningTimeStats } from '@/components/ListeningTimeStats'
 import { DailyCheckIn } from '@/components/DailyCheckIn'
 import { clearOwnedListeningTime } from '@/lib/audioTimeTracker'
+import { clearPersonalWords } from '@/lib/ieltsPersonal'
+import { clearFrequencyProgress } from '@/lib/ieltsFrequencyProgress'
+import { clearFrequencyAnnotations } from '@/lib/ieltsAnnotations'
 import { clearAllData } from '@/lib/dataLoader'
 import {
   downloadCloudLearningToThisDevice,
@@ -180,6 +183,9 @@ export default function Profile() {
       }
       await clearAllData()
       await clearOwnedListeningTime(readyOwner)
+      await clearPersonalWords(readyOwner)
+      await clearFrequencyProgress(readyOwner)
+      await clearFrequencyAnnotations(readyOwner)
       toast.success('数据已清除')
       window.location.reload()
     } catch {

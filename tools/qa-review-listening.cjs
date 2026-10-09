@@ -1,0 +1,32 @@
+const { execFileSync } = require('node:child_process')
+const { writeFileSync } = require('node:fs')
+const { join } = require('node:path')
+const assert = require('node:assert/strict')
+const origin = process.argv[2] || 'http://127.0.0.1:5190'
+assert(['127.0.0.1','localhost'].includes(new URL(origin).hostname))
+const binary = join(process.env.USERPROFILE, '.gstack/repos/gstack/browse/dist/browse.exe')
+const run = (...args) => execFileSync(binary, args, { encoding: 'utf8', timeout: 30000, env: { ...process.env, BROWSE_PARENT_PID: '0' } }).trim()
+const js = s => run('js', s)
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+const total = () => Number(js(`new Promise(resolve=>{const r=indexedDB.open('listening-time');r.onsuccess=()=>{const d=r.result;const q=d.transaction('slices').objectStore('slices').getAll();q.onsuccess=()=>{resolve(q.result.filter(x=>x.owner==='guest'&&x.category==='nce3').reduce((a,x)=>a+x.seconds,0));d.close()}}})`))
+const results = []
+async function main() {
+  run('goto', `${origin}/profile`); run('wait', '[data-testid="listening-total"]')
+  // Seed one due card in this isolated local test DB; never use the user's browser.
+  js(`new Promise((resolve,reject)=>{const r=indexedDB.open('cet-listening-studio');r.onsuccess=()=>{const d=r.result;const t=d.transaction('cards','readwrite');const s=t.objectStore('cards');const q=s.index('moduleId').getAll('NCE_Book3_Lesson01');q.onsuccess=()=>{const c=q.result.find(x=>!x.isTitle);c.fsrsMain={...c.fsrsMain,reps:1,state:2,due:new Date(Date.now()-3600000),last_review:new Date(Date.now()-86400000)};s.put(c)};t.oncomplete=()=>{d.close();resolve(true)};t.onerror=()=>reject(t.error)}})`)
+  run('goto', `${origin}/review`); run('wait', 'button[aria-label="播放音频"]')
+  let before = total()
+  run('click', 'button[aria-label="播放音频"]'); await sleep(1600)
+  if (js(`Boolean(document.querySelector('button[aria-label="暂停音频"]'))`) === 'true') run('click', 'button[aria-label="暂停音频"]')
+  await sleep(300); assert(total() > before)
+  results.push({ name: 'review card actual time is saved under its source book', passed: true })
+  run('goto', `${origin}/walkman`); run('wait', 'button:text-is("播放")')
+  before = total(); run('click', 'button:text-is("播放")'); await sleep(2000)
+  run('click', 'button:text-is("暂停")'); await sleep(300)
+  assert(total() > before)
+  const paused = total(); await sleep(1600); assert.equal(total(), paused)
+  results.push({ name: 'ordinary walkman saves partial playback and excludes paused time', passed: true })
+  console.log('PASS review and ordinary walkman measurement')
+}
+main().catch(error=>{results.push({ name: 'review / walkman flow', passed: false, error: error.message }); console.error(error.message); process.exitCode=1})
+  .finally(()=>writeFileSync('docs/review-listening-browser-results.json',JSON.stringify({origin,localSeededDueCard:true,results},null,2)))

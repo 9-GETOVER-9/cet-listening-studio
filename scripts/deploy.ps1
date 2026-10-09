@@ -4,7 +4,9 @@ param(
     [string]$SiteRoot = '/var/www/cet-listening',
     [string]$ProductionUrl = 'https://www.listening.website',
     [string]$ProductionIp = '101.43.10.196',
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$FrontendOnly,
+    [string[]]$IncludeDataFile = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,9 +31,10 @@ try {
         Invoke-Checked 'pnpm' @('build')
     }
 
-    Write-Host '[2/6] Validating and packaging (data/audio excluded)...' -ForegroundColor Cyan
+    $packageScope = if ($FrontendOnly) { 'frontend only; data and promo excluded' } else { 'data/audio excluded' }
+    Write-Host "[2/6] Validating and packaging ($packageScope)..." -ForegroundColor Cyan
     Assert-DeployArtifact -DistPath $distPath
-    New-DeployPackage -DistPath $distPath -PackagePath $packagePath
+    New-DeployPackage -DistPath $distPath -PackagePath $packagePath -FrontendOnly:$FrontendOnly -IncludeDataFile $IncludeDataFile
     $indexHash = Get-Sha256FileHash -Path (Join-Path $distPath 'index.html')
 
     $target = $SshTarget

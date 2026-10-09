@@ -44,3 +44,17 @@ agency-agents/
 backup/
 supabase/.temp/
 supabase/100_invitation_codes.sql
+tools/ecdictionary.csv
+tools/.ielts-speech/
+.gstack/
+
+# Source-only collaboration: keep materials and caches local
+__pycache__/
+*.pyc
+*.pdf
+*.apkg
+*.anki2
+*.anki21
+*.docx
+*.xlsx
+*.csv

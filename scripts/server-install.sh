@@ -34,8 +34,16 @@ validate_live() {
   [[ -f "$site/index.html" && -d "$site/assets" ]] || die 'Live site lacks recoverable core'
 }
 backup_site() {
-  local site="$1" backup="$2" item
+  local site="$1" backup="$2" stage="${3:-}" item name
   validate_live "$site" || return
+  if [[ -n "$stage" ]]; then
+    validate_release_only_stage "$stage" || return
+    for item in "$stage"/data/*.json; do
+      [[ -f "$item" ]] || continue
+      name="${item##*/}"
+      [[ ! -e "$site/data/$name" || -f "$site/data/$name" ]] || die "Data destination is not a regular file: $name" || return
+    done
+  fi
   [[ ! -e "$backup" ]] || die "Backup already exists: $backup" || return
   mkdir "$backup" || return
   for item in index.html assets sw.js manifest.webmanifest registerSW.js; do
@@ -44,7 +52,20 @@ backup_site() {
   for item in "$site"/workbox-*.js; do
     if [[ -f "$item" ]]; then cp -a -- "$item" "$backup/" || return; fi
   done
-  if [[ -d "$site/data" ]]; then
+  if [[ -n "$stage" ]]; then
+    : > "$backup/.data-targets" || return
+    for item in "$stage"/data/*.json; do
+      [[ -f "$item" ]] || continue
+      name="${item##*/}"
+      if [[ -f "$site/data/$name" ]]; then
+        mkdir -p "$backup/data" || return
+        cp -a -- "$site/data/$name" "$backup/data/$name" || return
+        printf 'present|%s\n' "$name" >> "$backup/.data-targets" || return
+      else
+        printf 'absent|%s\n' "$name" >> "$backup/.data-targets" || return
+      fi
+    done
+  elif [[ -d "$site/data" ]]; then
     mkdir "$backup/data" || return
     while IFS= read -r -d '' item; do
       if [[ "${item##*/}" == audio ]]; then
@@ -55,7 +76,30 @@ backup_site() {
       fi
     done < <(find "$site/data" -mindepth 1 -maxdepth 1 -print0)
   fi
-  printf 'Complete backup; audio is hardlinked and must remain immutable.\n' > "$backup/.complete" || return
+  printf 'Complete backup; .data-targets denotes release-scoped data, otherwise full data with immutable hardlinked audio.\n' > "$backup/.complete" || return
+}
+valid_data_name() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.json$ ]]; }
+validate_release_only_stage() {
+  local stage="$1" item
+  validate_stage "$stage" || return
+  if [[ -d "$stage/data" ]]; then
+    while IFS= read -r -d '' item; do
+      [[ -f "$item" && ! -L "$item" ]] && valid_data_name "${item##*/}" || die 'Release-only data must be flat regular JSON files' || return
+    done < <(find "$stage/data" -mindepth 1 -maxdepth 1 -print0)
+  fi
+}
+incoming_data_names() {
+  local entry
+  while IFS= read -r entry; do
+    entry="${entry//\\//}"
+    case "$entry" in data|data/) ;; data/*) printf '%s\n' "${entry#data/}";; esac
+  done < <(unzip -Z1 "$1")
+}
+validate_release_only_archive() {
+  local name
+  while IFS= read -r name; do
+    valid_data_name "$name" || die 'Release-only archive data must be flat JSON files' || return
+  done < <(incoming_data_names "$1")
 }
 atomic_copy() {
   cp -a -- "$1" "$3/copy.tmp" || return
@@ -92,7 +136,7 @@ apply_release() {
   return 0
 }
 restore_backup() {
-  local site="$1" backup="$2" work="$3" item
+  local site="$1" backup="$2" work="$3" item state name
   [[ -f "$backup/.complete" ]] || die "Incomplete backup: $backup" || return
   # Fresh copies/renames ensure no writes through backup inodes.
   if [[ -d "$work/original-assets" ]]; then
@@ -116,6 +160,21 @@ restore_backup() {
   for item in "$backup"/workbox-*.js; do
     if [[ -f "$item" ]]; then cp -a -- "$item" "$site/" || return; fi
   done
+  if [[ -f "$backup/.data-targets" && ! -L "$backup/.data-targets" ]]; then
+    while IFS='|' read -r state name; do
+      valid_data_name "$name" || die 'Invalid rollback data target' || return
+      case "$state" in
+        present)
+          [[ -f "$backup/data/$name" && ! -L "$backup/data/$name" ]] || die 'Missing rollback data file' || return
+          mkdir -p "$site/data" || return
+          cp -a -- "$backup/data/$name" "$work/restore.tmp" && mv -fT -- "$work/restore.tmp" "$site/data/$name" || return;;
+        absent)
+          [[ ! -d "$site/data/$name" ]] || die 'Refusing directory removal during data rollback' || return
+          rm -f -- "$site/data/$name" || return;;
+        *) die 'Invalid rollback data state'; return 1;;
+      esac
+    done < "$backup/.data-targets"
+  else
   if [[ -d "$site/data" ]]; then
     while IFS= read -r -d '' item; do
       if [[ "${item##*/}" != audio ]]; then rm -rf -- "$item" || return; fi
@@ -126,6 +185,7 @@ restore_backup() {
     while IFS= read -r -d '' item; do
       if [[ "${item##*/}" != audio ]]; then cp -a -- "$item" "$site/data/" || return; fi
     done < <(find "$backup/data" -mindepth 1 -maxdepth 1 -print0)
+  fi
   fi
   cp -a -- "$backup/index.html" "$work/restore.tmp" && mv -fT -- "$work/restore.tmp" "$site/index.html" || return
   # The restored worker's precache revision must see the restored entry point.
@@ -166,7 +226,20 @@ release_required_kib() {
   # scratch copies (pre-switch failure + fallback restore), and core temp.
   # restore_backup deletes non-media data BEFORE copying its backup, so there
   # is no additional full data scratch copy. Revisit if that order changes.
-  printf '%s\n' "$((2 * $1 + $2 + 2 * $3 + $4 + $5))"
+  # Release-only rollback copies one old target JSON to restore.tmp before
+  # replacing it; the sixth term covers the largest such temporary copy.
+  printf '%s\n' "$((2 * $1 + $2 + 2 * $3 + $4 + $5 + ${6:-0}))"
+}
+rollback_data_kib() {
+  local site="$1" zip="$2" name size largest=0
+  while IFS= read -r name; do
+    valid_data_name "$name" || die 'Invalid rollback size target' || return
+    if [[ -f "$site/data/$name" ]]; then
+      size=$(du -sk -- "$site/data/$name" | awk '{print $1}') || return
+      (( size <= largest )) || largest="$size"
+    fi
+  done < <(incoming_data_names "$zip")
+  echo "$largest"
 }
 core_kib() {
   local site="$1" item total=0 size
@@ -180,14 +253,23 @@ core_kib() {
   echo "$total"
 }
 mutable_kib() {
-  local site="$1" item total=0 size
+  local site="$1" selected_zip="${2:-}" item total=0 size name
   for item in index.html assets sw.js manifest.webmanifest registerSW.js; do
     if [[ -e "$site/$item" ]]; then
       size=$(du -sk -- "$site/$item" | awk '{print $1}') || return
       total=$((total + size))
     fi
   done
-  if [[ -d "$site/data" ]]; then
+  if [[ -n "$selected_zip" ]]; then
+    while IFS= read -r name; do
+      valid_data_name "$name" || die 'Invalid data size target' || return
+      if [[ -e "$site/data/$name" ]]; then
+        [[ -f "$site/data/$name" && ! -L "$site/data/$name" ]] || die 'Data size target is not a regular file' || return
+        size=$(du -sk -- "$site/data/$name" | awk '{print $1}') || return
+        total=$((total + size))
+      fi
+    done < <(incoming_data_names "$selected_zip")
+  elif [[ -d "$site/data" ]]; then
     while IFS= read -r -d '' item; do
       if [[ "${item##*/}" != audio ]]; then
         size=$(du -sk -- "$item" | awk '{print $1}') || return
@@ -219,31 +301,38 @@ archive_expanded_kib() {
 }
 main() (
   local site="${1:?missing site root}" zip="${2:?missing release zip}"
+  local mode="${3:-full}" selected_zip='' backup_stage=''
   local stage='' work='' backup='' backup_root=/var/www/backups status=0 keep_work=0 started=0 unzip_status=0
-  local expanded mutable old_assets core media_entries metadata required stage_required
+  local expanded mutable old_assets core media_entries metadata required stage_required rollback_data=0
   validate_site_root "$site" || exit 2
+  [[ "$mode" == full || "$mode" == release-only ]] || die 'Invalid backup scope' || exit 2
   [[ "$(readlink -f -- "$site")" == "$site" ]] || die 'Site resolves outside allowlist' || exit 2
   [[ "$zip" == /tmp/cet-listening-release.zip && -f "$zip" && ! -L "$zip" && -O "$zip" ]] || die 'Refusing unowned release zip' || exit 2
   [[ ! -L "$backup_root" ]] || die 'Backup root cannot be a symlink' || exit 2
   validate_live "$site" || exit 2
   validate_archive "$zip" || exit 2
+  if [[ "$mode" == release-only ]]; then
+    validate_release_only_archive "$zip" || exit 2
+    selected_zip="$zip"
+  fi
   # Account for per-entry blocks, media link metadata and a 64 MiB reserve.
   expanded=$(archive_expanded_kib "$zip") || exit 2
-  mutable=$(mutable_kib "$site") || exit 2
+  mutable=$(mutable_kib "$site" "$selected_zip") || exit 2
   old_assets=$(du -sk -- "$site/assets" | awk '{print $1}') || exit 2
   core=$(core_kib "$site") || exit 2
+  if [[ -n "$selected_zip" ]]; then rollback_data=$(rollback_data_kib "$site" "$selected_zip") || exit 2; fi
   media_entries=0
-  if [[ -d "$site/data/audio" ]]; then media_entries=$(find "$site/data/audio" -printf '.\n' | wc -l); fi
+  if [[ "$mode" == full && -d "$site/data/audio" ]]; then media_entries=$(find "$site/data/audio" -printf '.\n' | wc -l); fi
   metadata=$((media_entries * 4 + 65536))
   stage_required=$((expanded + 65536))
   # Stage + backup + merged assets/data installation + rollback scratch.
-  required=$(release_required_kib "$expanded" "$mutable" "$old_assets" "$core" "$metadata") || exit 2
+  required=$(release_required_kib "$expanded" "$mutable" "$old_assets" "$core" "$metadata" "$rollback_data") || exit 2
   assert_space "$stage_required" "$(free_kib /tmp)" /tmp || exit 2
   assert_space "$required" "$(free_kib "$site")" "$site" || exit 2
   mkdir -p "$backup_root" || exit 2
   [[ "$(stat -c %d "$site")" == "$(stat -c %d "$backup_root")" ]] || die 'Media backup requires same filesystem' || exit 2
   assert_space "$required" "$(free_kib "$backup_root")" "$backup_root" || exit 2
-  echo "Preflight: expanded=$expanded KiB, mutable=$mutable KiB, media-link/reserve=$metadata KiB, total=$required KiB"
+  echo "Preflight: scope=$mode, expanded=$expanded KiB, mutable=$mutable KiB, rollback-data=$rollback_data KiB, media-link/reserve=$metadata KiB, total=$required KiB"
   cleanup() {
     status=$?
     # Only verified parent/prefix paths created by this invocation are removed.
@@ -268,8 +357,9 @@ main() (
   unzip -q "$zip" -d "$stage" || unzip_status=$?
   (( unzip_status <= 1 )) || exit 2
   validate_stage "$stage" || exit 2
+  if [[ "$mode" == release-only ]]; then backup_stage="$stage"; fi
   backup="$backup_root/cet-listening-$(date +%Y%m%d-%H%M%S)-${stage##*.}"
-  backup_site "$site" "$backup" || exit 2
+  backup_site "$site" "$backup" "$backup_stage" || exit 2
   work=$(mktemp -d "$site/.cet-listening-work.XXXXXX") || exit 2
   started=1
   if deploy_release "$site" "$stage" "$backup" "$work"; then

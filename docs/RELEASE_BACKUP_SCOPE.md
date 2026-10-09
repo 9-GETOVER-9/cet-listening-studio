@@ -11,8 +11,11 @@ release-only 仅允许 data 下平铺的普通 JSON 文件，文件名须符合 
 ```sh
 bash scripts/test-server-install.sh
 bash scripts/test-release-only-install.sh
+bash scripts/test-static-release-install.sh
 ```
 
 新夹具需要 Python 3 创建真实 ZIP，Git Bash 下可通过 CET_TEST_PYTHON 指定已有 Python。夹具覆盖成功切换、独立备份、未改词库/音频、回退新增与已有 JSON、HTML 切换后服务工作线程失败、目录冲突和白名单拒绝。Linux 额外用 32 MiB 旧 JSON 在切换前复制失败处测量实际空间峰值；原完整备份夹具继续覆盖原流程。
 
 2026-10-09：上述两组夹具在 Git Bash 和 Linux 隔离目录通过；PowerShell 打包夹具、167 项应用测试及 lint 通过，独立审查通过。使用已验收的生产构建发布雅思专区、阅读和原句标注；82 个发布文件服务器 SHA 一致，公网页面、相关 JS、阅读 JSON 身份检查通过，11 份既有词库 JSON 未改变。线上交互验收未替代本机生产浏览器验收，物理手机及真实账号仍待验证。
+
+根目录静态资源采用明确名单：favicon.svg、icon-192.svg、icon-512.svg、icons.svg、landing.html、wechat-pay.jpg。名单统一用于普通文件校验、独立备份、原子发布、回退和空间核算，避免页面更新后图标或落地页仍为旧文件。新备份写入 `.static-resources` 标识；没有此标识的历史完整备份不推断静态文件原先不存在，因此回退旧备份不会删除现有图标。新增夹具覆盖两种范围的成功、切换失败、静态目录拒绝及历史备份兼容。

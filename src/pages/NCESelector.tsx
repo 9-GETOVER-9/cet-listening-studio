@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { liveQuery } from 'dexie'
 import { BookOpen, Lock } from 'lucide-react'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -17,6 +17,8 @@ const BOOKS: { value: NCEBook; label: string }[] = [
   { value: 'Book4', label: 'Book 4' },
 ]
 
+type CompletionFilter = 'incomplete' | 'completed'
+
 export default function NCESelector() {
   const { isPro } = usePro()
 
@@ -25,6 +27,7 @@ export default function NCESelector() {
   const [loading, setLoading] = useState(true)
   const [showLockSheet, setShowLockSheet] = useState(false)
   const [lockedBook, setLockedBook] = useState<NCEBook>('Book3')
+  const [completionFilter, setCompletionFilter] = useState<CompletionFilter>('incomplete')
 
   useEffect(() => {
     const subscription = liveQuery(() => getNCEModulesByBook(selectedBook)).subscribe({
@@ -53,6 +56,10 @@ export default function NCESelector() {
   const completedModules = modules.filter(
     (module) => module.totalCards > 0 && module.studiedCards === module.totalCards
   ).length
+  const visibleModules = useMemo(() => modules.filter((module) => {
+    const isCompleted = module.totalCards > 0 && module.studiedCards >= module.totalCards
+    return completionFilter === 'completed' ? isCompleted : !isCompleted
+  }), [completionFilter, modules])
 
   return (
     <div className="quiet-page flex min-h-dvh flex-col">
@@ -99,6 +106,25 @@ export default function NCESelector() {
         </ToggleGroup>
       </div>
 
+      <div className="mt-4 quiet-surface px-4 py-4 md:px-6">
+        <p className="text-xs font-medium text-gray-500 mb-2">学习状态</p>
+        <ToggleGroup
+          type="single"
+          value={completionFilter}
+          onValueChange={(value) => {
+            if (value === 'incomplete' || value === 'completed') setCompletionFilter(value)
+          }}
+          className="justify-start"
+        >
+          <ToggleGroupItem value="incomplete" className="flex-1 sm:flex-initial">
+            未完成 ({totalModules - completedModules})
+          </ToggleGroupItem>
+          <ToggleGroupItem value="completed" className="flex-1 sm:flex-initial">
+            已完成 ({completedModules})
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
       {/* 课程列表 */}
       <div className="flex-1 py-6">
         {loading ? (
@@ -113,9 +139,14 @@ export default function NCESelector() {
             <p className="text-sm">暂无课程数据</p>
             <p className="text-xs mt-1">请检查数据是否正确导入</p>
           </div>
+        ) : visibleModules.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+            <BookOpen className="h-12 w-12 mb-3" />
+            <p className="text-sm">{completionFilter === 'completed' ? '还没有已完成课程' : '本册课程已全部完成'}</p>
+          </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {modules.map((mod) => (
+            {visibleModules.map((mod) => (
               <ModuleCard
                 key={mod.moduleId}
                 module={mod}

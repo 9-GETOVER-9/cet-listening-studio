@@ -10,8 +10,10 @@ const ContentSelector = lazyWithRecovery(() => import('@/pages/ContentSelector')
 const NCESelector = lazyWithRecovery(() => import('@/pages/NCESelector'))
 const CardFlash = lazyWithRecovery(() => import('@/pages/CardFlash'))
 const Review = lazyWithRecovery(() => import('@/pages/Review'))
+const Walkman = lazyWithRecovery(() => import('@/pages/Walkman'))
 const Notebook = lazyWithRecovery(() => import('@/pages/Notebook'))
 const Profile = lazyWithRecovery(() => import('@/pages/Profile'))
+const LearningStats = lazyWithRecovery(() => import('@/pages/LearningStats'))
 const Feedback = lazyWithRecovery(() => import('@/pages/Feedback'))
 const Admin = lazyWithRecovery(() => import('@/pages/Admin'))
 
@@ -40,9 +42,11 @@ export const router = createBrowserRouter([
       { path: 'nce', element: <NCESelector /> },
       { path: 'card/:moduleId', element: <CardFlash /> },
       { path: 'review', element: <Review /> },
+      { path: 'walkman', element: <Walkman /> },
       { path: 'notebook', element: <Notebook /> },
       { path: 'notebook/review/:type', element: <Notebook /> },
       { path: 'profile', element: <Profile /> },
+      { path: 'profile/stats', element: <LearningStats /> },
       { path: 'feedback', element: <Feedback /> },
     ],
   },

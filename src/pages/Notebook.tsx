@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, MessageSquareText, ScrollText, Trash2, RotateCcw, Crown, Volume2 } from 'lucide-react'
+import { BookOpen, Headphones, MessageSquareText, ScrollText, Trash2, RotateCcw, Crown, Volume2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -147,41 +147,61 @@ export default function Notebook() {
   return (
     <div className="quiet-page flex min-h-dvh flex-col">
       <div className="mb-5 border-b border-[var(--app-line)] pb-5">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <p className="quiet-kicker mb-2">Listening Notes</p>
             <h1 className="quiet-display text-4xl md:text-6xl">难点收集本。</h1>
             <p className="mt-1 text-sm text-gray-500">共 {totalCount} 条收藏</p>
           </div>
           {/* ✅ 修复问题6：专项复习改为从第一条开始连续复习 */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (items.length === 0) {
-                toast.info('当前分类暂无收藏')
-                return
-              }
-              handleStartReview(items[0], items)
-            }}
-          >
-            <RotateCcw className="mr-1 h-4 w-4" />
-            开始复习
-          </Button>
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+            {activeTab === 'pronunciation' && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => {
+                  if (counts.pronunciation === 0) {
+                    toast.info('发音分类暂无收藏')
+                    return
+                  }
+                  navigate('/walkman?source=pronunciation')
+                }}
+              >
+                <Headphones className="mr-1 h-4 w-4" />
+                发音随身听
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (items.length === 0) {
+                  toast.info('当前分类暂无收藏')
+                  return
+                }
+                handleStartReview(items[0], items)
+              }}
+            >
+              <RotateCcw className="mr-1 h-4 w-4" />
+              开始复习
+            </Button>
+          </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as NotebookType)}>
-          <TabsList className="w-full">
-            {TABS.map((tab) => (
-              <TabsTrigger key={tab.type} value={tab.type} className="flex-1 gap-1.5">
-                {tabIcons[tab.type]}
-                {tab.label}
-                {counts[tab.type] > 0 && (
-                  <Badge variant="secondary" className="ml-0.5">{counts[tab.type]}</Badge>
-                )}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
+            <TabsList className="h-auto w-max min-w-full justify-start gap-1 overflow-visible">
+              {TABS.map((tab) => (
+                <TabsTrigger key={tab.type} value={tab.type} className="min-w-[5.5rem] shrink-0 gap-1.5">
+                  {tabIcons[tab.type]}
+                  <span>{tab.label}</span>
+                  {counts[tab.type] > 0 && (
+                    <Badge variant="secondary" className="ml-0.5 min-w-8 justify-center px-2">{counts[tab.type]}</Badge>
+                  )}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
 
           {TABS.map((tab) => (
             <TabsContent key={tab.type} value={tab.type} className="mt-3">

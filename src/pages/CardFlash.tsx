@@ -1,4 +1,5 @@
 ﻿import { useCallback, useEffect, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, Layers, RotateCcw, Trash2, X } from 'lucide-react'
@@ -15,7 +16,8 @@ import { addNotebookItem, deleteCard, getModuleCards, mergeCards } from '@/db/cr
 import { db } from '@/db/schema'
 import { useAudio } from '@/hooks/useAudio'
 import { usePro } from '@/hooks/usePro'
-import { getInitPromise, isDataInitialized } from '@/lib/dataLoader'
+import { useTapToFlip } from '@/hooks/useTapToFlip'
+import { getInitPromise } from '@/lib/dataLoader'
 import { decodeHtml } from '@/lib/decodeHtml'
 import { useSettingsStore } from '@/store/settingsStore'
 import type { Card as CardType, NotebookType } from '@/types'
@@ -38,6 +40,7 @@ export default function CardFlash() {
   const location = useLocation()
   const navigate = useNavigate()
   const playSpeed = useSettingsStore((state) => state.playSpeed)
+  const setPlaySpeed = useSettingsStore((state) => state.setPlaySpeed)
 
   const [cards, setCards] = useState<CardType[]>([])
   const [loading, setLoading] = useState(true)
@@ -59,12 +62,14 @@ export default function CardFlash() {
   const isNavigatingRef = useRef(false)
   const flipLockRef = useRef(false)
   const mergeTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const backActionLockUntilRef = useRef(0)
+  const mergeActionLockUntilRef = useRef(0)
 
   const notebookState = (location.state ?? {}) as {
     notebookQueue?: { notebookId: string; cardId: string; moduleId: string }[]
     currentIndex?: number
   }
-  const notebookQueue = notebookState.notebookQueue ?? []
+  const notebookQueue = useMemo(() => notebookState.notebookQueue ?? [], [notebookState.notebookQueue])
   const notebookIndex = notebookState.currentIndex ?? 0
   const isNotebookReview = notebookQueue.length > 0
 
@@ -79,7 +84,9 @@ export default function CardFlash() {
       try {
         const decodedModuleId = decodeURIComponent(moduleId)
         let moduleCards = await getModuleCards(decodedModuleId)
-        if (moduleCards.length === 0 && !await isDataInitialized()) {
+        if (moduleCards.length === 0) {
+          // Import can finish between the first query and checking its ready flag.
+          // Always re-read after the pending import before declaring a module empty.
           await getInitPromise()
           moduleCards = await getModuleCards(decodedModuleId)
         }
@@ -111,7 +118,7 @@ export default function CardFlash() {
 
   const { playState, speed, play, pause, changeSpeed, playMultiple, isPlaying } = useAudio(
     currentCard?.audioFile || '',
-    { defaultSpeed: playSpeed },
+    { defaultSpeed: playSpeed, card: currentCard },
   )
 
   const { canViewAi, aiRemaining, consumeAi, handleSignIn, isPro } = usePro()
@@ -165,6 +172,7 @@ export default function CardFlash() {
   }, [currentCard, moduleId])
 
   const handleOpenMerge = useCallback(() => {
+    mergeActionLockUntilRef.current = Date.now() + 550
     void loadAdjacentCards()
     setSelectedForMerge(currentCard ? [currentCard.cardId] : [])
     setMergeSheetOpen(true)
@@ -286,7 +294,10 @@ export default function CardFlash() {
     if (mergeSheetOpen) return
     if (flipLockRef.current) return
     flipLockRef.current = true
-    setIsFlipped((value) => !value)
+    setIsFlipped((value) => {
+      if (!value) backActionLockUntilRef.current = Date.now() + 650
+      return !value
+    })
     setTimeout(() => { flipLockRef.current = false }, 300)
   }, [mergeSheetOpen])
 
@@ -303,7 +314,17 @@ export default function CardFlash() {
     handleFlip()
   }, [handleFlip, mergeSheetOpen])
 
+  const shouldIgnoreBackAction = useCallback(() => (
+    Date.now() < backActionLockUntilRef.current
+  ), [])
+
+  const cardTap = useTapToFlip({
+    disabled: mergeSheetOpen,
+    onTap: handleFlip,
+  })
+
   const toggleMergeSelection = useCallback((cardId: string, wouldExceed: boolean) => {
+    if (Date.now() < mergeActionLockUntilRef.current) return
     if (wouldExceed) {
       toast.error('最多只能拼接 4 个原始句子')
       return
@@ -337,6 +358,11 @@ export default function CardFlash() {
       }
     }
   }, [getAudioFilesToPlay, isPlaying, pause, play, playMultiple])
+
+  const handleChangeSpeed = useCallback((newSpeed: number) => {
+    changeSpeed(newSpeed)
+    setPlaySpeed(newSpeed)
+  }, [changeSpeed, setPlaySpeed])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -453,13 +479,13 @@ export default function CardFlash() {
               : currentCard.title || moduleId}
         </span>
         <div className="flex items-center gap-1">
-          <Button size="icon" variant="outline" onClick={goPrev} disabled={currentIndex === 0 || isNotebookReview}>
+          <Button size="icon" variant="outline" aria-label="上一张卡片" onClick={goPrev} disabled={currentIndex === 0 || isNotebookReview}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="outline" onClick={() => void goNext()} disabled={isNotebookReview}>
+          <Button size="icon" variant="outline" aria-label="下一张卡片" onClick={() => void goNext()} disabled={isNotebookReview}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="ghost" className="text-red-400 hover:text-red-600" onClick={() => void handleDeleteCard()}>
+          <Button size="icon" variant="ghost" aria-label="删除当前卡片" className="text-red-400 hover:text-red-600" onClick={() => void handleDeleteCard()}>
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
@@ -468,17 +494,13 @@ export default function CardFlash() {
       <div className="flex flex-1 justify-center">
         <div className="w-full max-w-4xl">
           <Card
-            className="min-h-[620px] w-full cursor-pointer select-none touch-manipulation shadow-[var(--app-shadow)]"
+            className="min-h-[620px] w-full cursor-pointer select-none shadow-[var(--app-shadow)]"
             role="button"
             tabIndex={0}
             aria-pressed={isFlipped}
             aria-label={isFlipped ? '当前显示答案，按回车或空格可翻回题面' : '当前显示题面，按回车或空格可显示答案'}
-            onClick={(event) => {
-              if (mergeSheetOpen) return
-              const target = event.target as HTMLElement
-              if (target.closest('button') || target.closest('input') || target.closest('[data-interactive]')) return
-              handleFlip()
-            }}
+            style={{ touchAction: 'pan-y pinch-zoom' }}
+            {...cardTap.handlers}
             onKeyDown={handleCardKeyDown}
           >
             <CardContent className="p-6 md:p-10">
@@ -508,7 +530,9 @@ export default function CardFlash() {
                   <button
                     type="button"
                     className={`flex h-22 w-22 items-center justify-center rounded-full border-2 bg-white shadow-md transition-all duration-100 active:scale-95 ${playState === 'playing' ? 'border-brand shadow-lg' : 'border-gray-200 hover:border-brand hover:shadow-lg'} ${playState === 'loading' ? 'opacity-70' : ''}`}
-                    onPointerDown={(event) => handlePlayPause(event)}
+                    aria-label={playState === 'loading' ? '正在加载音频' : isPlaying ? '暂停音频' : playState === 'error' ? '重试播放音频' : '播放音频'}
+                    aria-pressed={isPlaying}
+                    onClick={(event) => handlePlayPause(event)}
                     disabled={playState === 'loading'}
                     style={{ touchAction: 'manipulation' }}
                   >
@@ -523,15 +547,17 @@ export default function CardFlash() {
                     )}
                   </button>
 
-                  <div className="mt-4 flex items-center gap-3">
+                  <div className="mt-4 flex items-center gap-3" role="group" aria-label="播放速度">
                     {SPEED_OPTIONS.map((option) => (
                       <button
                         key={option}
                         type="button"
                         className={`flex h-11 min-w-[48px] items-center justify-center rounded-lg px-3 text-sm font-medium transition-all duration-100 active:scale-95 ${speed === option ? 'bg-brand text-white shadow-md' : 'border-2 border-gray-200 bg-white text-gray-700 active:bg-gray-50'}`}
-                        onPointerDown={(event) => {
+                        aria-pressed={speed === option}
+                        onClick={(event) => {
                           event.stopPropagation()
-                          changeSpeed(option)
+                          event.preventDefault()
+                          handleChangeSpeed(option)
                         }}
                         style={{ touchAction: 'manipulation' }}
                       >
@@ -572,8 +598,9 @@ export default function CardFlash() {
                           ref={mergeTriggerRef}
                           type="button"
                           className="mt-4 flex h-11 items-center gap-1.5 rounded-xl bg-transparent px-4 text-sm font-medium text-gray-600 transition-all duration-100 active:scale-95 active:bg-gray-100"
-                          onPointerDown={(event) => {
+                          onClick={(event) => {
                             event.stopPropagation()
+                            event.preventDefault()
                             handleOpenMerge()
                           }}
                           style={{ touchAction: 'manipulation' }}
@@ -627,7 +654,10 @@ export default function CardFlash() {
                                     key={card.cardId}
                                     type="button"
                                     disabled={wouldExceed}
-                                    onClick={() => toggleMergeSelection(card.cardId, wouldExceed)}
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      toggleMergeSelection(card.cardId, wouldExceed)
+                                    }}
                                     className={`relative w-full rounded-xl border-2 p-3 text-left transition-colors ${wouldExceed ? 'cursor-not-allowed border-gray-100 bg-gray-50 opacity-50' : isSelected ? 'border-brand bg-blue-50' : 'border-gray-200 active:bg-gray-50'}`}
                                   >
                                     {/* 右上角选中标记 */}
@@ -676,9 +706,12 @@ export default function CardFlash() {
                         return (
                           <span
                             key={index}
+                            data-interactive
                             className="cursor-pointer rounded px-0.5 transition-colors hover:bg-blue-100"
                             onClick={(event) => {
                               event.stopPropagation()
+                              event.preventDefault()
+                              if (Date.now() < backActionLockUntilRef.current) return
                               void handleBookmark('vocabulary', word.replace(/[.,!?;:'"]/g, ''))
                             }}
                             title="点击收藏这个单词"
@@ -697,6 +730,7 @@ export default function CardFlash() {
                     analysis={currentCard.aiAnalysis}
                     aiRemaining={aiRemaining}
                     isLocked={!canViewAi && !currentCard.aiUnlocked}
+                    shouldIgnoreAction={shouldIgnoreBackAction}
                     onBookmarkPhrase={(phrase, meaning) => { void handleBookmark('phrase', `${phrase} - ${meaning}`) }}
                     onSignIn={async () => {
                       const result = await handleSignIn()
@@ -704,12 +738,28 @@ export default function CardFlash() {
                       else toast.info(result.message)
                     }}
                   />
-                  <Button className="w-full" size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); void handleBookmark('pronunciation', currentCard.englishText) }}>
+                  <Button
+                    className="w-full"
+                    size="sm"
+                    variant="outline"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      event.preventDefault()
+                      if (shouldIgnoreBackAction()) return
+                      void handleBookmark('pronunciation', currentCard.englishText)
+                    }}
+                  >
                     收藏整句发音到难点本
                   </Button>
                   <div className="pb-safe pt-2">
                     <p className="mb-2 text-xs text-gray-500">{encourageText(currentIndex, cards.length)}</p>
-                    <FSRSButtons key={currentCard.cardId} cardId={currentCard.cardId} fsrsState={currentCard.fsrsMain} onRated={handleRated} />
+                    <FSRSButtons
+                      key={currentCard.cardId}
+                      cardId={currentCard.cardId}
+                      fsrsState={currentCard.fsrsMain}
+                      onRateStart={cardTap.suppressTap}
+                      onRated={handleRated}
+                    />
                     <p className="mt-2 text-center text-xs text-gray-400">所选间隔会决定这张卡何时进入综合复习队列</p>
                   </div>
                 </div>

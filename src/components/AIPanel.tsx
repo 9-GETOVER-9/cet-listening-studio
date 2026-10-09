@@ -15,6 +15,7 @@ interface AIPanelProps {
   analysis: AIAnalysis
   className?: string
   onBookmarkPhrase?: (phrase: string, meaning: string) => void
+  shouldIgnoreAction?: () => boolean
   isLocked?: boolean
   aiRemaining?: number
   onSignIn?: () => void
@@ -28,6 +29,7 @@ export function AIPanel({
   analysis,
   className,
   onBookmarkPhrase,
+  shouldIgnoreAction,
   isLocked = false,
   aiRemaining = -1,
   onSignIn,
@@ -80,9 +82,12 @@ export function AIPanel({
                   {onBookmarkPhrase && (
                     <button
                       type="button"
+                      data-interactive
                       className="absolute right-0 top-0 rounded p-1 text-gray-400 hover:bg-blue-50 hover:text-brand opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus:opacity-100"
                       onClick={(event) => {
                         event.stopPropagation()
+                        event.preventDefault()
+                        if (shouldIgnoreAction?.()) return
                         onBookmarkPhrase(item.phrase, item.meaning)
                       }}
                       aria-label="收藏这个短语"

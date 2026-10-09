@@ -3,6 +3,7 @@ import type {
   Card,
   NotebookItem,
   Module,
+  ListeningLogItem,
   StudyLogItem,
   SyncOutboxItem,
 } from '@/types'
@@ -14,6 +15,7 @@ class AppDB extends Dexie {
   notebook!: Table<NotebookItem>
   modules!: Table<Module>
   studyLog!: Table<StudyLogItem>
+  listeningLog!: Table<ListeningLogItem>
   syncOutbox!: Table<SyncOutboxItem>
   settings!: Table<{ key: string; value: unknown }>
 
@@ -44,6 +46,17 @@ class AppDB extends Dexie {
       await transaction.table('notebook').toCollection().modify((item) => {
         if (item.fsrsNotebook) item.fsrsNotebook = normalizeFSRSState(item.fsrsNotebook)
       })
+    })
+
+    this.version(3).stores({
+      cards: 'cardId, moduleId, [fsrsMain.due+moduleId], level, examDate, section, type, difficulty, book, lessonNum, aiUnlocked',
+      audio: 'cardId',
+      notebook: 'notebookId, type, sourceCardId, createdAt, [fsrsNotebook.due+type]',
+      modules: 'moduleId, examDate, section, type, level, book, lessonNum',
+      studyLog: '++id, &operationId, cardId, timestamp',
+      listeningLog: '++id, cardId, timestamp',
+      syncOutbox: '&operationId, cardId, kind, nextAttemptAt, createdAt',
+      settings: 'key',
     })
   }
 }

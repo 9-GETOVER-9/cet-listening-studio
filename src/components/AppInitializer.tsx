@@ -17,12 +17,12 @@ import {
   needsDataUpgrade,
   startBackgroundInit,
 } from '@/lib/dataLoader'
+import { syncLearningForCurrentUser } from '@/lib/learningSync'
 import { supabase } from '@/lib/supabase'
-import { mergeRemoteDataToLocal } from '@/lib/sync'
-import { processReviewOutboxForCurrentUser } from '@/lib/reviewSync'
 import { signOutCurrentDevice } from '@/lib/sessionPolicy'
 import { router } from '@/router'
 import { useSettingsStore } from '@/store/settingsStore'
+import { getListeningStorageError, retryListeningWrites, setListeningOwner } from '@/lib/audioTimeTracker'
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([
@@ -59,6 +59,17 @@ export function AppInitializer() {
   useSessionGuard(currentUserId, handleSessionKicked)
 
   useEffect(() => {
+    const notify = () => {
+      if (getListeningStorageError()) toast.error('听力时长暂未保存，请保持页面打开后重试', {
+        id: 'listening-time-storage', action: { label: '重试', onClick: retryListeningWrites },
+      })
+      else toast.dismiss('listening-time-storage')
+    }
+    window.addEventListener('listening-time-storage', notify)
+    return () => window.removeEventListener('listening-time-storage', notify)
+  }, [])
+
+  useEffect(() => {
     let session: Session | null = null
     let cancelled = false
 
@@ -75,10 +86,10 @@ export function AppInitializer() {
       })
 
       if (session?.user) {
-        const uid = session.user.id
         runWhenIdle(() => {
-          void mergeRemoteDataToLocal(uid).catch(() => {})
-          void processReviewOutboxForCurrentUser().catch(() => {})
+          void syncLearningForCurrentUser().catch((err) => {
+            console.warn('Learning progress sync failed:', err)
+          })
         })
       }
     }
@@ -135,6 +146,7 @@ export function AppInitializer() {
         if (!result) return
 
         session = result.data.session ?? null
+        setListeningOwner(session?.user.id ?? 'guest')
 
         if (session?.user) {
           setCurrentUserId(session.user.id)
@@ -183,6 +195,7 @@ export function AppInitializer() {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setListeningOwner(session?.user.id ?? 'guest')
       if (session?.user) {
         setCurrentUserId(session.user.id)
         initInviteCode(session.user.id)
@@ -195,7 +208,9 @@ export function AppInitializer() {
             })
 
           runWhenIdle(() => {
-            void mergeRemoteDataToLocal(session.user.id).catch(() => {})
+            void syncLearningForCurrentUser().catch((error) => {
+              console.warn('Learning progress sync after auth change failed:', error)
+            })
           })
         }, 0)
       } else {
@@ -210,11 +225,13 @@ export function AppInitializer() {
   }, [initInviteCode])
 
   useEffect(() => {
-    const flushReviewOutbox = () => {
-      void processReviewOutboxForCurrentUser().catch(() => {})
+    const syncLearningProgress = () => {
+      void syncLearningForCurrentUser().catch((error) => {
+        console.warn('Learning progress sync after reconnect failed:', error)
+      })
     }
-    window.addEventListener('online', flushReviewOutbox)
-    return () => window.removeEventListener('online', flushReviewOutbox)
+    window.addEventListener('online', syncLearningProgress)
+    return () => window.removeEventListener('online', syncLearningProgress)
   }, [])
 
   if (appState === 'checking') {

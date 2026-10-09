@@ -1,28 +1,44 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
-import { ArrowLeft, CheckCircle2, RotateCcw } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Headphones, RotateCcw, Star, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AIPanel } from '@/components/AIPanel'
 import { FSRSButtons } from '@/components/FSRSButtons'
+import { JourneyCompletionDialog } from '@/components/JourneyCompletionDialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StreakBadge } from '@/components/StreakBadge'
-import { getCurrentStreak } from '@/db/crud'
+import { deleteCard, getCurrentStreak, getLearningVolumeSummary, recordDailyTaskCompletion } from '@/db/crud'
 import type { CommitCardRatingResult } from '@/db/reviewRepository'
 import { useAudio } from '@/hooks/useAudio'
 import { usePro } from '@/hooks/usePro'
+import { useTapToFlip } from '@/hooks/useTapToFlip'
 import { decodeHtml } from '@/lib/decodeHtml'
-import { getDueCardsNow } from '@/lib/fsrs'
+import { getTodayDueCards } from '@/lib/fsrs'
+import type { CompletionFeedbackKind, JourneyProgress } from '@/lib/hundredDayJourney'
+import type { LearningVolumeSummary } from '@/lib/learningStats'
+import { bookmarkCardSentence } from '@/lib/notebookBookmark'
 import {
   advanceReviewSession,
   createReviewSession,
   isReviewSessionComplete,
   nextDueAt,
   recordScheduledCard,
+  removeCardFromReviewSession,
   type ReviewSession,
 } from '@/lib/reviewQueue'
 import { useSettingsStore } from '@/store/settingsStore'
@@ -30,10 +46,17 @@ import type { Card as CardType } from '@/types'
 
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5]
 
+type CompletionFeedback = {
+  progress: JourneyProgress
+  feedbackKind: CompletionFeedbackKind
+  weeklySummary?: LearningVolumeSummary
+}
+
 export default function Review() {
   const navigate = useNavigate()
   const playSpeed = useSettingsStore((s) => s.playSpeed)
-  const { canViewAi, aiRemaining, consumeAi, handleSignIn } = usePro()
+  const setPlaySpeed = useSettingsStore((s) => s.setPlaySpeed)
+  const { canViewAi, aiRemaining, consumeAi, handleSignIn, isPro } = usePro()
 
   const [phase, setPhase] = useState<'loading' | 'empty' | 'reviewing' | 'waiting' | 'complete'>('loading')
   const [cards, setCards] = useState<CardType[]>([])
@@ -44,8 +67,11 @@ export default function Review() {
   const [aiConsumed, setAiConsumed] = useState(false)
   const [reviewedCount, setReviewedCount] = useState(0)
   const [streak, setStreak] = useState(0)
+  const [completionFeedback, setCompletionFeedback] = useState<CompletionFeedback | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<CardType | null>(null)
 
   const flipLockRef = useRef(false)
+  const completionRecordedRef = useRef(false)
   const backContentRef = useRef<HTMLDivElement>(null)
   const playBtnRef = useRef<HTMLButtonElement>(null)
   const prefersReducedMotion = useReducedMotion()
@@ -54,14 +80,14 @@ export default function Review() {
 
   const { playState, speed, play, pause, changeSpeed, playMultiple, isPlaying } = useAudio(
     currentCard?.audioFile || '',
-    { defaultSpeed: playSpeed },
+    { defaultSpeed: playSpeed, card: currentCard },
   )
 
   useEffect(() => {
     const load = async () => {
       try {
         const [dueCards, currentStreak] = await Promise.all([
-          getDueCardsNow(undefined, undefined, true),
+          getTodayDueCards(undefined, undefined, true),
           getCurrentStreak(),
         ])
         setStreak(currentStreak)
@@ -107,6 +133,33 @@ export default function Review() {
       if (success) setAiConsumed(true)
     })
   }, [aiConsumed, canViewAi, consumeAi, currentCard, isFlipped])
+
+  useEffect(() => {
+    if (phase !== 'complete' || initialCardCount === 0 || completionRecordedRef.current) return
+    completionRecordedRef.current = true
+
+    const recordCompletion = async () => {
+      const result = await recordDailyTaskCompletion()
+      if (!result.isNewCompletion) return
+
+      const end = new Date()
+      const start = new Date()
+      start.setDate(end.getDate() - 6)
+      start.setHours(0, 0, 0, 0)
+      end.setHours(23, 59, 59, 999)
+      const weeklySummary = result.feedbackKind === 'weekly'
+        ? await getLearningVolumeSummary(start, end)
+        : undefined
+
+      setCompletionFeedback({
+        progress: result.progress,
+        feedbackKind: result.feedbackKind,
+        weeklySummary,
+      })
+    }
+
+    void recordCompletion()
+  }, [initialCardCount, phase])
 
   const handleRated = useCallback((result: CommitCardRatingResult) => {
     if (!currentCard) return
@@ -156,6 +209,8 @@ export default function Review() {
     setTimeout(() => { flipLockRef.current = false }, 300)
   }, [])
 
+  const cardTap = useTapToFlip({ onTap: handleFlip })
+
   const getAudioFilesToPlay = useCallback(() => {
     if (!currentCard) return []
     if (currentCard.isMerged && currentCard.mergedAudioFiles?.length) {
@@ -171,6 +226,57 @@ export default function Review() {
     if (files.length > 1) playMultiple(files)
     else play()
   }, [getAudioFilesToPlay, isPlaying, pause, play, playMultiple])
+
+  const handleChangeSpeed = useCallback((newSpeed: number) => {
+    changeSpeed(newSpeed)
+    setPlaySpeed(newSpeed)
+  }, [changeSpeed, setPlaySpeed])
+
+  const handleBookmarkSentence = useCallback(async (event?: { stopPropagation?: () => void; preventDefault?: () => void }) => {
+    event?.stopPropagation?.()
+    event?.preventDefault?.()
+    if (!currentCard) return
+
+    try {
+      const result = await bookmarkCardSentence(currentCard, isPro)
+      if (result === 'already-exists') {
+        toast.info('这句已经收藏过了')
+        return
+      }
+      toast.success('已收藏句子')
+    } catch (error) {
+      if (error instanceof Error && error.message === 'NOTEBOOK_LIMIT_EXCEEDED') {
+        toast('今日收藏已达上限，明天继续积累', {
+          description: 'Pro 会员可无限收藏难点',
+        })
+      } else {
+        toast.error('收藏失败')
+      }
+    }
+  }, [currentCard, isPro])
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteTarget) return
+
+    try {
+      pause()
+      await deleteCard(deleteTarget.cardId)
+      setCards((current) => current.filter((card) => card.cardId !== deleteTarget.cardId))
+      setInitialCardCount((count) => Math.max(0, count - 1))
+      setIsFlipped(false)
+      setAiConsumed(false)
+      setSession((current) => {
+        if (!current) return current
+        const next = removeCardFromReviewSession(current, deleteTarget.cardId)
+        setPhase(isReviewSessionComplete(next) ? 'complete' : next.ready.length > 0 ? 'reviewing' : 'waiting')
+        return next
+      })
+      setDeleteTarget(null)
+      toast.success('已删除当前句子')
+    } catch {
+      toast.error('删除失败')
+    }
+  }, [deleteTarget, pause])
 
   // Keyboard: space to play
   useEffect(() => {
@@ -240,6 +346,16 @@ export default function Review() {
   if (phase === 'complete') {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center p-4">
+        {completionFeedback && (
+          <JourneyCompletionDialog
+            open={Boolean(completionFeedback)}
+            progress={completionFeedback.progress}
+            feedbackKind={completionFeedback.feedbackKind}
+            weeklySummary={completionFeedback.weeklySummary}
+            onOpenChange={(open) => { if (!open) setCompletionFeedback(null) }}
+            onViewStats={() => navigate('/profile/stats')}
+          />
+        )}
         <motion.div
           initial={prefersReducedMotion ? false : { scale: 0 }}
           animate={prefersReducedMotion ? false : { scale: 1 }}
@@ -295,7 +411,10 @@ export default function Review() {
           <span className="text-sm font-medium text-gray-700">
             复习 · 已完成 {reviewedCount} 次
           </span>
-          <div className="w-16" />
+          <Button size="sm" variant="outline" onClick={() => navigate('/walkman')}>
+            <Headphones className="mr-1 h-4 w-4" />
+            随身听
+          </Button>
         </div>
         <Progress value={progressPct} className="mt-2 h-1" aria-label="复习进度" />
       </div>
@@ -304,12 +423,9 @@ export default function Review() {
       <div className="flex flex-1 justify-center">
         <div className="w-full max-w-4xl">
           <Card
-            className="min-h-[620px] w-full cursor-pointer select-none touch-manipulation shadow-[var(--app-shadow)]"
-            onClick={(e) => {
-              const target = e.target as HTMLElement
-              if (target.closest('button') || target.closest('input') || target.closest('[data-interactive]')) return
-              handleFlip()
-            }}
+            className="min-h-[620px] w-full cursor-pointer select-none shadow-[var(--app-shadow)]"
+            style={{ touchAction: 'pan-y pinch-zoom' }}
+            {...cardTap.handlers}
           >
             <CardContent className="p-6 md:p-10">
               {/* Top badges */}
@@ -373,7 +489,7 @@ export default function Review() {
                             ? 'bg-brand text-white shadow-md'
                             : 'border-2 border-gray-200 bg-white text-gray-700 active:bg-gray-50'
                         }`}
-                        onPointerDown={(e) => { e.stopPropagation(); changeSpeed(opt) }}
+                        onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); handleChangeSpeed(opt) }}
                         style={{ touchAction: 'manipulation' }}
                       >
                         {opt}x
@@ -389,6 +505,20 @@ export default function Review() {
                   >
                     显示答案
                   </button>
+
+                  <div className="mt-4 grid w-full max-w-sm grid-cols-2 gap-3">
+                    <Button variant="outline" onClick={(event) => void handleBookmarkSentence(event)}>
+                      <Star className="mr-2 h-4 w-4" />
+                      收藏句子
+                    </Button>
+                    <Button variant="outline" className="text-red-500 hover:text-red-600" onClick={(event) => {
+                      event.stopPropagation()
+                      setDeleteTarget(currentCard)
+                    }}>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      删除句子
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 /* Back — content + FSRS */
@@ -418,8 +548,38 @@ export default function Review() {
                     }}
                   />
 
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Button
+                      className="w-full"
+                      size="sm"
+                      variant="outline"
+                      onClick={(event) => void handleBookmarkSentence(event)}
+                    >
+                      <Star className="mr-2 h-4 w-4" />
+                      收藏句子
+                    </Button>
+                    <Button
+                      className="w-full text-red-500 hover:text-red-600"
+                      size="sm"
+                      variant="outline"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setDeleteTarget(currentCard)
+                      }}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      删除句子
+                    </Button>
+                  </div>
+
                   <div className="pb-safe pt-2">
-                    <FSRSButtons key={currentCard.cardId} cardId={currentCard.cardId} fsrsState={currentCard.fsrsMain} onRated={handleRated} />
+                    <FSRSButtons
+                      key={currentCard.cardId}
+                      cardId={currentCard.cardId}
+                      fsrsState={currentCard.fsrsMain}
+                      onRateStart={cardTap.suppressTap}
+                      onRated={handleRated}
+                    />
                   </div>
                 </div>
               )}
@@ -431,6 +591,22 @@ export default function Review() {
           </div>
         </div>
       </div>
+      <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除这句吗？</AlertDialogTitle>
+            <AlertDialogDescription>
+              删除后，这张卡片会从本地题库和当前复习队列中移除。这个操作不可恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={() => void handleConfirmDelete()}>
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -1,5 +1,10 @@
 ﻿import { useState, useRef, useCallback, useEffect } from 'react'
 
+import { applyAudioSpeed } from '@/lib/audioSpeed'
+import { AudioTimeTracker, getListeningOwner } from '@/lib/audioTimeTracker'
+import { getListeningCategory } from '@/lib/listeningTime'
+import type { Card } from '@/types'
+
 export type PlayState = 'idle' | 'loading' | 'playing' | 'paused' | 'error'
 
 interface UseAudioReturn {
@@ -17,18 +22,37 @@ function getAudioUrl(audioFile: string): string {
   return `/data/audio/${audioFile}`
 }
 
+export { applyAudioSpeed }
+
 export function useAudio(
   audioFile: string,
-  options: { defaultSpeed?: number } = {}
+  options: { defaultSpeed?: number; card?: Pick<Card, 'cardId' | 'level' | 'book'> } = {}
 ): UseAudioReturn {
   const { defaultSpeed = 1.0 } = options
 
   const [playState, setPlayState] = useState<PlayState>('idle')
-  const [speed, setSpeed] = useState(defaultSpeed)
-  const speedRef = useRef(defaultSpeed)
+  const [speedOverride, setSpeedOverride] = useState<number | null>(null)
+  const speed = speedOverride ?? defaultSpeed
+  const speedRef = useRef(speed)
 
   const currentTokenRef = useRef<number>(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const trackerRef = useRef<AudioTimeTracker | null>(null)
+  const category = options.card ? getListeningCategory(options.card) : null
+
+  useEffect(() => { trackerRef.current?.setCategory(category) }, [category])
+  useEffect(() => () => {
+    currentTokenRef.current += 1
+    audioRef.current?.pause()
+    trackerRef.current?.checkpoint()
+  }, [audioFile, options.card?.cardId])
+
+  useEffect(() => {
+    speedRef.current = speed
+    if (audioRef.current) {
+      applyAudioSpeed(audioRef.current, speed)
+    }
+  }, [speed])
 
   // 仅在组件卸载时销毁 Audio 元素。
   // audioFile 变化时的播放切换由 currentTokenRef 令牌机制处理（play() → stopAndGetToken() 递增令牌使旧播放作废）。
@@ -36,13 +60,14 @@ export function useAudio(
   useEffect(() => {
     return () => {
       currentTokenRef.current += 1
+      trackerRef.current?.dispose()
+      trackerRef.current = null
       if (audioRef.current) {
         audioRef.current.pause()
         audioRef.current.src = ''
         audioRef.current = null
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const stopAndGetToken = useCallback((): number => {
@@ -64,8 +89,9 @@ export function useAudio(
     if (audioRef.current) return audioRef.current
     const audio = new Audio()
     audioRef.current = audio
+    trackerRef.current = new AudioTimeTracker(audio, { owner: getListeningOwner(), category })
     return audio
-  }, [])
+  }, [category])
 
   /**
    * 用复用的 Audio 元素播放单个音频文件。
@@ -78,7 +104,7 @@ export function useAudio(
 
     const audioUrl = getAudioUrl(audioFileName)
     const audio = getOrCreateAudio()
-    audio.playbackRate = speedRef.current
+    applyAudioSpeed(audio, speedRef.current)
 
     return new Promise<void>((resolve, reject) => {
       if (currentTokenRef.current !== token) {
@@ -88,6 +114,7 @@ export function useAudio(
 
       const onCanPlay = () => {
         if (currentTokenRef.current !== token) return
+        applyAudioSpeed(audio, speedRef.current)
         setPlayState('playing')
       }
       const onEnded = () => {
@@ -113,11 +140,16 @@ export function useAudio(
 
       audio.src = audioUrl
       audio.load()
-      audio.play().catch((err) => {
-        cleanup()
-        if (currentTokenRef.current !== token) return
-        reject(err)
-      })
+      audio.play()
+        .then(() => {
+          if (currentTokenRef.current !== token) return
+          applyAudioSpeed(audio, speedRef.current)
+        })
+        .catch((err) => {
+          cleanup()
+          if (currentTokenRef.current !== token) return
+          reject(err)
+        })
     })
   }, [getOrCreateAudio])
 
@@ -185,16 +217,17 @@ export function useAudio(
 
   const resume = useCallback(() => {
     if (audioRef.current) {
+      applyAudioSpeed(audioRef.current, speedRef.current)
       audioRef.current.play()
       setPlayState('playing')
     }
   }, [])
 
   const changeSpeed = useCallback((newSpeed: number) => {
-    setSpeed(newSpeed)
+    setSpeedOverride(newSpeed)
     speedRef.current = newSpeed
     if (audioRef.current) {
-      audioRef.current.playbackRate = newSpeed
+      applyAudioSpeed(audioRef.current, newSpeed)
     }
   }, [])
 

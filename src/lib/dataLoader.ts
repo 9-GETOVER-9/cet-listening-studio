@@ -294,7 +294,7 @@ async function incrementalMerge(
 ): Promise<void> {
   onProgress?.(1, 100)
 
-  const data = await fetchJsonStreaming('/data/cards.json', (downloaded, total) => {
+  const data = await fetchJsonStreaming(`/data/cards.json?v=${EXPECTED_DATA_VERSION}`, (downloaded, total) => {
     if (total > 0) {
       const downloadProgress = Math.round((downloaded / total) * 14) + 1
       onProgress?.(Math.min(downloadProgress, 15), 100)
@@ -306,11 +306,16 @@ async function incrementalMerge(
   // 构建现有卡片映射（保留 fsrsMain、拼接数据等本地状态）
   const existingCards = await db.cards.toArray()
   const existingMap = new Map(existingCards.map((c) => [c.cardId, c]))
+  // 拼接源句已被用户替换，内容升级不能将它们重新导入。
+  const mergedSourceIds = new Set(existingCards
+    .filter((card) => card.isMerged)
+    .flatMap((card) => card.mergedFrom ?? []))
 
   const normalizedCards = data.cards.map(normalizeCardImport)
+    .filter((card) => !mergedSourceIds.has(card.cardId))
   const importedCardIds = new Set(normalizedCards.map((card) => card.cardId))
   const localOnlyCards = existingCards
-    .filter((card) => !importedCardIds.has(card.cardId))
+    .filter((card) => !importedCardIds.has(card.cardId) && !mergedSourceIds.has(card.cardId))
     .map(normalizeCardImport)
   const total = normalizedCards.length
   let loaded = 0
@@ -345,9 +350,12 @@ async function incrementalMerge(
     await db.cards.bulkPut(localOnlyCards)
   }
 
+  // 修复旧升级逻辑已经重新导入的源句，保留拼接卡本身及复习状态。
+  await db.cards.bulkDelete([...mergedSourceIds])
+
   // 重建模块索引（保留已学习计数）
   onProgress?.(92, 100)
-  await buildModules(normalizedCards)
+  await buildModules(await db.cards.toArray())
 
   await syncModuleStats()
 
@@ -356,7 +364,7 @@ async function incrementalMerge(
 }
 
 /** 当 cards.json 的 version 变化时触发增量合并 */
-const EXPECTED_DATA_VERSION = '2026-05-30-nce-book-normalization-v4'
+const EXPECTED_DATA_VERSION = '2026-10-04-merge-preservation-v6'
 const EXPECTED_NCE_FIRST_LESSONS: Record<NCEBook, string> = {
   Book1: 'Excuse me!',
   Book2: 'A private conversation',
@@ -452,7 +460,7 @@ export async function initializeData(
 
   // 阶段1：流式下载 JSON（0% ~ 15%）
   // 优先尝试加载压缩版本（从 32MB 压缩到 4.1MB）
-  const data = await fetchJsonStreaming('/data/cards.json', (downloaded, total) => {
+  const data = await fetchJsonStreaming(`/data/cards.json?v=${EXPECTED_DATA_VERSION}`, (downloaded, total) => {
     if (total > 0) {
       const downloadProgress = Math.round((downloaded / total) * 14) + 1
       onProgress?.(Math.min(downloadProgress, 15), 100)
@@ -602,6 +610,7 @@ export async function clearAllData(): Promise<void> {
     db.notebook.clear(),
     db.modules.clear(),
     db.studyLog.clear(),
+    db.listeningLog.clear(),
     db.syncOutbox.clear(),
     db.settings.clear(),
   ])

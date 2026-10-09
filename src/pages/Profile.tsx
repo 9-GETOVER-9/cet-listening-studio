@@ -1,7 +1,7 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import dayjs from 'dayjs'
 import { useNavigate } from 'react-router-dom'
-import { Cloud, Gift, LogOut, MessageSquare, Settings, Trash2, User } from 'lucide-react'
+import { BarChart3, Cloud, Gift, LogOut, MessageSquare, Settings, Trash2, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -25,7 +25,14 @@ import {
 import { useAuth } from '@/hooks/useAuth'
 import { usePro } from '@/hooks/usePro'
 import { AchievementGrid, type Achievement } from '@/components/AchievementBadge'
+import { ListeningTimeStats } from '@/components/ListeningTimeStats'
+import { DailyCheckIn } from '@/components/DailyCheckIn'
+import { clearOwnedListeningTime } from '@/lib/audioTimeTracker'
 import { clearAllData } from '@/lib/dataLoader'
+import {
+  downloadCloudLearningToThisDevice,
+  uploadThisDeviceAsLearningSource,
+} from '@/lib/learningSync'
 import { activateInviteCode } from '@/lib/supabase'
 import { clearRemoteLearningData } from '@/lib/sync'
 import { getLocalDateStr } from '@/lib/utils'
@@ -84,9 +91,9 @@ function computeAchievements(stats: Stats): Achievement[] {
 
 export default function Profile() {
   const navigate = useNavigate()
-  const { user, signOut } = useAuth()
+  const { user, signOut, loading: authLoading } = useAuth()
   const { nickname, playSpeed, logEnabled, setLogEnabled, setNickname, setPlaySpeed } = useSettingsStore()
-  const { handleSignIn, isGuestTrial, isPro, isLifetimePro, proDaysLeft, todaySignedIn } = usePro()
+  const { isGuestTrial, isPro, isLifetimePro, proDaysLeft } = usePro()
   const isGuest = !user
 
   const [statsLoading, setStatsLoading] = useState(true)
@@ -106,6 +113,7 @@ export default function Profile() {
   const [clearConfirmText, setClearConfirmText] = useState('')
   const [activationCode, setActivationCode] = useState('')
   const [activating, setActivating] = useState(false)
+  const [syncingLearning, setSyncingLearning] = useState(false)
 
   useEffect(() => {
     const loadStats = async () => {
@@ -164,11 +172,14 @@ export default function Profile() {
   }
 
   const handleClearData = async () => {
+    if(authLoading)return
+    const readyOwner=user?.id??'guest'
     try {
       if (user?.id) {
         await clearRemoteLearningData(user.id)
       }
       await clearAllData()
+      await clearOwnedListeningTime(readyOwner)
       toast.success('数据已清除')
       window.location.reload()
     } catch {
@@ -216,10 +227,55 @@ export default function Profile() {
     }
   }
 
-  const handleDailySignIn = async () => {
-    const result = await handleSignIn()
-    if (result.success) toast.success(result.message)
-    else toast.info(result.message)
+  const handleUploadThisDeviceAsSource = async () => {
+    if (!user?.id) {
+      toast.info('登录后可以同步手机和电脑的学习进度')
+      navigate('/login?mode=login')
+      return
+    }
+
+    setSyncingLearning(true)
+    try {
+      const result = await uploadThisDeviceAsLearningSource()
+      if (result.skipped) {
+        toast.info(result.reason === 'offline' ? '当前网络不可用，稍后再试' : '请先登录账号')
+        return
+      }
+
+      toast.success('已把当前设备设为主版本', {
+        description: `已上传 ${result.cardsUploaded} 张卡片进度`,
+      })
+    } catch {
+      toast.error('上传失败，请确认账号和网络后重试')
+    } finally {
+      setSyncingLearning(false)
+    }
+  }
+
+  const handleDownloadCloudToThisDevice = async () => {
+    if (!user?.id) {
+      toast.info('登录后可以同步手机和电脑的学习进度')
+      navigate('/login?mode=login')
+      return
+    }
+
+    setSyncingLearning(true)
+    try {
+      const result = await downloadCloudLearningToThisDevice()
+      if (result.skipped) {
+        toast.info(result.reason === 'offline' ? '当前网络不可用，稍后再试' : '请先登录账号')
+        return
+      }
+
+      toast.success('已用云端进度覆盖本机', {
+        description: `已应用 ${result.cardsApplied} 张，重置 ${result.cardsReset} 张`,
+      })
+      window.location.reload()
+    } catch {
+      toast.error('下载失败，请先在主设备上传进度')
+    } finally {
+      setSyncingLearning(false)
+    }
   }
 
   const handleComingSoon = () => {
@@ -250,9 +306,9 @@ export default function Profile() {
   const getRatingLabel = (rating?: number) => {
     if (!rating) return null
     const labels: Record<number, { label: string; color: string }> = {
-      1: { label: '重来', color: 'bg-red-100 text-red-800' },
-      2: { label: '困难', color: 'bg-yellow-100 text-yellow-800' },
-      3: { label: '掌握', color: 'bg-blue-100 text-blue-800' },
+      1: { label: '忘记', color: 'bg-red-100 text-red-800' },
+      2: { label: '模糊', color: 'bg-yellow-100 text-yellow-800' },
+      3: { label: '认识', color: 'bg-blue-100 text-blue-800' },
       4: { label: '简单', color: 'bg-green-100 text-green-800' },
     }
     return labels[rating]
@@ -393,18 +449,13 @@ export default function Profile() {
                   <p className="text-xs text-gray-400">邀请码只用于 Pro 续期，一次延长 30 天。</p>
                 </div>
 
-                <Separator />
-
-                <div>
-                  <p className="mb-2 text-sm font-medium text-gray-700">每日签到</p>
-                  <Button className="w-full" disabled={todaySignedIn} variant={todaySignedIn ? 'outline' : 'default'} onClick={() => void handleDailySignIn()}>
-                    {todaySignedIn ? '今天已签到' : '签到解锁 5 次 AI 解析'}
-                  </Button>
-                </div>
               </>
             )}
           </CardContent>
         </Card>
+
+        <DailyCheckIn userId={user?.id} ready={!authLoading} />
+        <ListeningTimeStats owner={user?.id ?? 'guest'} ready={!authLoading} />
 
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base">学习统计</CardTitle></CardHeader>
@@ -457,6 +508,11 @@ export default function Profile() {
               </div>
             </div>
 
+            <Button className="w-full" variant="outline" onClick={() => navigate('/profile/stats')}>
+              <BarChart3 className="mr-2 h-4 w-4" />
+              查看统计与分类时长
+            </Button>
+
             <Separator />
 
             <div>
@@ -507,7 +563,7 @@ export default function Profile() {
               <div className="flex items-center justify-between py-3">
                 <div><p className="font-medium text-red-600">清除学习数据</p><p className="text-sm text-gray-500">重置本机与云端的学习进度和收藏</p></div>
                 <AlertDialogTrigger asChild>
-                  <Button className="text-red-500" size="sm" variant="outline"><Trash2 className="mr-1 h-4 w-4" />清除</Button>
+                  <Button className="text-red-500" size="sm" variant="outline" disabled={authLoading}><Trash2 className="mr-1 h-4 w-4" />清除</Button>
                 </AlertDialogTrigger>
               </div>
               <AlertDialogContent>
@@ -521,7 +577,7 @@ export default function Profile() {
                 </div>
                 <AlertDialogFooter>
                   <AlertDialogCancel onClick={() => setClearConfirmText('')}>取消</AlertDialogCancel>
-                  <AlertDialogAction className="bg-red-500 hover:bg-red-600" disabled={clearConfirmText !== '清除数据'} onClick={() => { setClearConfirmText(''); void handleClearData() }}>
+                  <AlertDialogAction className="bg-red-500 hover:bg-red-600" disabled={authLoading||clearConfirmText !== '清除数据'} onClick={() => { setClearConfirmText(''); void handleClearData() }}>
                     确认清除
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -540,14 +596,26 @@ export default function Profile() {
               <div className="flex items-center gap-3"><MessageSquare className="h-5 w-5 text-gray-600" /><div><p className="font-medium text-gray-900">意见反馈</p><p className="text-sm text-gray-500">告诉我们你的建议或问题</p></div></div>
             </button>
             <Separator />
-            <button
-              type="button"
-              className="flex w-full cursor-pointer items-center justify-between py-3 text-left text-gray-400"
-              onClick={handleComingSoon}
-            >
-              <div className="flex items-center gap-3"><Cloud className="h-5 w-5" /><div><p className="font-medium">云端同步</p><p className="text-sm">多设备同步学习进度</p></div></div>
-              <Badge variant="secondary">即将上线</Badge>
-            </button>
+            <div className="space-y-1">
+              <button
+                type="button"
+                className="flex w-full cursor-pointer items-center justify-between py-3 text-left text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={syncingLearning}
+                onClick={() => void handleUploadThisDeviceAsSource()}
+              >
+                <div className="flex items-center gap-3"><Cloud className="h-5 w-5" /><div><p className="font-medium">上传本机为主</p><p className="text-sm text-gray-500">手机先点：把手机进度存到云端</p></div></div>
+                <Badge variant="secondary">{syncingLearning ? '同步中' : user ? '主版本' : '需登录'}</Badge>
+              </button>
+              <button
+                type="button"
+                className="flex w-full cursor-pointer items-center justify-between py-3 text-left text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={syncingLearning}
+                onClick={() => void handleDownloadCloudToThisDevice()}
+              >
+                <div className="flex items-center gap-3"><Cloud className="h-5 w-5" /><div><p className="font-medium">用云端覆盖本机</p><p className="text-sm text-gray-500">电脑再点：让电脑变成手机进度</p></div></div>
+                <Badge variant="secondary">{syncingLearning ? '同步中' : user ? '覆盖' : '需登录'}</Badge>
+              </button>
+            </div>
           </CardContent>
         </Card>
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+readonly -a FRONTEND_STATIC_FILES=(favicon.svg icon-192.svg icon-512.svg icons.svg landing.html wechat-pay.jpg)
 
 die() { echo "$*" >&2; return 1; }
 validate_site_root() { [[ "$1" == /var/www/cet-listening ]] || die "Refusing unexpected site root: $1"; }
@@ -9,7 +10,7 @@ validate_tree() {
 }
 validate_optional_core() {
   local root="$1" item
-  for item in "$root/sw.js" "$root/manifest.webmanifest" "$root/registerSW.js" "$root"/workbox-*.js; do
+  for item in "$root/sw.js" "$root/manifest.webmanifest" "$root/registerSW.js" "${FRONTEND_STATIC_FILES[@]/#/$root/}" "$root"/workbox-*.js; do
     if [[ -e "$item" || -L "$item" ]]; then
       [[ -f "$item" && ! -L "$item" ]] || die "Core artifact must be a regular file: $item" || return
     fi
@@ -46,7 +47,7 @@ backup_site() {
   fi
   [[ ! -e "$backup" ]] || die "Backup already exists: $backup" || return
   mkdir "$backup" || return
-  for item in index.html assets sw.js manifest.webmanifest registerSW.js; do
+  for item in index.html assets sw.js manifest.webmanifest registerSW.js "${FRONTEND_STATIC_FILES[@]}"; do
     if [[ -e "$site/$item" ]]; then cp -a -- "$site/$item" "$backup/" || return; fi
   done
   for item in "$site"/workbox-*.js; do
@@ -76,6 +77,7 @@ backup_site() {
       fi
     done < <(find "$site/data" -mindepth 1 -maxdepth 1 -print0)
   fi
+  printf 'Root static resources backed up by this installer.\n' > "$backup/.static-resources" || return
   printf 'Complete backup; .data-targets denotes release-scoped data, otherwise full data with immutable hardlinked audio.\n' > "$backup/.complete" || return
 }
 valid_data_name() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*\.json$ ]]; }
@@ -116,7 +118,7 @@ apply_release() {
   find "$work/new-assets" -type f -exec chmod 644 {} + || return
   mv -T -- "$site/assets" "$work/original-assets" || return
   mv -T -- "$work/new-assets" "$site/assets" || return
-  for file in manifest.webmanifest registerSW.js; do
+  for file in manifest.webmanifest registerSW.js "${FRONTEND_STATIC_FILES[@]}"; do
     if [[ -f "$stage/$file" ]]; then atomic_copy "$stage/$file" "$site/$file" "$work" || return; fi
   done
   for file in "$stage"/workbox-*.js; do
@@ -137,7 +139,13 @@ apply_release() {
 }
 restore_backup() {
   local site="$1" backup="$2" work="$3" item state name
+  local -a static_targets=()
   [[ -f "$backup/.complete" ]] || die "Incomplete backup: $backup" || return
+  # Older complete backups predate static-resource coverage. They cannot
+  # establish absence, so leave these root resources untouched on old rollback.
+  if [[ -f "$backup/.static-resources" && ! -L "$backup/.static-resources" ]]; then
+    static_targets=("${FRONTEND_STATIC_FILES[@]}")
+  fi
   # Fresh copies/renames ensure no writes through backup inodes.
   if [[ -d "$work/original-assets" ]]; then
     if [[ -d "$site/assets" ]]; then mv -T -- "$site/assets" "$work/failed-assets" || return; fi
@@ -147,7 +155,7 @@ restore_backup() {
     if [[ -d "$site/assets" ]]; then mv -T -- "$site/assets" "$work/failed-assets" || return; fi
     mv -T -- "$work/restored-assets" "$site/assets" || return
   fi
-  for item in manifest.webmanifest registerSW.js; do
+  for item in manifest.webmanifest registerSW.js "${static_targets[@]}"; do
     if [[ -f "$backup/$item" ]]; then
       cp -a -- "$backup/$item" "$work/restore.tmp" && mv -fT -- "$work/restore.tmp" "$site/$item" || return
     else
@@ -243,7 +251,7 @@ rollback_data_kib() {
 }
 core_kib() {
   local site="$1" item total=0 size
-  for item in index.html sw.js manifest.webmanifest registerSW.js "$site"/workbox-*.js; do
+  for item in index.html sw.js manifest.webmanifest registerSW.js "${FRONTEND_STATIC_FILES[@]}" "$site"/workbox-*.js; do
     [[ "$item" == "$site/"* ]] || item="$site/$item"
     if [[ -f "$item" ]]; then
       size=$(du -sk -- "$item" | awk '{print $1}') || return
@@ -254,7 +262,7 @@ core_kib() {
 }
 mutable_kib() {
   local site="$1" selected_zip="${2:-}" item total=0 size name
-  for item in index.html assets sw.js manifest.webmanifest registerSW.js; do
+  for item in index.html assets sw.js manifest.webmanifest registerSW.js "${FRONTEND_STATIC_FILES[@]}"; do
     if [[ -e "$site/$item" ]]; then
       size=$(du -sk -- "$site/$item" | awk '{print $1}') || return
       total=$((total + size))

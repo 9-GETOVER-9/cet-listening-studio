@@ -113,6 +113,19 @@ it('returns to the exact IELTS source selection or notebook vocabulary tab', asy
   expect(p.practiceSourceUrl(p.parsePracticeOptions(new URLSearchParams('source=frequency&chapter=2&section=B&limit=10')))).toBe('/ielts/listening?source=frequency&chapter=2&section=B&limit=10')
   expect(p.practiceSourceUrl(p.parsePracticeOptions(new URLSearchParams('source=notebook&level=CET6')))).toBe('/notebook?tab=vocabulary')
 })
+it('round-trips unlimited IELTS practice as an explicit all limit without adding notebook parameters', async () => {
+  const p = await api()
+  for (const source of ['wanglu', 'frequency']) {
+    for (const limit of ['all', '']) {
+      const original = p.parsePracticeOptions(new URLSearchParams({ source, chapter: source === 'wanglu' ? '3' : '2', section: 'B', limit }))
+      expect(original.limit).toBeNull()
+      const returned = new URL(p.practiceSourceUrl(original), 'https://example.test')
+      expect(returned.searchParams.get('limit')).toBe('all')
+      expect(p.parsePracticeOptions(returned.searchParams)).toMatchObject({ source, chapter: original.chapter, section: 'B', limit: null })
+    }
+  }
+  expect(p.practiceSourceUrl(p.parsePracticeOptions(new URLSearchParams('source=notebook&limit=all')))).toBe('/notebook?tab=vocabulary')
+})
 it('atomically rolls frequency grade back when its canonical confirmation/session storage fails', async () => {
   const p = await api()
   expect(frequencyDB.practiceState, 'frequency confirmation needs canonical same-database session storage').toBeDefined()

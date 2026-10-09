@@ -42,7 +42,7 @@ export function practiceSourceUrl(options: PracticeOptions): string {
   const params = new URLSearchParams({ source: options.source })
   if (options.chapter) params.set('chapter', String(options.chapter))
   params.set('section', options.section)
-  if (options.limit) params.set('limit', String(options.limit))
+  params.set('limit', options.limit === null ? 'all' : String(options.limit))
   return `/ielts/listening?${params}`
 }
 export function selectPracticeQueue(words: PracticeWord[], queue: PracticeQueue, now = Date.now()): PracticeWord[] {

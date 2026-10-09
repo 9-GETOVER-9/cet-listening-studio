@@ -22,6 +22,7 @@
 | `feature/学习复习与听力统计` | 卡片/难点本/复习交互、随身听、课程筛选、学习同步、听力统计、签到 | `src/pages/Review.tsx`、`Walkman.tsx`、`Profile.tsx`、`src/lib/listeningTime.ts` |
 | `feature/雅思听力与词条笔记` | 王陆/高频听写、双语播放、错词复习、原因标记、词条笔记和导入工具 | `src/pages/IELTSDictation.tsx`、`src/lib/ieltsFrequencyProgress.ts` |
 | `feature/雅思阅读538` | 雅思专区、三类阅读、多选/回忆、FSRS、自动批注与备份 | `src/pages/IELTSReading.tsx`、`src/lib/ieltsReadingStore.ts` |
+| `feature/原句发音与短语标注` | 四六级/新概念学习及复习原句标注、设置中心开关 | `src/components/AnnotatedSentence.tsx`、`src/lib/sentenceAnnotations.ts` |
 
 这些分支按表格顺序依赖前一分支，共享的播放与存储接口先进入前置提交。合并请求按前置顺序审阅；第一个指向 dev，后续先指向前置功能分支以展示本功能的增量。前置内容进入 dev 后，将下一请求的目标切换为 dev，再同步与验证。各分支端点分别运行测试和 TypeScript 检查。
 

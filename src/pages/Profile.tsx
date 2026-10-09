@@ -40,6 +40,7 @@ import { activateInviteCode } from '@/lib/supabase'
 import { clearRemoteLearningData } from '@/lib/sync'
 import { getLocalDateStr } from '@/lib/utils'
 import { useSettingsStore } from '@/store/settingsStore'
+import { SentenceAnnotationSettings } from '@/components/SentenceAnnotationSettings'
 import type { StudyLogItem } from '@/types'
 
 interface Stats {
@@ -562,6 +563,10 @@ export default function Profile() {
                 {logEnabled ? '开启' : '关闭'}
               </Button>
             </div>
+
+            <Separator />
+
+            <SentenceAnnotationSettings />
 
             <Separator />
 

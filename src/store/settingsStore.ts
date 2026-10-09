@@ -4,11 +4,14 @@ import { supabase } from '@/lib/supabase'
 import { REGISTERED_TRIAL_DAYS } from '@/lib/guestTrial'
 import { getLocalDateStr, getYesterdayStr } from '@/lib/utils'
 import { isLifetimeProEmail, resolveMembership } from '@/lib/membershipPolicy'
+import { DEFAULT_SENTENCE_ANNOTATIONS, normalizeSentenceAnnotationSettings, type SentenceAnnotationSettings } from '@/lib/sentenceAnnotations'
 
 interface SettingsStore {
   nickname: string
   playSpeed: number
   logEnabled: boolean
+  sentenceAnnotations: SentenceAnnotationSettings
+  setSentenceAnnotationSetting: (key: keyof SentenceAnnotationSettings, value: boolean) => void
   initialized: boolean
   onboardingCompleted: boolean
   isPro: boolean
@@ -76,6 +79,8 @@ export const useSettingsStore = create<SettingsStore>()(
       nickname: '',
       playSpeed: 1.0,
       logEnabled: true,
+      sentenceAnnotations: { ...DEFAULT_SENTENCE_ANNOTATIONS },
+      setSentenceAnnotationSetting: (key, value) => set(state => ({ sentenceAnnotations: { ...state.sentenceAnnotations, [key]: value } })),
       initialized: false,
       onboardingCompleted: false,
       isPro: false,
@@ -298,6 +303,12 @@ export const useSettingsStore = create<SettingsStore>()(
         }
       },
     }),
-    { name: 'cet-settings-store' }
+    {
+      name: 'cet-settings-store',
+      merge: (persisted, current) => {
+        const saved = persisted && typeof persisted === 'object' ? persisted as Partial<SettingsStore> : {}
+        return { ...current, ...saved, sentenceAnnotations: normalizeSentenceAnnotationSettings(saved.sentenceAnnotations) }
+      },
+    }
   )
 )

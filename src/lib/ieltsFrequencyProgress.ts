@@ -14,6 +14,7 @@ export interface FrequencyProgress {
   updatedAt: number
 }
 interface FrequencyReceipt { owner: string; sessionId: string; cardId: string }
+interface FrequencyPracticeState { owner: string; key: string; value: unknown }
 export interface FrequencyOutcome {
   owner: string; sessionId: string; cardId: string; passed: boolean; reason?: FrequencyReason
 }
@@ -21,10 +22,12 @@ class FrequencyDB extends Dexie {
   progress!: Table<FrequencyProgress, [string, string]>
   receipts!: Table<FrequencyReceipt, [string, string, string]>
   annotations!: Table<FrequencyAnnotation, [string, string]>
+  practiceState!: Table<FrequencyPracticeState, [string, string]>
   constructor() {
     super('ielts-frequency-progress')
     this.version(1).stores({ progress: '[owner+cardId], owner', receipts: '[owner+sessionId+cardId], owner' })
     this.version(2).stores({ progress: '[owner+cardId], owner', receipts: '[owner+sessionId+cardId], owner', annotations: '[owner+cardId], owner' })
+    this.version(3).stores({ progress: '[owner+cardId], owner', receipts: '[owner+sessionId+cardId], owner', annotations: '[owner+cardId], owner', practiceState: '[owner+key], owner' })
   }
 }
 export const frequencyDB = new FrequencyDB()
@@ -62,9 +65,10 @@ export async function setFrequencyReason(owner: string, cardId: string, reason: 
 }
 export async function clearFrequencyProgress(owner: string): Promise<void> {
   validateId(owner)
-  await frequencyDB.transaction('rw', frequencyDB.progress, frequencyDB.receipts, async () => {
+  await frequencyDB.transaction('rw', frequencyDB.progress, frequencyDB.receipts, frequencyDB.practiceState, async () => {
     await frequencyDB.progress.where('owner').equals(owner).delete()
     await frequencyDB.receipts.where('owner').equals(owner).delete()
+    await frequencyDB.practiceState.where('owner').equals(owner).delete()
   })
 }
 export function selectFrequencyCards(cards: readonly IELTSCard[], progress: readonly FrequencyProgress[],

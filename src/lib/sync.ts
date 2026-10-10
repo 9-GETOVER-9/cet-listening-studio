@@ -133,6 +133,7 @@ export async function syncNotebookItem(
 export async function deleteNotebookItemSync(
   userId: string,
   notebookId: string,
+  options: SyncWriteOptions = {},
 ): Promise<void> {
   const { error } = await supabase
     .from('notebook_items_sync')
@@ -141,6 +142,7 @@ export async function deleteNotebookItemSync(
     .eq('notebook_id', notebookId)
 
   if (error) {
+    if (options.throwOnError) throw error
     console.warn('[sync] notebook_items_sync delete failed:', error.message)
   }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BookOpen, Headphones, MessageSquareText, ScrollText, Trash2, RotateCcw, Crown, Volume2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -34,6 +34,7 @@ const PRO_LIMIT = 50
 
 export default function Notebook() {
   const navigate = useNavigate()
+  const [sourceParams] = useSearchParams()
   const { isPro } = usePro()
 
   const [items, setItems] = useState<NotebookItem[]>([])
@@ -41,7 +42,7 @@ export default function Notebook() {
     phrase: 0, vocabulary: 0, pronunciation: 0, terminology: 0,
   })
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<NotebookType>('phrase')
+  const [activeTab, setActiveTab] = useState<NotebookType>(sourceParams.get('tab') === 'vocabulary' ? 'vocabulary' : 'phrase')
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const totalCount = Object.values(counts).reduce((a, b) => a + b, 0)
@@ -155,6 +156,7 @@ export default function Notebook() {
           </div>
           {/* ✅ 修复问题6：专项复习改为从第一条开始连续复习 */}
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+            {activeTab === 'vocabulary' && <Button size="sm" disabled={!counts.vocabulary} onClick={() => navigate('/word-practice?source=notebook&queue=all&mode=dictation')}>专注单词练习</Button>}
             {activeTab === 'pronunciation' && (
               <Button
                 variant="default"
@@ -282,7 +284,7 @@ export default function Notebook() {
                             variant="ghost"
                             size="sm"
                             className="h-7 text-xs text-brand"
-                            onClick={() => handleStartReview(item, items)}
+                            onClick={() => item.type === 'vocabulary' ? navigate(`/word-practice?${new URLSearchParams({ source: 'notebook', queue: 'all', mode: 'dictation', targetId: item.notebookId })}`) : handleStartReview(item, items)}
                           >
                             从这里开始复习
                           </Button>

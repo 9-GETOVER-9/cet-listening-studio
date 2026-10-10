@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Check, Headphones, RotateCcw, Volume2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { QuietPageHeader } from '@/components/QuietPageHeader'
@@ -28,6 +29,8 @@ export default function IELTSDictation() {
 }
 const BOOK_TITLES = { wanglu: '王陆雅思语料库', frequency: '雅思高频语料库' }
 function IELTSStudy({owner}:{owner:string}) {
+  const [sourceParams] = useSearchParams()
+  const initialBook = sourceParams.get('source') === 'frequency' ? 'frequency' : 'wanglu'
   const authLoading = false
   const [roundCards,setRoundCards] = useState(new Map<string,IELTSCard>())
   const frequency = useIELTSFrequencyProgress(owner)
@@ -44,7 +47,7 @@ function IELTSStudy({owner}:{owner:string}) {
   const [corpus, setCorpus] = useState<IELTSCorpus | null>(null)
   const [chineseIndex,setChineseIndex] = useState<IELTSCard[]>([])
   const [indexError,setIndexError]=useState('')
-  const [book, setBook] = useState<Extract<IELTSBook, 'wanglu' | 'frequency'>>('wanglu')
+  const [book, setBook] = useState<Extract<IELTSBook, 'wanglu' | 'frequency'>>(initialBook)
   const [mode, setMode] = useState<'dictation' | 'walkman' | 'notes'>('dictation')
   const annotations = useIELTSAnnotations(owner, book === 'frequency')
   const chapters = book === 'frequency' ? [1,2,3,4,5,6,7,8] : CHAPTERS
@@ -52,9 +55,12 @@ function IELTSStudy({owner}:{owner:string}) {
   const bookTitle = BOOK_TITLES[book]
   const [loadError, setLoadError] = useState('')
   const [reload, setReload] = useState(0)
-  const [chapter, setChapter] = useState(3)
-  const [section, setSection] = useState('all')
-  const [limit, setLimit] = useState('20')
+  const [chapter, setChapter] = useState(() => {
+    const value = Number(sourceParams.get('chapter'))
+    return (initialBook === 'frequency' ? [1,2,3,4,5,6,7,8] : CHAPTERS).includes(value) ? value : initialBook === 'frequency' ? 1 : 3
+  })
+  const [section, setSection] = useState(sourceParams.get('section') || 'all')
+  const [limit, setLimit] = useState(['10','20','50','all'].includes(sourceParams.get('limit') || '') ? sourceParams.get('limit')! : '20')
   const [state, dispatch] = useReducer(frequencyRetryReducer, emptyFrequencyRetry)
   const [audioError, setAudioError] = useState('')
   const [playing, setPlaying] = useState(false)
@@ -315,12 +321,14 @@ function IELTSStudy({owner}:{owner:string}) {
         <div className="flex flex-wrap gap-3"><Button size="lg" disabled={!testCards.length || authLoading || (book === 'frequency' && !frequencyReady)} onClick={() => start(limit === 'all' ? testCards : testCards.slice(0, Number(limit)))}>
           <Headphones className="mr-2 h-4 w-4" />开始听写 · {limit === 'all' ? testCards.length : Math.min(testCards.length, Number(limit))} 题
         </Button>
+        <Button asChild size="lg" variant="outline"><a href={`/word-practice?${new URLSearchParams({ source: book, chapter: String(chapter), section, queue: 'all', mode: 'dictation', limit })}`}>进入专注单词练习</a></Button>
         {book === 'frequency' && <Button size="lg" variant="outline" disabled={!available.length || !frequencyReady} onClick={() => start(limit === 'all' ? available : available.slice(0, Number(limit)))}>重新测验所选内容</Button>}</div>
         {book === 'frequency' && frequencyReady && !testCards.length && <p role="status" className="mt-4 text-sm">所选内容已全部掌握，可以重新测验。</p>}
         </> : mode === 'notes' && book === 'frequency' ? frequencyReady && <IELTSNotesLibrary key={`${owner}:${chapter}:${section}`} owner={owner} cards={available}
           seeds={annotations.seeds} local={annotations.local} progress={frequency.progress} />
           : book === 'frequency' ? frequencyReady && <IELTSFrequencyReview key={`${owner}:${chapter}:${section}`} owner={owner} cards={available} progress={frequency.progress}
           seeds={annotations.seeds} local={annotations.local}
+          chapter={chapter} section={section}
           chineseById={chineseById} rate={rate} indexError={indexError} onReload={() => setReload(value => value + 1)} onStart={cards => start(cards, true)} />
           : <IELTSWalkman corpus={corpus} chapter={chapter} section={section} title={bookTitle} rate={rate} book={book} />}
       </section>}

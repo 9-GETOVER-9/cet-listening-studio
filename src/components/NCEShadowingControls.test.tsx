@@ -1,0 +1,5 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { expect, it } from 'vitest';
+const modules = import.meta.glob('./NCEShadowingControls.tsx');
+it('hides English lesson titles in the whole lesson selector until an answer is checked', async () => { expect(modules['./NCEShadowingControls.tsx']).toBeDefined(); const p = await modules['./NCEShadowingControls.tsx']() as typeof import('./NCEShadowingControls'); const props = { moduleId: 'Book1-L1', lessons: [{ moduleId: 'Book1-L1', lessonNum: '1', lessonTitle: 'Excuse me!', title: 'Excuse me!', book: 'Book1' as const, level: 'NCE' as const, totalCards: 2, studiedCards: 0, difficulty: 'basic' as const }], selection: { start: 1, end: 2, mode: 'hidden' as const }, count: 2, hideTitles: true, disabled: false, onSelection: () => { }, onLesson: () => { }, onApply: () => { } }; const html = renderToStaticMarkup(createElement(p.NCEScopeControls, props)); expect(html).not.toContain('Excuse me!'); expect(html).toContain('Lesson 1'); expect(renderToStaticMarkup(createElement(p.NCEScopeControls, { ...props, hideTitles: false }))).toContain('Excuse me!'); });

@@ -16,7 +16,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icon-192.svg', 'icon-512.svg'],
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}', 'data/ielts-reading-538-v1.json'],
         globIgnores: ['**/audio/**'],
         runtimeCaching: [
           {

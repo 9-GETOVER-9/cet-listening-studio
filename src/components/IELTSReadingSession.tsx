@@ -66,7 +66,7 @@ export function IELTSReadingSession({ cards, session: initial, data, onEnd, onNo
             const selected = session.selected.includes(option.id)
             const missed = session.revealed && option.correct && !selected
             const wrong = session.revealed && !option.correct && selected
-            return <label key={option.id} className={`flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border p-4 text-lg sm:p-5 ${session.revealed && option.correct ? 'border-emerald-600 bg-emerald-50 text-emerald-950' : wrong ? 'border-red-600 bg-red-50 text-red-950' : selected ? 'border-[var(--app-accent)] bg-[var(--app-bg)]' : 'border-[var(--app-line)]'}`}>
+            return <label key={option.id} className={`flex min-h-16 cursor-pointer items-center gap-3 rounded-xl border-2 p-4 text-lg sm:p-5 ${missed || wrong ? 'border-red-500 bg-red-100 text-red-950' : session.revealed && option.correct && selected ? 'border-emerald-600 bg-emerald-100 text-emerald-950' : selected ? 'border-[var(--app-accent)] bg-[var(--app-bg)]' : 'border-[var(--app-line)]'}`}>
               <input className="h-5 w-5 shrink-0" type="checkbox" checked={selected} onChange={() => { void operation(() => update({ ...session, question, selected: selected ? session.selected.filter(id => id !== option.id) : [...session.selected, option.id] }, true)) }} />
               <span className="min-w-0 break-words">{option.text}{session.revealed && <span className="ml-2 text-xs">{missed ? '漏选' : wrong ? '误选' : option.correct ? '正确对应' : ''}</span>}</span>
             </label>

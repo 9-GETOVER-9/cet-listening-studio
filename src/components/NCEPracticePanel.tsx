@@ -6,12 +6,6 @@ import type { AIAnalysis } from '@/types';
 import { Button } from '@/components/ui/button';
 import { nceTokens, type NCEComparison } from '@/lib/nceShadowing';
 import { validateNCESpans, type NCENameSpan } from '@/lib/nceProperNames';
-export function NCERecordingPlaceholder() {
-    return <section className="quiet-surface space-y-2 p-4" aria-label="个人录音回放">
-    <Button variant="outline" disabled>个人录音回放 · 待开发</Button>
-    <p className="text-xs text-[var(--app-muted)]">使用手机输入法的麦克风把朗读转成文字。网页仅对比文字内容准确率，不评价发音质量。</p>
-    </section>;
-}
 const colors = {
     match: 'text-green-900 bg-green-100 border-green-400', substitution: 'text-red-900 bg-red-100 border-red-400', deletion: 'text-red-900 bg-red-100 border-red-400', insertion: 'text-red-900 bg-red-100 border-red-400', exempt: 'text-gray-600 bg-gray-100 border-gray-200'
 };

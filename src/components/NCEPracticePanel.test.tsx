@@ -17,7 +17,12 @@ it('hides original, translation, name marking and answer-derived annotation unti
     expect(shown).toContain('John');
     expect(shown).toContain('专有名词标记');
 });
-it('includes disabled personal recording playback and distinguishes content from pronunciation', async () => { const p = await api(); const html = renderToStaticMarkup(createElement(p.NCERecordingPlaceholder)); expect(html).toContain('个人录音回放 · 待开发'); expect(html).toContain('disabled'); expect(html).toContain('发音质量'); });
+it('provides a local recording panel with privacy and backup explanation', async () => {
+ const panels=import.meta.glob('./NCERecordingPanel.tsx');expect(panels['./NCERecordingPanel.tsx']).toBeDefined();
+ const p=await panels['./NCERecordingPanel.tsx']() as typeof import('./NCERecordingPanel');
+ const html=renderToStaticMarkup(createElement(p.NCERecordingPanel,{owner:'guest',cardId:'c',moduleId:'m',onBusyChange:()=>{},onAudio:()=>{},playbackSignal:0}));
+ expect(html).toContain('个人录音');expect(html).toContain('不上传');expect(html).toContain('下载备份');expect(html).not.toContain('待开发');
+});
 
 it('shows accessible inline pronunciation by default without opening the full analysis', async () => {
  const p=await api();const html=renderToStaticMarkup(createElement(p.NCEPracticePanel,{text:'at a bank',translation:'在银行',hidden:false,evaluation:null,spans:[],onSpans:()=>{},analysis:{phrases:[],grammar:[],pronunciation:[{type:'连读',example:'at_a bank'}]},analysisUnlocked:true}));

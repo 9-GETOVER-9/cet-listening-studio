@@ -3,7 +3,8 @@ import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-route
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, ChevronLeft, ChevronRight, Mic, Settings2, Volume2, Square } from 'lucide-react';
 import '@/styles/nceShadowing.css';
-import { NCEPracticePanel, NCERecordingPlaceholder } from '@/components/NCEPracticePanel';
+import { NCEPracticePanel } from '@/components/NCEPracticePanel';
+import { NCERecordingPanel } from '@/components/NCERecordingPanel';
 import { NCEScopeControls } from '@/components/NCEShadowingControls';
 import { AIPanel } from '@/components/AIPanel';
 import { useAuth } from '@/hooks/useAuth';
@@ -33,14 +34,15 @@ export default function NCEShadowing() {
     const owner = user?.id || 'guest';
     if (loading)
         return <div className="quiet-page" role="status">正在准备学习记录…</div>;
-    return <ShadowingStudy key={JSON.stringify([owner, moduleId, range, params.get('targetId')])} owner={owner} moduleId={moduleId} range={range} targetId={params.get('targetId') || ''} isPro={isPro}/>;
+    return <ShadowingStudy key={JSON.stringify([owner, moduleId, range, params.get('targetId')])} owner={owner} moduleId={moduleId} range={range} targetId={params.get('targetId') || ''} isPro={isPro} recordingOpen={params.get('recording') === '1'}/>;
 }
-function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
+function ShadowingStudy({ owner, moduleId, range, targetId, isPro, recordingOpen }: {
     owner: string;
     moduleId: string;
     range: NCERange;
     targetId: string;
     isPro: boolean;
+    recordingOpen: boolean;
 }) {
     const navigate = useNavigate();
     const audio = useWordPracticeAudio();
@@ -53,6 +55,9 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
     const [attempt, setAttempt] = useState(0);
     const [pending, setPending] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [recordingBusy, setRecordingBusy] = useState(false);
+    const [playbackSignal, setPlaybackSignal] = useState(0);
+    const stopOriginal = useCallback(() => audio.player.stop(), [audio.player]);
     const [composing, setComposing] = useState(false);
     const [hidden, setHidden] = useState(document.hidden);
     const [focus, setFocus] = useState(false);
@@ -70,7 +75,7 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
         text: string;
         spans: NCENameSpan[];
     }>>({});
-    const blocked = pending || saving || !!error;
+    const blocked = pending || saving || !!error || recordingBusy;
     const blocker = useBlocker(blocked);
     const update = useCallback((next: NCESession) => {
         currentRef.current = next;
@@ -232,7 +237,7 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
         } : moveNCESession(v, 1));
     }, [audio.player, blocked, composing, locked, mutate]);
     const auto = nceAutoNextAllowed(session, {
-        hidden, composing, saving, pending, locked, error: !!error, editing: nameEditing || !session?.evaluation
+        hidden, composing, saving, pending, locked, error: !!error, editing: recordingBusy || nameEditing || !session?.evaluation
     });
     useEffect(() => {
         if (!auto)
@@ -296,7 +301,7 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
         }
     }
     async function go(url: string) {
-        if (busy.current || error)
+        if (busy.current || error || recordingBusy)
             return;
         busy.current = true;
         setSaving(true);
@@ -370,7 +375,7 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
     const availableAnalysis = isPro || Boolean(current?.aiUnlocked);
     return <div ref={page} className={`quiet-page nce-shadowing ${focus ? 'nce-shadowing-focus' : ''}`}>
       <header className="nce-heading">
-        <Button variant="ghost" className="nce-back" aria-label="返回课程" disabled={saving || !!error} onClick={() => { void go('/nce'); }}><ArrowLeft aria-hidden className="h-5 w-5" /></Button>
+        <Button variant="ghost" className="nce-back" aria-label="返回课程" disabled={saving || !!error || recordingBusy} onClick={() => { void go('/nce'); }}><ArrowLeft aria-hidden className="h-5 w-5" /></Button>
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-semibold">新概念跟读</h1>
           <p className="mt-1 truncate text-xs text-slate-500">{module.book} · Lesson {module.lessonNum}{session.range.mode === 'hidden' && !session.evaluation ? '' : ` · ${module.lessonTitle}`}</p>
@@ -386,7 +391,8 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
       </section> : current && <>
         <NCEPracticePanel key={current.cardId} text={current.englishText} translation={decodeHtml(current.chineseText)} hidden={session.range.mode === 'hidden'} evaluation={session.evaluation?.comparison || null} spans={session.spans[current.cardId] || []} onSpans={mark} onEditing={setNameEditing} analysis={current.aiAnalysis} analysisUnlocked={availableAnalysis} disabled={saving}
           audioControl={<div className="nce-audio-row">
-            <Button type="button" variant="ghost" className="nce-play" disabled={!current.audioFile} onClick={() => {
+            <Button type="button" variant="ghost" className="nce-play" disabled={!current.audioFile || recordingBusy} onClick={() => {
+              setPlaybackSignal(value => value + 1);
               if (audio.state === 'playing') audio.player.stop();
               else { if (prefs.muted) changePrefs({ muted: false }); audio.player.play({ id: current.cardId, word: '', audio: `/data/audio/${current.audioFile}` }, { ...prefs, muted: false }); }
             }}>{audio.state === 'playing' ? <Square aria-hidden className="h-6 w-6" /> : <Volume2 aria-hidden className="h-6 w-6" />}{audio.state === 'playing' ? '停止播放' : '播放原音'}</Button>
@@ -402,16 +408,17 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
         </section>
         <p className="nce-hint">先听，再模仿。用手机键盘的麦克风输入；核对文字时忽略大小写，人名和地名免评。</p>
         <div className="nce-bottom-actions">
-          <Button type="button" variant="ghost" className="nce-step" aria-label="上一句" disabled={saving || !!error || composing || session.position === 0} onClick={() => { audio.player.stop(); mutate(s => moveNCESession(s, -1)); }}><ChevronLeft aria-hidden className="h-5 w-5" /><span>上一句</span></Button>
+          <Button type="button" variant="ghost" className="nce-step" aria-label="上一句" disabled={recordingBusy || saving || !!error || composing || session.position === 0} onClick={() => { audio.player.stop(); mutate(s => moveNCESession(s, -1)); }}><ChevronLeft aria-hidden className="h-5 w-5" /><span>上一句</span></Button>
           <Button type="button" className="nce-primary" disabled={saving || !!error || composing || (!session.evaluation && !!session.draft.trim() && !canCheckNCE(session.draft, composing))} onClick={() => { if (session.evaluation || !session.draft.trim()) startSpeaking(); else void check(); }}>{saving ? '正在保存…' : session.evaluation ? '再读一遍' : session.draft.trim() ? '核对文字' : '开始跟读'}</Button>
-          <Button type="button" variant="ghost" className="nce-step" aria-label={session.position + 1 === session.queue.length ? '完成本轮' : '下一句'} disabled={saving || pending || !!error || composing || !session.evaluation} onClick={advance}><ChevronRight aria-hidden className="h-5 w-5" /><span>{session.position + 1 === session.queue.length ? '完成' : '下一句'}</span></Button>
+          <Button type="button" variant="ghost" className="nce-step" aria-label={session.position + 1 === session.queue.length ? '完成本轮' : '下一句'} disabled={recordingBusy || saving || pending || !!error || composing || !session.evaluation} onClick={advance}><ChevronRight aria-hidden className="h-5 w-5" /><span>{session.position + 1 === session.queue.length ? '完成' : '下一句'}</span></Button>
         </div>
         <p role="status" className="nce-save-state">{saving ? '正在保存检查…' : pending ? '正在保存…' : error ? '保存待重试' : '已自动保存'}</p>
       </>}
+      {current && <NCERecordingPanel key={JSON.stringify([owner,current.cardId])} owner={owner} cardId={current.cardId} moduleId={moduleId} onBusyChange={setRecordingBusy} onAudio={stopOriginal} playbackSignal={playbackSignal} defaultOpen={recordingOpen} disabled={locked || session.finished} />}
       <details className="nce-options">
         <summary><Settings2 aria-hidden className="h-4 w-4" />练习设置</summary>
         <div className="mt-4 space-y-5">
-          <NCEScopeControls moduleId={moduleId} lessons={lessons} count={cards.length} selection={selection} hideTitles={session.range.mode === 'hidden' && !session.evaluation} disabled={saving || !!error} onSelection={setSelection} onLesson={id => { void go(`/nce/shadowing/${encodeURIComponent(id)}`); }} onApply={() => { void go(`/nce/shadowing/${encodeURIComponent(moduleId)}?start=${selection.start}&end=${selection.end}&mode=${selection.mode}`); }} />
+          <NCEScopeControls moduleId={moduleId} lessons={lessons} count={cards.length} selection={selection} hideTitles={session.range.mode === 'hidden' && !session.evaluation} disabled={recordingBusy || saving || !!error} onSelection={setSelection} onLesson={id => { void go(`/nce/shadowing/${encodeURIComponent(id)}`); }} onApply={() => { void go(`/nce/shadowing/${encodeURIComponent(moduleId)}?start=${selection.start}&end=${selection.end}&mode=${selection.mode}`); }} />
           <div className="flex flex-wrap gap-4 text-sm">
             <label>重复次数 <select className={inputStyle} value={prefs.repeats} disabled={saving} onChange={e => changePrefs({ repeats: Number(e.target.value) })}>{[1, 2, 3, 5].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
             <label>速度 <select className={inputStyle} value={prefs.speed} disabled={saving} onChange={e => changePrefs({ speed: Number(e.target.value) })}>{[0.5, 0.75, 1, 1.25, 1.5].map(n => <option key={n} value={n}>{n}×</option>)}</select></label>
@@ -420,14 +427,13 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" disabled={saving || !!error} onClick={() => { void go('/feedback'); }}>反馈</Button>
             <Button variant="outline" onClick={() => { void fullscreen(); }}>{focus ? '退出专注' : '全屏 / 专注'}</Button>
-            <Button variant="outline" disabled={saving || !!error || composing} onClick={() => { audio.player.stop(); mutate(s => ({ ...s, finished: true })); }}>结束练习</Button>
+            <Button variant="outline" disabled={recordingBusy || saving || !!error || composing} onClick={() => { audio.player.stop(); mutate(s => ({ ...s, finished: true })); }}>结束练习</Button>
           </div>
-          <NCERecordingPlaceholder />
         </div>
       </details>
       {blocker.state === 'blocked' && <div role="alertdialog" aria-label="保存后离开" className="fixed inset-x-4 bottom-5 z-[70] space-y-3 rounded border bg-[var(--app-surface)] p-5 shadow-xl">
-        <p>草稿或设置正在保存，或保存失败。成功后可继续离开。</p>
-        <div className="flex gap-2"><Button disabled={saving || pending} onClick={() => { void retrySave(); }}>重试保存并继续</Button><Button variant="outline" onClick={() => blocker.reset()}>留在练习</Button></div>
+        <p>{recordingBusy ? '请先留在练习，停止并保存录音；保存失败时可下载备份或丢弃未保存录音。' : '草稿或设置正在保存，或保存失败。成功后可继续离开。'}</p>
+        <div className="flex gap-2"><Button disabled={recordingBusy || saving || pending} onClick={() => { void retrySave(); }}>重试保存并继续</Button><Button variant="outline" onClick={() => blocker.reset()}>留在练习</Button></div>
       </div>}
     </div>;
 }

@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button'
 import { QuietPageHeader } from '@/components/QuietPageHeader'
 import { IELTSReadingNotes } from '@/components/IELTSReadingNotes'
 import { IELTSReadingSession } from '@/components/IELTSReadingSession'
+import { ReadingLoadStatus } from '@/components/ReadingLoadStatus'
 import { useAuth } from '@/hooks/useAuth'
-import { buildReadingQuestion, parseReadingCorpus, selectReadingQueue, READING_RELATIONS, type ReadingCorpus } from '@/lib/ieltsReading'
+import { buildReadingQuestion, selectReadingQueue, READING_RELATIONS, type ReadingCorpus } from '@/lib/ieltsReading'
+import { loadReadingCorpus } from '@/lib/ieltsReadingLoader'
 import { endReadingSession, exportReadingBackup, readReadingSnapshot, restoreReadingBackup, saveReadingSession, type ReadingSnapshot, type ReadingMode } from '@/lib/ieltsReadingStore'
 
 export default function IELTSReading() {
@@ -47,10 +49,9 @@ function ReadingStudy({ owner }: { owner: string }) {
   useEffect(() => {
     const controller = new AbortController()
     setError('')
-    void fetch('/data/ielts-reading-538-v1.json', { signal: controller.signal }).then(response => {
-      if (!response.ok) throw new Error('阅读词库加载失败')
-      return response.json() as Promise<unknown>
-    }).then(value => setCorpus(parseReadingCorpus(value))).catch(e => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : '词库加载失败') })
+    void loadReadingCorpus(controller.signal).then(value => {
+      if (!controller.signal.aborted) setCorpus(value)
+    }).catch(e => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : '词库加载失败') })
     const subscription = liveQuery(() => readReadingSnapshot(owner)).subscribe({ next: setData, error: () => setError('学习记录读取失败，请重试。') })
     return () => { controller.abort(); subscription.unsubscribe() }
   }, [owner, reload])
@@ -96,7 +97,7 @@ function ReadingStudy({ owner }: { owner: string }) {
     <QuietPageHeader eyebrow="IELTS · Read & Remember" title="认出另一种表达。" description="阅读 538 · 第一章。同义替换与结构关系，按你的记忆节奏复习。" />
     {error && <div role="alert" className="mb-5 rounded-xl border border-red-300 p-4 text-sm text-red-700">{error}{!active && <Button variant="outline" className="ml-3" onClick={() => setReload(n => n + 1)}>重新加载</Button>}</div>}
     {blocker.state === 'blocked' && <div role="alert" className="mb-4 text-sm">批注尚未保存，请先在编辑区重试。<Button variant="outline" className="ml-3" onClick={() => blocker.reset()}>取消跳转</Button></div>}
-    {!corpus || !data ? <p role="status">正在读取词库与本机学习记录…</p> : active && data.session ? <IELTSReadingSession key={data.session.id} cards={cards} session={data.session} data={data} onEnd={end} notesBlocked={notesBlocked} onNotesBlocked={onNotesBlocked} /> : <>
+    {!corpus || !data ? <ReadingLoadStatus corpusReady={Boolean(corpus)} recordsReady={Boolean(data)} error={error} /> : active && data.session ? <IELTSReadingSession key={data.session.id} cards={cards} session={data.session} data={data} onEnd={end} notesBlocked={notesBlocked} onNotesBlocked={onNotesBlocked} /> : <>
       <div className="mb-6 grid grid-cols-3 gap-3 text-center"><div className="rounded-xl border border-[var(--app-line)] p-4"><strong className="block font-serif text-3xl">{studied}</strong><span className="text-xs text-[var(--app-muted)]">已学 / {scope.length} 组</span></div><div className="rounded-xl border border-[var(--app-line)] p-4"><strong className="block font-serif text-3xl">{due.length}</strong><span className="text-xs text-[var(--app-muted)]">当前到期</span></div><div className="rounded-xl border border-[var(--app-line)] p-4"><strong className="block font-serif text-3xl">{newCards.length}</strong><span className="text-xs text-[var(--app-muted)]">可学新词</span></div></div>
       {data.session && <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--app-accent)] p-4 text-sm"><span>上次练习 · 第 {data.session.cursor + 1} / {data.session.cardIds.length} 题 · 已评分 {data.session.completed} 组</span><Button disabled={busy || notesBlocked} onClick={() => setActive(true)}>继续上次练习</Button></div>}
       <div className="grid gap-3 sm:grid-cols-3">{[1, 2, 3].map(c => <Button key={c} variant={category === String(c) ? 'default' : 'outline'} className="h-auto min-h-20 flex-col gap-2" disabled={notesBlocked || busy} onClick={() => { setCategory(String(c)); setExpanded(undefined) }}><span>第{c}类</span><small className="font-normal">{cards.filter(card => card.category === c).length} 组 · {c === 1 ? '优先熟记' : c === 2 ? '重点积累' : '继续拓展'}</small></Button>)}</div>

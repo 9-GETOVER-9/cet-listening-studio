@@ -43,7 +43,8 @@ try {
     Invoke-Checked 'scp' @((Join-Path $PSScriptRoot 'server-install.sh'), ("${target}:${remoteScript}"))
 
     Write-Host '[4/6] Backing up and switching the live version...' -ForegroundColor Cyan
-    Invoke-Checked 'ssh' @($target, "chmod +x '$remoteScript' && '$remoteScript' '$SiteRoot' '$remotePackage'")
+    $backupScope = if ($FrontendOnly) { 'release-only' } else { 'full' }
+    Invoke-Checked 'ssh' @($target, "chmod +x '$remoteScript' && '$remoteScript' '$SiteRoot' '$remotePackage' '$backupScope'")
 
     Write-Host '[5/6] Verifying release identity and public HTTPS...' -ForegroundColor Cyan
     Invoke-Checked 'ssh' @($target, "echo '$indexHash  $SiteRoot/index.html' | sha256sum --check --status")

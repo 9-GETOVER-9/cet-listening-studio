@@ -19,3 +19,5 @@ bash scripts/test-static-release-install.sh
 2026-10-09：上述两组夹具在 Git Bash 和 Linux 隔离目录通过；PowerShell 打包夹具、167 项应用测试及 lint 通过，独立审查通过。使用已验收的生产构建发布雅思专区、阅读和原句标注；82 个发布文件服务器 SHA 一致，公网页面、相关 JS、阅读 JSON 身份检查通过，11 份既有词库 JSON 未改变。线上交互验收未替代本机生产浏览器验收，物理手机及真实账号仍待验证。
 
 根目录静态资源采用明确名单：favicon.svg、icon-192.svg、icon-512.svg、icons.svg、landing.html、wechat-pay.jpg。名单统一用于普通文件校验、独立备份、原子发布、回退和空间核算，避免页面更新后图标或落地页仍为旧文件。新备份写入 `.static-resources` 标识；没有此标识的历史完整备份不推断静态文件原先不存在，因此回退旧备份不会删除现有图标。新增夹具覆盖两种范围的成功、切换失败、静态目录拒绝及历史备份兼容。
+
+2026-10-10：Windows checkout 的 CRLF 使安装器 shebang 被解析为 bash\r，首次启动退出127且未进入安装。仓库现固定 `*.sh text eol=lf`，已将安装器转为LF并完成本次前端发布。release-only 空间预检95394KiB通过，备份cet-listening-20261010-145645-XDYilj；90个发布文件服务器SHA一致，31项HTTPS身份核验通过，14份既有JSON保持发布前值，发布不含音频或词库。业务构建源7bab212，本次含简洁跟读与原句连接/短语括线改版。

@@ -6,6 +6,7 @@ import { ArrowLeft, Check, ChevronLeft, ChevronRight, Layers, RotateCcw, Trash2,
 import { toast } from 'sonner'
 import type { CommitCardRatingResult } from '@/db/reviewRepository'
 import { AIPanel } from '@/components/AIPanel'
+import { AnnotatedSentence } from '@/components/AnnotatedSentence'
 import { FSRSButtons } from '@/components/FSRSButtons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -700,27 +701,15 @@ export default function CardFlash() {
                 <div className="flex flex-col gap-4">
                   <div>
                     <p className="mb-1 text-xs font-medium text-gray-500">English</p>
-                    <p className="text-lg font-medium leading-relaxed text-gray-900">
-                      {decodeHtml(currentCard.englishText).split(/(\s+)/).map((word, index) => {
-                        if (/^\s+$/.test(word) || /^[.,!?;:'"()-]+$/.test(word)) return word
-                        return (
-                          <span
-                            key={index}
-                            data-interactive
-                            className="cursor-pointer rounded px-0.5 transition-colors hover:bg-blue-100"
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              event.preventDefault()
-                              if (Date.now() < backActionLockUntilRef.current) return
-                              void handleBookmark('vocabulary', word.replace(/[.,!?;:'"]/g, ''))
-                            }}
-                            title="点击收藏这个单词"
-                          >
-                            {word}
-                          </span>
-                        )
-                      })}
-                    </p>
+                    <AnnotatedSentence
+                      text={decodeHtml(currentCard.englishText)}
+                      analysis={currentCard.aiAnalysis}
+                      unlocked={canViewAi || Boolean(currentCard.aiUnlocked)}
+                      onWordClick={(word) => {
+                        if (Date.now() < backActionLockUntilRef.current) return
+                        void handleBookmark('vocabulary', word)
+                      }}
+                    />
                   </div>
                   <div className="rounded-lg bg-gray-50 p-3">
                     <p className="mb-1 text-xs font-medium text-gray-500">中文</p>

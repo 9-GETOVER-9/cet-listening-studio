@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { ArrowLeft, CheckCircle2, Headphones, RotateCcw, Star, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AIPanel } from '@/components/AIPanel'
+import { AnnotatedSentence } from '@/components/AnnotatedSentence'
 import { FSRSButtons } from '@/components/FSRSButtons'
 import { JourneyCompletionDialog } from '@/components/JourneyCompletionDialog'
 import {
@@ -525,9 +526,11 @@ export default function Review() {
                 <div ref={backContentRef} tabIndex={-1} role="status" aria-live="polite" className="flex flex-col gap-4 outline-none">
                   <div>
                     <p className="mb-1 text-xs font-medium text-gray-500">English</p>
-                    <p className="text-lg font-medium leading-relaxed text-gray-900">
-                      {decodeHtml(currentCard.englishText)}
-                    </p>
+                    <AnnotatedSentence
+                      text={decodeHtml(currentCard.englishText)}
+                      analysis={currentCard.aiAnalysis}
+                      unlocked={canViewAi || Boolean(currentCard.aiUnlocked)}
+                    />
                   </div>
                   <div className="rounded-lg bg-gray-50 p-3">
                     <p className="mb-1 text-xs font-medium text-gray-500">中文</p>

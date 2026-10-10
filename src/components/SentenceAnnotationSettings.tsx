@@ -15,17 +15,19 @@ export function SentenceAnnotationSettings() {
       <div><p id="sentence-annotations-heading" className="font-medium text-gray-900">原句标注</p>
         <p className="text-sm text-gray-500">四六级与新概念的学习、复习卡片</p></div>
       <Button type="button" size="sm" role="switch" aria-label="原句标注总开关" aria-checked={options.enabled}
+        title={options.enabled ? '点击关闭原句标注' : '点击开启原句标注'}
         variant={options.enabled ? 'default' : 'outline'} onClick={() => setOption('enabled', !options.enabled)}>
-        {options.enabled ? '开启' : '关闭'}
+        {options.enabled ? '已开启' : '已关闭'}
       </Button>
     </div>
+    {!options.enabled && <p role="status" className="mt-3 text-sm text-gray-500">总开关已关闭，连读、弱读和短语暂不显示；开启后恢复下方选择。</p>}
     <div className={`mt-3 space-y-3 border-l-2 border-gray-200 pl-3 ${options.enabled ? '' : 'opacity-50'}`}>
       {choices.map(item => <div key={item.key} className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2"><span aria-hidden className={`h-3 w-3 shrink-0 rounded border ${item.color}`} />
           <div><p className="text-sm font-medium">{item.label}标注</p><p className="text-xs text-gray-500">{item.description}</p></div></div>
         <Button type="button" size="sm" role="switch" aria-label={`${item.label}标注`} aria-checked={options[item.key]} disabled={!options.enabled}
           variant={options[item.key] ? 'default' : 'outline'} onClick={() => setOption(item.key, !options[item.key])}>
-          {options[item.key] ? '开启' : '关闭'}
+          {options[item.key] ? '已开启' : '已关闭'}
         </Button>
       </div>)}
     </div>

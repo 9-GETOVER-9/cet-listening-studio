@@ -10,6 +10,17 @@ const analysis: AIAnalysis = {
 const marked = (text: string, a = analysis, o = options) => annotateSentence(text, a, o).filter(p => p.annotations.length)
 
 describe('sentence annotation matching', () => {
+  it('locates the linking, weak form and proper-name phrase from the reported screenshot', () => {
+    const text = 'Technology trends may push Silicon Valley back to the future.'
+    const a: AIAnalysis = { grammar: [], phrases: [{ phrase: 'push back to', meaning: '使重返' }, { phrase: 'Silicon Valley', meaning: '硅谷' }], pronunciation: [{ type: '连读', example: 'push_Silicon' }, { type: '弱读', example: 'may /meɪ/ → /mə/' }, { type: '失爆', example: 'back to /bæk tə/ 中/k/不完全爆破' }] }
+    const parts = annotateSentence(text, a, options)
+    const layer = (kind: string) => parts.filter(p => p.annotations.some(v => v.kind === kind)).map(p => p.text).join('')
+    expect(layer('linking')).toBe('push Silicon')
+    expect(layer('weak')).toBe('may')
+    expect(layer('phrases')).toBe('Silicon Valley')
+    expect(parts.map(p => p.text).join('')).toBe(text)
+    expect(annotateSentence(text, a, { ...options, enabled: false }).every(p => !p.annotations.length)).toBe(true)
+  })
   it('preserves original text while locating underscores and stripping phonetic suffixes', () => {
     const text = 'A current account at a bank, repayment of which is due.'
     const parts = annotateSentence(text, analysis, options)

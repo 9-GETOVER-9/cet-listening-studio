@@ -280,7 +280,7 @@ export default function Home() {
         <h2 className="quiet-display mb-4 text-3xl">继续学习</h2>
         <div className="space-y-3">
           <Button variant="outline" className="h-auto w-full justify-between whitespace-normal p-5 text-left" onClick={() => safeNavigate('/ielts')}>
-            <span><span className="block text-base font-semibold">雅思</span><span className="mt-1 block text-sm font-normal text-[var(--app-muted)]">王陆语料 · 高频词汇 · 听写与随身听</span></span>
+            <span><span className="block text-base font-semibold">雅思</span><span className="mt-1 block text-sm font-normal text-[var(--app-muted)]">听力语料库 · 阅读 538 同义替换 · 记忆复习</span></span>
             <ChevronRight className="ml-3 h-5 w-5 shrink-0" />
           </Button>
           <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => safeNavigate('/cet')}>

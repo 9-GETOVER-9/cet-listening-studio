@@ -9,6 +9,8 @@ const Login = lazyWithRecovery(() => import('@/pages/Login'))
 const ContentSelector = lazyWithRecovery(() => import('@/pages/ContentSelector'))
 const NCESelector = lazyWithRecovery(() => import('@/pages/NCESelector'))
 const IELTSDictation = lazyWithRecovery(() => import('@/pages/IELTSDictation'))
+const IELTSHub = lazyWithRecovery(() => import('@/pages/IELTSHub'))
+const IELTSReading = lazyWithRecovery(() => import('@/pages/IELTSReading'))
 const CardFlash = lazyWithRecovery(() => import('@/pages/CardFlash'))
 const Review = lazyWithRecovery(() => import('@/pages/Review'))
 const Walkman = lazyWithRecovery(() => import('@/pages/Walkman'))
@@ -41,7 +43,9 @@ export const router = createBrowserRouter([
       { index: true, element: <Home /> },
       { path: 'cet', element: <ContentSelector /> },
       { path: 'nce', element: <NCESelector /> },
-      { path: 'ielts', element: <IELTSDictation /> },
+      { path: 'ielts', element: <IELTSHub /> },
+      { path: 'ielts/listening', element: <IELTSDictation /> },
+      { path: 'ielts/reading-538', element: <IELTSReading /> },
       { path: 'card/:moduleId', element: <CardFlash /> },
       { path: 'review', element: <Review /> },
       { path: 'walkman', element: <Walkman /> },

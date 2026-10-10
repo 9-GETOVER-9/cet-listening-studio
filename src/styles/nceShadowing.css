@@ -1,0 +1,38 @@
+.nce-shadowing {
+  width: min(100%, 760px);
+  padding: 1.5rem 1.25rem 6rem;
+  color: #223041;
+}
+.nce-shadowing-focus { position: fixed; inset: 0; z-index: 50; overflow-y: auto; width: 100%; background: #f5f6fa; }
+.nce-heading { display: flex; align-items: center; gap: .75rem; margin-bottom: 1.5rem; }
+.nce-back { padding: .5rem; width: 2.5rem; height: 2.5rem; }
+.nce-position { flex-shrink: 0; border-radius: 999px; background: #e8edf5; padding: .4rem .75rem; font-size: .75rem; color: #536176; }
+.nce-source-card { padding: 1.5rem; background: #fff; border: 1px solid #e9edf3; border-radius: 24px; box-shadow: 0 6px 24px rgb(39 54 78 / 3%); }
+.nce-audio-row { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
+.nce-play { padding: .35rem 0; height: 2.75rem; font-size: 1rem; color: #26719c; }
+.nce-tabs { display: flex; flex-wrap: wrap; gap: .5rem; }
+.nce-shadowing .nce-tab { background: #f1f4f8; color: #617084; border-radius: 999px; padding: .5rem .8rem; height: 2.25rem; font-size: .8rem; }
+.nce-tab[aria-pressed=true], .nce-tab[aria-expanded=true] { background: #e2f0fc; color: #1374b1; }
+.nce-translation { border-left: 3px solid #bdd8ec; padding-left: .75rem; color: #66778a; font-size: .9rem; line-height: 1.8; }
+.nce-response { margin: 1.5rem 0 0 1.5rem; padding: 1.25rem; border-radius: 22px 22px 6px 22px; background: #dff1fe; color: #234d69; }
+.nce-answer { display: block; width: 100%; min-height: 84px; resize: vertical; border: 0; border-radius: 10px; background: rgb(255 255 255 / .55); padding: .75rem; font-size: 1rem; line-height: 1.65; color: #193c56; }
+.nce-answer::placeholder { color: #7191a8; font-size: .85rem; }
+.nce-hint { font-size: .75rem; line-height: 1.8; color: #83909f; margin: .75rem 1.5rem; }
+.nce-bottom-actions { display: grid; grid-template-columns: 64px minmax(0, 1fr) 64px; align-items: center; gap: .75rem; position: sticky; bottom: 1rem; z-index: 20; padding: .75rem; margin-top: 1.5rem; border-radius: 20px; background: rgb(255 255 255 / .97); box-shadow: 0 4px 30px rgb(40 58 80 / .06); }
+.nce-shadowing .nce-primary { border-radius: 16px; min-height: 52px; height: auto; background: #009af4; color: #fff; font-size: 1rem; }
+.nce-primary:hover { background: #0089da; }
+.nce-step { display: flex; flex-direction: column; gap: .2rem; height: 48px; padding: .25rem; font-size: .65rem; color: #778495; }
+.nce-save-state { margin: .75rem 0; text-align: center; font-size: .65rem; color: #8996a5; }
+.nce-options { margin-top: 1.25rem; padding: 1rem; border: 1px solid #e2e7ef; border-radius: 14px; background: rgb(255 255 255 / .6); }
+.nce-options > summary { display: flex; align-items: center; gap: .5rem; color: #7c8898; font-size: .8rem; cursor: pointer; }
+.nce-options label { min-width: 0; max-width: 100%; }
+.nce-options select { max-width: 100%; }
+.nce-error { margin: .75rem 0; padding: 1rem; border-radius: 12px; background: #fee2e2; color: #991b1b; font-size: .85rem; }
+@media (max-width: 767px) {
+  .nce-shadowing { padding: 1rem .875rem 6rem; }
+  .nce-heading { margin-bottom: 1rem; }
+  .nce-source-card { padding: 1.125rem; border-radius: 20px; }
+  .nce-response { padding: 1rem; margin-top: 1.125rem; margin-left: 1rem; }
+  .nce-hint { margin: .65rem .75rem; }
+  .nce-bottom-actions { grid-template-columns: 44px minmax(0, 1fr) 44px; gap: .5rem; bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px)); padding: .5rem; margin-top: 1rem; }
+}

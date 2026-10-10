@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
+import { Eye, Languages, Lightbulb } from 'lucide-react';
 import { AnnotatedSentence } from '@/components/AnnotatedSentence';
 import { decodeHtml } from '@/lib/decodeHtml';
 import type { AIAnalysis } from '@/types';
@@ -12,12 +13,12 @@ export function NCERecordingPlaceholder() {
     </section>;
 }
 const colors = {
-    match: 'text-green-700 bg-green-50', substitution: 'text-red-700 bg-red-50', deletion: 'text-orange-700 bg-orange-50', insertion: 'text-red-700 bg-red-50', exempt: 'text-gray-600 bg-gray-100'
+    match: 'text-green-900 bg-green-100 border-green-400', substitution: 'text-red-900 bg-red-100 border-red-400', deletion: 'text-red-900 bg-red-100 border-red-400', insertion: 'text-red-900 bg-red-100 border-red-400', exempt: 'text-gray-600 bg-gray-100 border-gray-200'
 };
 const labels = {
     match: '正确', substitution: '错误', deletion: '缺漏', insertion: '多出', exempt: '专名免评'
 };
-export function NCEPracticePanel({ text, translation, hidden, evaluation, spans, onSpans, onEditing, analysis, showAnnotations = false, analysisUnlocked = false, disabled = false }: {
+export function NCEPracticePanel({ text, translation, hidden, evaluation, spans, onSpans, onEditing, analysis, showAnnotations = true, analysisUnlocked = false, disabled = false, audioControl, analysisOpen = false, onAnalysisChange, analysisContent }: {
     text: string;
     translation: string;
     hidden: boolean;
@@ -29,9 +30,15 @@ export function NCEPracticePanel({ text, translation, hidden, evaluation, spans,
     analysis?: AIAnalysis;
     showAnnotations?: boolean;
     analysisUnlocked?: boolean;
+    audioControl?: ReactNode;
+    analysisOpen?: boolean;
+    onAnalysisChange?: () => void;
+    analysisContent?: ReactNode;
 }) {
     const editor = useRef<HTMLTextAreaElement>(null);
     const [error, setError] = useState('');
+    const [originalOpen, setOriginalOpen] = useState(true);
+    const [translationOpen, setTranslationOpen] = useState(false);
     const reveal = !hidden || !!evaluation;
     function mark(kind: 'person' | 'place') {
         const e = editor.current;
@@ -49,18 +56,25 @@ export function NCEPracticePanel({ text, translation, hidden, evaluation, spans,
         onSpans(validateNCESpans(text, next));
         setError('');
     }
-    return <section className="quiet-surface space-y-4 p-4 md:p-6">
-  {reveal ? <>
+    return <section className="nce-source-card space-y-5">
+  {audioControl}
+  {reveal && originalOpen ? <div aria-label="跟读原句">
         {analysis && showAnnotations && analysisUnlocked ? <AnnotatedSentence text={decodeHtml(text)} analysis={analysis} unlocked /> : <p className="text-xl leading-relaxed">{decodeHtml(text)}</p>}
-        <p className="text-sm text-[var(--app-muted)]">{translation}</p>
-        </> : <p>回忆模式：英文、中文和专名标记将在检查后显示。</p>}
+        </div> : <p className="text-sm text-slate-500">{reveal ? '原文已收起，试着自己说一遍。' : '先听原音并复述，核对后显示原文。'}</p>}
+  <div className="nce-tabs" aria-label="原句辅助">
+    <Button type="button" variant="ghost" className="nce-tab" disabled={!reveal} aria-pressed={reveal && originalOpen} onClick={() => setOriginalOpen(v => !v)}><Eye aria-hidden className="h-4 w-4" />原文</Button>
+    <Button type="button" variant="ghost" className="nce-tab" disabled={!reveal} aria-expanded={reveal && translationOpen} onClick={() => setTranslationOpen(v => !v)}><Languages aria-hidden className="h-4 w-4" />翻译</Button>
+    {onAnalysisChange && <Button type="button" variant="ghost" className="nce-tab" disabled={!reveal || disabled} aria-expanded={reveal && analysisOpen} onClick={onAnalysisChange}><Lightbulb aria-hidden className="h-4 w-4" />解析</Button>}
+  </div>
+  {reveal && translationOpen && <p className="nce-translation">{translation}</p>}
+  {reveal && analysisOpen && analysisContent}
   {evaluation && <div role="status" className="space-y-3">
         <p className="font-medium">{evaluation.score === null ? '本句全部为免评专名，无数值成绩' : `文字内容准确率 ${Math.round(evaluation.score)}%`} · 普通词 {evaluation.normalCount} · 错误 {evaluation.substitutions} / 缺漏 {evaluation.deletions} / 多出 {evaluation.insertions}</p>
-        <div className="flex flex-wrap gap-2">{evaluation.diff.map((d, i) => <span key={i} className={`rounded px-2 py-1 text-sm ${colors[d.type]}`}>
+        <div className="flex flex-wrap gap-2">{evaluation.diff.map((d, i) => <span key={i} data-diff={d.type} className={`rounded border px-2 py-1 text-sm ${colors[d.type]}`}>
             <span className="mr-1 text-xs">{labels[d.type]}</span>{d.type === 'insertion' ? d.answer : d.reference}{d.type === 'substitution' && ` → ${d.answer}`}{d.type === 'exempt' && d.answer && `（${d.answer}）`}</span>)}</div>
         </div>}
   {reveal && <details onToggle={e => onEditing?.(e.currentTarget.open)}>
-        <summary className="cursor-pointer text-sm">专有名词标记 · 人名 / 地名不计分，可修改</summary>
+        <summary className="cursor-pointer text-xs text-slate-500">专有名词标记 · 人名 / 地名免评</summary>
         <div className="mt-3 space-y-3">
         <label className="block text-sm">选中原文中的完整人名或地名<textarea ref={editor} readOnly value={text} rows={3} className="mt-2 w-full rounded border p-3 bg-[var(--app-bg)]"/>
         </label>

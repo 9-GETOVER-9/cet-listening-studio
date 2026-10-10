@@ -1,6 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
+import { compareNCEText } from '@/lib/nceShadowing';
 const annotationSettings=vi.hoisted(()=>({enabled:true,linking:true,weak:true,phrases:true}));
 vi.mock('@/store/settingsStore',()=>({useSettingsStore:(selector:(value:unknown)=>unknown)=>selector({sentenceAnnotations:annotationSettings})}));
 const modules = import.meta.glob('./NCEPracticePanel.tsx');
@@ -17,6 +18,19 @@ it('hides original, translation, name marking and answer-derived annotation unti
     expect(shown).toContain('专有名词标记');
 });
 it('includes disabled personal recording playback and distinguishes content from pronunciation', async () => { const p = await api(); const html = renderToStaticMarkup(createElement(p.NCERecordingPlaceholder)); expect(html).toContain('个人录音回放 · 待开发'); expect(html).toContain('disabled'); expect(html).toContain('发音质量'); });
+
+it('shows accessible inline pronunciation by default without opening the full analysis', async () => {
+ const p=await api();const html=renderToStaticMarkup(createElement(p.NCEPracticePanel,{text:'at a bank',translation:'在银行',hidden:false,evaluation:null,spans:[],onSpans:()=>{},analysis:{phrases:[],grammar:[],pronunciation:[{type:'连读',example:'at_a bank'}]},analysisUnlocked:true}));
+ expect(html).toContain('data-annotation="linking"');
+});
+it('keeps the translation collapsed until requested in the simple visible exercise', async () => {
+ const p=await api();const html=renderToStaticMarkup(createElement(p.NCEPracticePanel,{text:'Read aloud.',translation:'大声朗读。',hidden:false,evaluation:null,spans:[],onSpans:()=>{}}));
+ expect(html).toContain('翻译');expect(html).not.toContain('大声朗读。');
+});
+it('uses red for omitted words and a stronger green for correct words',async()=>{
+ const p=await api();const html=renderToStaticMarkup(createElement(p.NCEPracticePanel,{text:'Read this aloud.',translation:'大声朗读。',hidden:false,evaluation:compareNCEText('Read this aloud.','Read aloud.'),spans:[],onSpans:()=>{}}));
+ expect(html).toContain('bg-red-100');expect(html).toContain('bg-green-100');expect(html).not.toContain('bg-orange-50');
+});
 
 it('retains existing sentence annotations only when display and existing card access both allow them',async()=>{
  const p=await api();const analysis:import('@/types').AIAnalysis={phrases:[{phrase:'at a bank',meaning:'在银行'}],grammar:[],pronunciation:[{type:'连读',example:'at_a bank'},{type:'弱读',example:'a /ə/'}]};const props={text:'at a bank',translation:'在银行',hidden:false,evaluation:null,spans:[],onSpans:()=>{},analysis,showAnnotations:true,analysisUnlocked:true};const html=renderToStaticMarkup(createElement(p.NCEPracticePanel,props));expect(html).toContain('data-annotation="linking weak phrases"');expect(html).toContain('原句标注图例');expect(renderToStaticMarkup(createElement(p.NCEPracticePanel,{...props,analysisUnlocked:false}))).not.toContain('data-annotation');expect(renderToStaticMarkup(createElement(p.NCEPracticePanel,{...props,showAnnotations:false}))).not.toContain('data-annotation');const hidden=renderToStaticMarkup(createElement(p.NCEPracticePanel,{...props,hidden:true}));expect(hidden).not.toContain('at a bank');expect(hidden).not.toContain('data-annotation');annotationSettings.enabled=false;try{expect(renderToStaticMarkup(createElement(p.NCEPracticePanel,props))).not.toContain('data-annotation')}finally{annotationSettings.enabled=true}

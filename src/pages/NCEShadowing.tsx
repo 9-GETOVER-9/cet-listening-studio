@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { ArrowLeft, ChevronLeft, ChevronRight, Mic, Settings2, Volume2, Square } from 'lucide-react';
+import '@/styles/nceShadowing.css';
 import { NCEPracticePanel, NCERecordingPlaceholder } from '@/components/NCEPracticePanel';
 import { NCEScopeControls } from '@/components/NCEShadowingControls';
 import { AIPanel } from '@/components/AIPanel';
@@ -13,7 +15,7 @@ import { getInitPromise } from '@/lib/dataLoader';
 import { decodeHtml } from '@/lib/decodeHtml';
 import { canCheckNCE, NCE_MAX_INPUT, isOriginalNCESentence } from '@/lib/nceShadowing';
 import { loadNCEProperNames, resolveNCENameSpans, nceTextHash, type NCENameSpan } from '@/lib/nceProperNames';
-import { checkNCESession, createNCESession, editNCEDraft, editNCESpans, moveNCESession, nceAutoNextAllowed, nceContext, readNCECompleted, reconcileNCESessionSources, readNCENameOverride, readNCEActiveSession, selectNCEHydrationSnapshot, saveNCENameOverride, saveNCESession, type NCERange, type NCESession, type NCEPreferences } from '@/lib/nceShadowingStore';
+import { checkNCESession, createNCESession, editNCEDraft, editNCESpans, moveNCESession, nceAutoNextAllowed, nceContext, reconcileNCESessionSources, readNCENameOverride, readNCEActiveSession, selectNCEHydrationSnapshot, saveNCENameOverride, saveNCESession, type NCERange, type NCESession, type NCEPreferences } from '@/lib/nceShadowingStore';
 import type { Card, Module } from '@/types';
 const inputStyle = 'rounded border border-[var(--app-line)] bg-[var(--app-surface)] p-2';
 function integer(value: string | null, fallback: number) {
@@ -54,8 +56,6 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
     const [composing, setComposing] = useState(false);
     const [hidden, setHidden] = useState(document.hidden);
     const [focus, setFocus] = useState(false);
-    const [daily, setDaily] = useState<number | null>(null);
-    const [dailyError, setDailyError] = useState('');
     const [nameEditing, setNameEditing] = useState(false);
     const [selection, setSelection] = useState<NCERange>(range);
     const currentRef = useRef<NCESession | null>(null);
@@ -64,7 +64,6 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
     const busy = useRef(false);
     const chain = useRef<Promise<void>>(Promise.resolve());
     const writeToken = useRef(0);
-    const dailyReadToken = useRef(0);
     const page = useRef<HTMLDivElement>(null);
     const input = useRef<HTMLTextAreaElement>(null);
     const overrides = useRef<Record<string, {
@@ -100,21 +99,6 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
             }
         });
     }, []);
-    const refreshDaily = useCallback(async () => {
-        const token = ++dailyReadToken.current;
-        const date = new Date().toDateString();
-        try {
-            const count = await readNCECompleted(owner);
-            if (mounted.current && token === dailyReadToken.current && date === new Date().toDateString()) {
-                setDaily(count);
-                setDailyError('');
-            }
-        }
-        catch {
-            if (mounted.current && token === dailyReadToken.current)
-                setDailyError('今日完成数读取失败，可重试读取。');
-        }
-    }, [owner]);
     useEffect(() => {
         mounted.current = true;
         return () => {
@@ -192,7 +176,6 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
             setLoadError('');
             update(next);
             persist(next);
-            void refreshDaily();
         })().catch(e => {
             if (active)
                 setLoadError(e instanceof Error ? e.message : '课程或练习记录读取失败，请重试。');
@@ -200,28 +183,12 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
         return () => {
             active = false;
         };
-    }, [owner, moduleId, range, targetId, attempt, update, persist, refreshDaily]);
+    }, [owner, moduleId, range, targetId, attempt, update, persist]);
     useEffect(() => {
-        let date = new Date().toDateString();
-        const visible = () => {
-            setHidden(document.hidden);
-            if (!document.hidden)
-                void refreshDaily();
-        };
-        const timer = window.setInterval(() => {
-            const now = new Date().toDateString();
-            if (now !== date && !document.hidden) {
-                date = now;
-                setDaily(null);
-                void refreshDaily();
-            }
-        }, 1000);
+        const visible = () => setHidden(document.hidden);
         document.addEventListener('visibilitychange', visible);
-        return () => {
-            window.clearInterval(timer);
-            document.removeEventListener('visibilitychange', visible);
-        };
-    }, [refreshDaily]);
+        return () => document.removeEventListener('visibilitychange', visible);
+    }, []);
     useEffect(() => {
         const change = () => {
             if (!document.fullscreenElement)
@@ -246,7 +213,6 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
     useEffect(() => {
         audio.player.stop();
         setNameEditing(false);
-        input.current?.focus();
     }, [audio.player, session?.position]);
     const mutate = useCallback((fn: (s: NCESession) => NCESession) => {
         const s = currentRef.current;
@@ -256,14 +222,6 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
         update(next);
         persist(next);
     }, [update, persist]);
-    useEffect(() => {
-        if (!session || session.finished || session.evaluation || hidden || composing || blocked || locked)
-            return;
-        const timer = window.setInterval(() => mutate(s => ({
-            ...s, elapsed: s.elapsed + 1
-        })), 1000);
-        return () => window.clearInterval(timer);
-    }, [session, hidden, composing, blocked, locked, mutate]);
     const advance = useCallback(() => {
         const s = currentRef.current;
         if (!s || !s.evaluation || busy.current || blocked || composing || locked)
@@ -296,7 +254,6 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
             update(next);
             setError('');
             audio.player.stop();
-            void refreshDaily();
         }
         catch {
             if (mounted.current)
@@ -402,121 +359,75 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro }: {
     if (!session || !module || !prefs)
         return <div className="quiet-page" role="status">正在准备课程与跟读记录…</div>;
     const answered = Object.keys(session.results).length;
-    const progress = Math.round(answered / session.queue.length * 100);
     const firstScores = Object.values(session.results).map(r => r.first.score).filter((s): s is number => s !== null);
     const lastScores = Object.values(session.results).map(r => r.attempts.at(-1)!.score).filter((s): s is number => s !== null);
     const mean = (values: number[]) => values.length ? `${Math.round(values.reduce((a, b) => a + b, 0) / values.length)}%` : '无数值成绩';
-    return <div ref={page} className={`quiet-page space-y-5 bg-[var(--app-bg)] ${focus ? 'fixed inset-0 z-50 overflow-y-auto p-4 md:p-8' : ''}`}>
-  <header className="flex flex-wrap items-center justify-between gap-3">
-    <div>
-    <Button variant="ghost" disabled={saving || !!error} onClick={() => {
-            void go('/nce');
-        }}>返回课程</Button>
-    <h1 className="quiet-display mt-3 text-3xl md:text-5xl">新概念输入法跟读。</h1>
-    <p className="mt-2 text-sm text-[var(--app-muted)]">{module.book} · Lesson {module.lessonNum} · {session.range.mode === "hidden" && !session.evaluation ? "" : module.lessonTitle}</p>
-    </div>
-    <div className="flex flex-wrap gap-2">
-    <Button variant="outline" disabled={saving || !!error} onClick={() => {
-            void go("/feedback");
-        }}>反馈</Button>
-    <Button variant="outline" onClick={() => {
-            void fullscreen();
-        }}>{focus ? '退出专注' : '全屏 / 专注'}</Button>
-    </div>
-    </header>
-  <section className="quiet-surface space-y-3 p-4">
-    <NCEScopeControls moduleId={moduleId} lessons={lessons} count={cards.length} selection={selection} hideTitles={session.range.mode === 'hidden' && !session.evaluation} disabled={saving || !!error} onSelection={setSelection} onLesson={id => {
-            void go(`/nce/shadowing/${encodeURIComponent(id)}`);
-        }} onApply={() => {
-            void go(`/nce/shadowing/${encodeURIComponent(moduleId)}?start=${selection.start}&end=${selection.end}&mode=${selection.mode}`);
-        }}/>
-    <p className="text-xs text-[var(--app-muted)]">本轮第 {session.range.start}–{session.range.end} 句，共 {session.queue.length} 句原文。合并卡片和标题不进入练习。</p>
-    </section>
-  <section className="quiet-surface space-y-3 p-4">
-    <p>本轮完成 {answered}/{session.queue.length} 句 · {progress}% · 用时 {Math.floor(session.elapsed / 60)}分{session.elapsed % 60}秒</p>
-    <progress aria-label="本轮完成进度" className="h-3 w-full" value={answered} max={session.queue.length}/>
-    <div className="flex flex-wrap items-center gap-3">
-    <label>今日目标 <input className={`${inputStyle} w-20`} type="number" min={1} max={9999} value={prefs.goal} disabled={saving} onChange={e => changePrefs({
-        goal: Math.min(9999, integer(e.target.value, 1))
-    })}/>
-    </label>
-    <p>今日已完成 {daily === null ? '…' : daily}/{prefs.goal} 句{daily !== null ? ` · ${Math.min(100, Math.round(daily / prefs.goal * 100))}%` : ''}</p>
-    </div>
-    <progress aria-label="今日目标进度" className="h-3 w-full" value={Math.min(daily || 0, prefs.goal)} max={prefs.goal}/>{dailyError && <p role="alert">{dailyError}<Button size="sm" variant="outline" onClick={() => {
-                void refreshDaily();
-            }}>重试读取</Button>
-        </p>}</section>
-  {loadError && <div role="alert" className="quiet-surface space-y-2 p-4"><p>{loadError}</p><Button disabled={saving || !!error} onClick={() => setAttempt(v => v + 1)}>重试读取</Button></div>}
-  {error && <div role="alert" className="quiet-surface space-y-2 p-4 text-red-700">
-        <p>{error}</p>
-        <Button disabled={saving} onClick={() => {
-                void retrySave();
-            }}>重试保存</Button>
-        </div>}
-  {locked ? <p role="alert">该课程需要 PRO 权限。</p> : session.finished ? <section className="quiet-surface space-y-4 p-6">
-        <h2 className="text-xl">本轮结束</h2>
-        <p>已检查 {answered} 句 · 首次平均 {mean(firstScores)} · 最近一次平均 {mean(lastScores)}</p>
-        <p>未答句不进入成绩统计；专名全部免评的句子不计数值均分。</p>
-        <Button disabled={saving || !!error} onClick={() => mutate(s => ({
-            ...s, finished: false
-        }))}>继续本轮</Button>
-        </section> : current && <>
-   <section className="quiet-surface flex flex-wrap items-center gap-3 p-4">
-        <Button variant="outline" disabled={!current.audioFile || prefs.muted} onClick={() => audio.player.play({
-            id: current.cardId, word: '', audio: `/data/audio/${current.audioFile}`
-        }, prefs)}>播放原文</Button>
-        <Button variant="outline" onClick={() => audio.player.stop()}>停止</Button>
-        <label>重复次数 <select className={inputStyle} value={prefs.repeats} disabled={saving} onChange={e => changePrefs({
-            repeats: Number(e.target.value)
-        })}>{[1, 2, 3, 5].map(n => <option key={n} value={n}>{n}</option>)}</select>
-        </label>
-        <label>速度 <select className={inputStyle} value={prefs.speed} disabled={saving} onChange={e => changePrefs({
-            speed: Number(e.target.value)
-        })}>{[0.5, 0.75, 1, 1.25, 1.5].map(n => <option key={n} value={n}>{n}×</option>)}</select>
-        </label>
-        <label>
-        <input type="checkbox" checked={prefs.muted} disabled={saving} onChange={e => changePrefs({
-            muted: e.target.checked
-        })}/> 静音</label>
-        <label>
-        <input type="checkbox" checked={prefs.autoNext} disabled={saving} onChange={e => changePrefs({
-            autoNext: e.target.checked
-        })}/> 100% 保存后自动继续</label>{audio.state === 'error' && <p role="alert">原文音频播放失败，请点击播放重试。</p>}</section>
-   <p className="text-sm">当前第 {session.range.start + session.position} 句 · 本轮 {session.position + 1}/{session.queue.length}</p>
-   <NCEPracticePanel key={current.cardId} text={current.englishText} translation={decodeHtml(current.chineseText)} hidden={session.range.mode === 'hidden'} evaluation={session.evaluation?.comparison || null} spans={session.spans[current.cardId] || []} onSpans={mark} onEditing={setNameEditing} analysis={current.aiAnalysis} showAnnotations={prefs.showAnalysis} analysisUnlocked={isPro || Boolean(current.aiUnlocked)} disabled={saving}/>
-   {(session.range.mode === 'visible' || session.evaluation) && <section>
-            <label>
-            <input type="checkbox" checked={prefs.showAnalysis} disabled={saving} onChange={e => changePrefs({
-                showAnalysis: e.target.checked
-            })}/> 显示已有解析</label>{prefs.showAnalysis && (isPro || current.aiUnlocked) && <AIPanel analysis={current.aiAnalysis} isLocked={false}/>}{prefs.showAnalysis && !isPro && !current.aiUnlocked && <p className="text-sm text-[var(--app-muted)]">此原句解析尚未解锁，可在原句卡片中按已有规则解锁。</p>}</section>}
-   <section className="quiet-surface space-y-3 p-4">
-        <label className="block font-medium" htmlFor="nce-answer">朗读转写 / 手动输入</label>
-        <p className="text-sm text-[var(--app-muted)]">点击手机键盘的麦克风，朗读后检查文字。Enter 保留换行。单句最多检查 {NCE_MAX_INPUT} 字符，超出时保留全部草稿。</p>
-        <textarea id="nce-answer" ref={input} rows={5} value={session.draft} disabled={saving} onCompositionStart={() => setComposing(true)} onCompositionEnd={() => setComposing(false)} onChange={e => mutate(s => editNCEDraft(s, e.target.value))} className="w-full rounded border border-[var(--app-line)] bg-[var(--app-bg)] p-3 text-lg"/>{session.draft.length > NCE_MAX_INPUT && <p role="alert" className="text-red-700">输入超过 {NCE_MAX_INPUT} 字符，请精简后检查。当前草稿未截断。</p>}<div className="flex flex-wrap gap-2">
-        <Button variant="outline" disabled={saving || !!error || composing || session.position === 0} onClick={() => {
-                audio.player.stop();
-                mutate(s => moveNCESession(s, -1));
-            }}>上一句</Button>
-        <Button variant="outline" disabled={saving || composing} onClick={() => mutate(s => editNCEDraft(s, ''))}>清空重练</Button>
-        <Button disabled={saving || !!error || composing || !canCheckNCE(session.draft, composing)} onClick={() => {
-                void check();
-            }}>检查文字</Button>
-        <Button variant="outline" disabled={saving || pending || !!error || composing || !session.evaluation} onClick={advance}>{session.position + 1 === session.queue.length ? '完成本轮' : '下一句'}</Button>
-        <Button variant="outline" disabled={saving || !!error || composing} onClick={() => mutate(s => ({
-            ...s, finished: true
-        }))}>结束练习</Button>
-        </div>{session.results[current.cardId] && <p className="text-xs text-[var(--app-muted)]">首次 {session.results[current.cardId].first.score === null ? '无数值成绩' : `${Math.round(session.results[current.cardId].first.score!)}%`} · 已检查 {session.results[current.cardId].attempts.length} 次</p>}<p role="status" className="text-xs text-[var(--app-muted)]">{saving ? '正在保存检查…' : pending ? '正在保存草稿 / 设置…' : error ? '保存待重试' : '草稿与设置已保存到本机'}</p>
-        </section>
-   <NCERecordingPlaceholder />
-  </>}
-  {blocker.state === 'blocked' && <div role="alertdialog" aria-label="保存后离开" className="fixed inset-x-4 bottom-5 z-[70] space-y-3 rounded border bg-[var(--app-surface)] p-5 shadow-xl">
-        <p>草稿或设置正在保存，或保存失败。成功后可继续离开。</p>
-        <div className="flex gap-2">
-        <Button disabled={saving || pending} onClick={() => {
-                void retrySave();
-            }}>重试保存并继续</Button>
-        <Button variant="outline" onClick={() => blocker.reset()}>留在练习</Button>
+    function startSpeaking() {
+        if (session?.evaluation) mutate(s => editNCEDraft(s, ''));
+        input.current?.focus();
+        input.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    const availableAnalysis = isPro || Boolean(current?.aiUnlocked);
+    return <div ref={page} className={`quiet-page nce-shadowing ${focus ? 'nce-shadowing-focus' : ''}`}>
+      <header className="nce-heading">
+        <Button variant="ghost" className="nce-back" aria-label="返回课程" disabled={saving || !!error} onClick={() => { void go('/nce'); }}><ArrowLeft aria-hidden className="h-5 w-5" /></Button>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg font-semibold">新概念跟读</h1>
+          <p className="mt-1 truncate text-xs text-slate-500">{module.book} · Lesson {module.lessonNum}{session.range.mode === 'hidden' && !session.evaluation ? '' : ` · ${module.lessonTitle}`}</p>
         </div>
-        </div>}
- </div>;
+        <span aria-label="当前句进度" className="nce-position">{session.position + 1} / {session.queue.length}</span>
+      </header>
+      {loadError && <div role="alert" className="nce-error"><p>{loadError}</p><Button disabled={saving || !!error} onClick={() => setAttempt(v => v + 1)}>重试读取</Button></div>}
+      {error && <div role="alert" className="nce-error"><p>{error}</p><Button disabled={saving} onClick={() => { void retrySave(); }}>重试保存</Button></div>}
+      {locked ? <p role="alert">该课程需要 PRO 权限。</p> : session.finished ? <section className="nce-source-card space-y-4">
+        <h2 className="text-xl font-semibold">本轮完成</h2>
+        <p>已核对 {answered} 句 · 首次平均 {mean(firstScores)} · 最近一次平均 {mean(lastScores)}</p>
+        <Button disabled={saving || !!error} onClick={() => mutate(s => ({ ...s, finished: false }))}>继续本轮</Button>
+      </section> : current && <>
+        <NCEPracticePanel key={current.cardId} text={current.englishText} translation={decodeHtml(current.chineseText)} hidden={session.range.mode === 'hidden'} evaluation={session.evaluation?.comparison || null} spans={session.spans[current.cardId] || []} onSpans={mark} onEditing={setNameEditing} analysis={current.aiAnalysis} analysisUnlocked={availableAnalysis} disabled={saving}
+          audioControl={<div className="nce-audio-row">
+            <Button type="button" variant="ghost" className="nce-play" disabled={!current.audioFile} onClick={() => {
+              if (audio.state === 'playing') audio.player.stop();
+              else { if (prefs.muted) changePrefs({ muted: false }); audio.player.play({ id: current.cardId, word: '', audio: `/data/audio/${current.audioFile}` }, { ...prefs, muted: false }); }
+            }}>{audio.state === 'playing' ? <Square aria-hidden className="h-6 w-6" /> : <Volume2 aria-hidden className="h-6 w-6" />}{audio.state === 'playing' ? '停止播放' : '播放原音'}</Button>
+            <span className="text-xs text-slate-400">{prefs.speed}× · 教材原音</span>
+          </div>}
+          analysisOpen={prefs.showAnalysis} onAnalysisChange={() => changePrefs({ showAnalysis: !prefs.showAnalysis })}
+          analysisContent={availableAnalysis ? <AIPanel analysis={current.aiAnalysis} isLocked={false} /> : <p className="text-sm text-slate-500">此句解析尚未解锁，可在原句卡片中解锁。</p>} />
+        {audio.state === 'error' && <p role="alert" className="nce-error">原音播放失败，点击播放重试。</p>}
+        <section className="nce-response" aria-label="你的跟读输入">
+          <label className="mb-3 flex items-center gap-2 text-sm font-semibold" htmlFor="nce-answer"><Mic aria-hidden className="h-4 w-4" />你的跟读<span className="ml-auto text-xs font-normal text-sky-700">输入法语音输入</span></label>
+          <textarea id="nce-answer" ref={input} rows={3} value={session.draft} disabled={saving} placeholder="点这里，用键盘麦克风说出这句话…" onCompositionStart={() => setComposing(true)} onCompositionEnd={() => setComposing(false)} onChange={e => mutate(s => editNCEDraft(s, e.target.value))} className="nce-answer" />
+          {session.draft.length > NCE_MAX_INPUT && <p role="alert" className="text-sm text-red-700">输入超过 {NCE_MAX_INPUT} 字符，请精简后核对。草稿未截断。</p>}
+        </section>
+        <p className="nce-hint">先听，再模仿。用手机键盘的麦克风输入；核对文字时忽略大小写，人名和地名免评。</p>
+        <div className="nce-bottom-actions">
+          <Button type="button" variant="ghost" className="nce-step" aria-label="上一句" disabled={saving || !!error || composing || session.position === 0} onClick={() => { audio.player.stop(); mutate(s => moveNCESession(s, -1)); }}><ChevronLeft aria-hidden className="h-5 w-5" /><span>上一句</span></Button>
+          <Button type="button" className="nce-primary" disabled={saving || !!error || composing || (!session.evaluation && !!session.draft.trim() && !canCheckNCE(session.draft, composing))} onClick={() => { if (session.evaluation || !session.draft.trim()) startSpeaking(); else void check(); }}>{saving ? '正在保存…' : session.evaluation ? '再读一遍' : session.draft.trim() ? '核对文字' : '开始跟读'}</Button>
+          <Button type="button" variant="ghost" className="nce-step" aria-label={session.position + 1 === session.queue.length ? '完成本轮' : '下一句'} disabled={saving || pending || !!error || composing || !session.evaluation} onClick={advance}><ChevronRight aria-hidden className="h-5 w-5" /><span>{session.position + 1 === session.queue.length ? '完成' : '下一句'}</span></Button>
+        </div>
+        <p role="status" className="nce-save-state">{saving ? '正在保存检查…' : pending ? '正在保存…' : error ? '保存待重试' : '已自动保存'}</p>
+      </>}
+      <details className="nce-options">
+        <summary><Settings2 aria-hidden className="h-4 w-4" />练习设置</summary>
+        <div className="mt-4 space-y-5">
+          <NCEScopeControls moduleId={moduleId} lessons={lessons} count={cards.length} selection={selection} hideTitles={session.range.mode === 'hidden' && !session.evaluation} disabled={saving || !!error} onSelection={setSelection} onLesson={id => { void go(`/nce/shadowing/${encodeURIComponent(id)}`); }} onApply={() => { void go(`/nce/shadowing/${encodeURIComponent(moduleId)}?start=${selection.start}&end=${selection.end}&mode=${selection.mode}`); }} />
+          <div className="flex flex-wrap gap-4 text-sm">
+            <label>重复次数 <select className={inputStyle} value={prefs.repeats} disabled={saving} onChange={e => changePrefs({ repeats: Number(e.target.value) })}>{[1, 2, 3, 5].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+            <label>速度 <select className={inputStyle} value={prefs.speed} disabled={saving} onChange={e => changePrefs({ speed: Number(e.target.value) })}>{[0.5, 0.75, 1, 1.25, 1.5].map(n => <option key={n} value={n}>{n}×</option>)}</select></label>
+            <label><input type="checkbox" checked={prefs.autoNext} disabled={saving} onChange={e => changePrefs({ autoNext: e.target.checked })} /> 100% 核对后自动继续</label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" disabled={saving || !!error} onClick={() => { void go('/feedback'); }}>反馈</Button>
+            <Button variant="outline" onClick={() => { void fullscreen(); }}>{focus ? '退出专注' : '全屏 / 专注'}</Button>
+            <Button variant="outline" disabled={saving || !!error || composing} onClick={() => { audio.player.stop(); mutate(s => ({ ...s, finished: true })); }}>结束练习</Button>
+          </div>
+          <NCERecordingPlaceholder />
+        </div>
+      </details>
+      {blocker.state === 'blocked' && <div role="alertdialog" aria-label="保存后离开" className="fixed inset-x-4 bottom-5 z-[70] space-y-3 rounded border bg-[var(--app-surface)] p-5 shadow-xl">
+        <p>草稿或设置正在保存，或保存失败。成功后可继续离开。</p>
+        <div className="flex gap-2"><Button disabled={saving || pending} onClick={() => { void retrySave(); }}>重试保存并继续</Button><Button variant="outline" onClick={() => blocker.reset()}>留在练习</Button></div>
+      </div>}
+    </div>;
 }

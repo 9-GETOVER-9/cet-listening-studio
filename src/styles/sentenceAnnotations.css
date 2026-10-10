@@ -1,0 +1,15 @@
+.sentence-annotated .sentence-layer { position: relative; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.sentence-annotated .sentence-reading-group { display: inline-block; max-width: 100%; vertical-align: baseline; white-space: pre-wrap; overflow-wrap: anywhere; }
+.sentence-annotated .sentence-link-pair { display: inline-block; max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; vertical-align: baseline; }
+.sentence-annotated .sentence-link-follow { display: inline-block; max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; vertical-align: baseline; }
+.sentence-annotated .sentence-linking { color: #1d4ed8; }
+.sentence-annotated .sentence-weak { background: #f3e8ff; color: #6b21a8; border-radius: .2em; box-shadow: 0 0 0 1px #d8b4fe; }
+.sentence-annotated .sentence-phrase { border-bottom: 3px solid #d97706; padding-bottom: .22em; }
+.sentence-annotated .sentence-phrase[data-phrase-edge=start]::before,
+.sentence-annotated .sentence-phrase[data-phrase-edge=both]::before,
+.sentence-annotated .sentence-phrase[data-phrase-edge=end]::after,
+.sentence-annotated .sentence-phrase[data-phrase-edge=both]::after { content: ''; position: absolute; bottom: -3px; height: .35em; width: 2px; background: #d97706; }
+.sentence-annotated .sentence-phrase::before { left: 0; }
+.sentence-annotated .sentence-phrase::after { right: 0; }
+.sentence-annotated .sentence-link-join { position: relative; display: inline-block; min-width: .75em; white-space: pre; }
+.sentence-annotated .sentence-link-join svg { position: absolute; width: 100%; height: .55em; left: 0; bottom: .02em; fill: none; stroke: #1d4ed8; stroke-width: 2; }

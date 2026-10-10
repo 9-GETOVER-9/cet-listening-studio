@@ -2,9 +2,9 @@ import { Button } from '@/components/ui/button'
 import { useSettingsStore } from '@/store/settingsStore'
 
 const choices = [
-  { key: 'linking', label: '连读', description: '浅蓝色框', color: 'border-blue-300 bg-blue-100' },
+  { key: 'linking', label: '连读', description: '蓝色词间弧线 · 连接连读词', color: 'border-blue-300 bg-blue-50' },
   { key: 'weak', label: '弱读', description: '浅紫色框', color: 'border-purple-300 bg-purple-100' },
-  { key: 'phrases', label: '短语', description: '浅绿色框 · 重叠时用绿色下划线', color: 'border-emerald-300 bg-emerald-50' },
+  { key: 'phrases', label: '短语', description: '琥珀色底部括线 · 标明完整短语', color: 'border-amber-500 bg-amber-50' },
 ] as const
 
 export function SentenceAnnotationSettings() {

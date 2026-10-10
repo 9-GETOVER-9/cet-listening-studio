@@ -1,7 +1,8 @@
 import { parseReadingCorpus, type ReadingCorpus } from './ieltsReading'
 
 class ReadingRequestError extends Error {
-  constructor(message: string, readonly retryable: boolean) { super(message) }
+  readonly retryable: boolean
+  constructor(message: string, retryable: boolean) { super(message); this.retryable = retryable }
 }
 
 const cancelled = () => new DOMException('Aborted', 'AbortError')

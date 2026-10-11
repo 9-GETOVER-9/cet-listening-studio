@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { LocalRecorder, recordingSupported } from '@/lib/localRecorder';
+import { flatRecordingBars, RecordingMeter } from '@/lib/recordingMeter';
 import { deleteRecording, listRecordings, recordingFilename, saveRecording, type LocalRecording } from '@/lib/nceRecordingStore';
 
 function RecordingAudio({row,onAudio,playbackSignal}:{row:LocalRecording;onAudio:(element:HTMLAudioElement)=>void;playbackSignal:number}) {
@@ -30,17 +31,24 @@ export function NCERecordingPanel({owner,cardId,moduleId,onBusyChange,onAudio,pl
  const [error,setError]=useState('');
  const [loaded,setLoaded]=useState(false);
  const [open,setOpen]=useState(defaultOpen);
+ const [bars,setBars]=useState(flatRecordingBars);
+ const [meterAvailable,setMeterAvailable]=useState(false);
+ const meter=useRef<RecordingMeter|null>(null);
  const recorder=useRef<LocalRecorder|null>(null);
  const alive=useRef(true);
  const operation=useRef(false);
  const playing=useRef<HTMLAudioElement|null>(null);
  const blocked=phase!=='idle' || !!draft;
+ const stopMeter=useCallback(()=>{
+  const current=meter.current;meter.current=null;current?.dispose();
+  if(alive.current){setBars(flatRecordingBars());setMeterAvailable(false)}
+ },[]);
  const refresh=useCallback(async()=>{const next=await listRecordings(owner,cardId);if(alive.current){setRows(next);setLoaded(true)}},[owner,cardId]);
  useEffect(()=>{
   alive.current=true;
   void refresh().catch(()=>{if(alive.current){setLoaded(true);setError('本地录音读取失败，请点击重新读取。')}});
-  return()=>{alive.current=false;recorder.current?.dispose();playing.current?.pause();onBusyChange(false)};
- },[refresh,onBusyChange]);
+  return()=>{alive.current=false;stopMeter();recorder.current?.dispose();recorder.current=null;operation.current=false;playing.current?.pause();onBusyChange(false)};
+ },[refresh,onBusyChange,stopMeter]);
  useEffect(()=>{onBusyChange(blocked)},[blocked,onBusyChange]);
  const save=async(row:LocalRecording)=>{
   setPhase('saving');
@@ -51,21 +59,38 @@ export function NCERecordingPanel({owner,cardId,moduleId,onBusyChange,onAudio,pl
  async function start() {
   if(operation.current || blocked || disabled) return;
   operation.current=true;onBusyChange(true);setPhase('requesting');setError('');onAudio();playing.current?.pause();
-  const next=new LocalRecorder();recorder.current=next;
-  try {await next.start();if(alive.current && recorder.current===next)setPhase('recording')}
-  catch(e){if(alive.current && recorder.current===next){setError(microphoneError(e));setPhase('idle')}}
+  const next=new LocalRecorder(undefined,e=>{
+   if(!alive.current || recorder.current!==next)return;
+   stopMeter();recorder.current=null;operation.current=false;next.dispose();setError(microphoneError(e));setPhase('idle');
+  });recorder.current=next;
+  const nextMeter=new RecordingMeter((heights,available)=>{
+   if(alive.current && meter.current===nextMeter){setBars(heights);setMeterAvailable(available)}
+  });meter.current=nextMeter;
+  // iOS requires creating/resuming Web Audio in this gesture, before permission awaits.
+  nextMeter.prepare();
+  try {
+   await next.start();
+   if(alive.current && recorder.current===next){
+    if(document.hidden){cancel();return}
+    const stream=next.activeStream;
+    if(stream)nextMeter.attach(stream);
+    setPhase('recording');
+   }
+  }
+  catch(e){if(alive.current && recorder.current===next){stopMeter();next.dispose();recorder.current=null;operation.current=false;setError(microphoneError(e));setPhase('idle')}}
   finally {if(recorder.current===next)operation.current=false}
  }
  async function stop() {
   if(operation.current || phase!=='recording') return;
-  operation.current=true;setPhase('saving');
+  const current=recorder.current;
+  operation.current=true;stopMeter();setPhase('saving');
   try {
-   const result=await recorder.current!.stop();
-   if(!alive.current)return;
+   const result=await current!.stop();
+   if(!alive.current || recorder.current!==current)return;
    const row:LocalRecording={id:crypto.randomUUID(),owner,cardId,moduleId,createdAt:Date.now(),...result};
    setDraft(row);await save(row);
-  }catch(e){if(alive.current){setError(microphoneError(e));setPhase('idle')}}
-  finally {operation.current=false}
+  }catch(e){current?.dispose();if(alive.current && recorder.current===current){setError(microphoneError(e));setPhase('idle')}}
+  finally {if(recorder.current===current){recorder.current=null;operation.current=false}}
  }
  const stopRef=useRef(()=>{});stopRef.current=()=>{if(phase==='requesting')cancel();else void stop()};
  useEffect(()=>{
@@ -73,7 +98,7 @@ export function NCERecordingPanel({owner,cardId,moduleId,onBusyChange,onAudio,pl
   document.addEventListener('visibilitychange',hide);
   return()=>document.removeEventListener('visibilitychange',hide);
  },[]);
- function cancel() {recorder.current?.dispose();recorder.current=null;operation.current=false;setPhase('idle');setError('');onBusyChange(false)}
+ function cancel() {stopMeter();recorder.current?.dispose();recorder.current=null;operation.current=false;setPhase('idle');setError('');onBusyChange(false)}
  function play(element:HTMLAudioElement) {if(phase!=='idle'){element.pause();return}onAudio();if(playing.current!==element)playing.current?.pause();playing.current=element}
  async function remove(row:LocalRecording) {
   if(operation.current || blocked) return;
@@ -93,7 +118,15 @@ export function NCERecordingPanel({owner,cardId,moduleId,onBusyChange,onAudio,pl
     {phase==='recording' && <Button type="button" className="bg-red-700 text-white" onClick={()=>{void stop()}}>停止并保存</Button>}
     {phase==='saving' && <span role="status">正在保存录音…</span>}
    </div>}
-   {phase==='recording' && <p role="status" className="text-sm font-semibold text-red-700">正在录音，停止并保存后可切换句子。</p>}
+   {recordingSupported() && <div className="space-y-3">
+    {phase==='recording' && <p role="status" className="flex items-center gap-3 text-sm font-semibold text-red-700"><span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full bg-red-500 ring-4 ring-red-50"/>正在录音</p>}
+    <div className="rounded-2xl border border-sky-100 bg-sky-50 px-3 py-5">
+     <div aria-hidden="true" className="flex h-20 w-full items-center justify-center gap-[3px] sm:gap-1">
+      {bars.map((height,i)=><span key={i} data-recording-bar={i} className={`min-w-0 max-w-[5px] flex-1 rounded-full ${phase==='recording' && meterAvailable ? 'bg-sky-600' : 'bg-sky-200'}`} style={{height:`${height}px`}}/>)}
+     </div>
+    </div>
+    <p role="status" className="text-xs leading-relaxed text-slate-500">{phase==='recording' ? meterAvailable ? '说话时条纹随音量变化；安静时会变低。停止并保存后可切换句子。' : '声音条纹暂不可用，录音仍在进行' : phase==='requesting' ? '允许使用麦克风后才会显示真实音量。' : '点击开始录音，条纹的高低来自麦克风音量。'}</p>
+   </div>}
    {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
    {draft && <div className="space-y-3 rounded-lg border border-red-200 p-3">
     <p className="text-sm">这次录音尚未保存</p><RecordingAudio row={draft} onAudio={play} playbackSignal={playbackSignal}/>

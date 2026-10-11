@@ -24,7 +24,9 @@ export class LocalRecorder {
  private startedAt = 0;
  private result?: Promise<{blob:Blob;durationMs:number}>;
  private dependencies: RecorderDependencies;
- constructor(dependencies: RecorderDependencies = browser) { this.dependencies = dependencies; }
+ private onError?: (error:Error)=>void;
+ constructor(dependencies: RecorderDependencies = browser, onError?: (error:Error)=>void) { this.dependencies = dependencies;this.onError=onError; }
+ get activeStream(): MediaStream | null { return this.stream ?? null; }
  async start() {
   const stream = await this.dependencies.getStream();
   if (this.disposed || this.dependencies.isActive?.() === false) { stream.getTracks().forEach(track=>track.stop()); throw new Error('录音已取消。'); }
@@ -33,7 +35,11 @@ export class LocalRecorder {
    const recorder = this.dependencies.createRecorder(stream); this.recorder = recorder;
    this.result = new Promise((resolve,reject)=>{
     recorder.ondataavailable = event => { if (event.data.size) this.chunks.push(event.data); };
-    recorder.onerror = () => { this.release(); reject(new Error('录音中断，请重新录制。')); };
+    recorder.onerror = () => {
+     const error=new Error('录音中断，请重新录制。');this.release();reject(error);
+     // A UI observer must not interrupt microphone cleanup or escape the event handler.
+     try {if(!this.disposed)this.onError?.(error)} catch { /* Recording has already been released. */ }
+    };
     recorder.onstop = () => {
      const durationMs = Math.max(0,this.dependencies.now()-this.startedAt);
      this.release();
@@ -54,8 +60,9 @@ export class LocalRecorder {
  }
  dispose() {
   this.disposed = true;
-  if (this.recorder?.state !== 'inactive' && this.recorder) this.recorder.stop();
-  this.release();
+  try {if (this.recorder?.state !== 'inactive' && this.recorder) this.recorder.stop();}
+  catch { /* A removed device can fail Stop; its tracks still need releasing. */ }
+  finally {this.release();}
  }
  private release() { this.stream?.getTracks().forEach(track=>track.stop()); this.stream = undefined; }
 }

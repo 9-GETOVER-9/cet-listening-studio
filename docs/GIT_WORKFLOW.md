@@ -25,6 +25,7 @@
 | `feature/原句发音与短语标注` | 四六级/新概念学习及复习原句标注、设置中心开关 | `src/components/AnnotatedSentence.tsx`、`src/lib/sentenceAnnotations.ts` |
 | `chore/按发布范围备份与回退` | 前端及白名单 JSON 的独立备份、回退及空间核算 | `scripts/server-install.sh`、`docs/RELEASE_BACKUP_SCOPE.md` |
 | `feature/单词练习完善` | 雅思与词汇难点本的统一拼写、首次作答统计、复习计划及设置 | `src/pages/WordPractice.tsx`、`src/lib/wordPractice.ts` |
+| `feature/新概念输入法跟读` | 输入法语音文字核对、句子免判修正、原音回听和独立跟读进度 | `src/pages/NCEShadowing.tsx`、`src/lib/nceShadowing.ts` |
 
 这些分支按表格顺序依赖前一分支，共享的播放与存储接口先进入前置提交。合并请求按前置顺序审阅；第一个指向 dev，后续先指向前置功能分支以展示本功能的增量。前置内容进入 dev 后，将下一请求的目标切换为 dev，再同步与验证。各分支端点分别运行测试和 TypeScript 检查。
 
@@ -43,3 +44,6 @@ pnpm build
 运行完整学习页面前，另行准备经授权的数据到 `public/data/`；仓库不会自动下载或提供教材和音频。导入工具只生成本机数据，不把工具输出加入 Git。阅读第一章导入器为 `tools/import_ielts_reading_538.py`；三个输入路径通过命令参数传入，源文件指纹不匹配时不能沿用原核验结论。
 
 保存历史个人词库相关实现便于维护，但当前听力页仅开放王陆与高频入口，不恢复已取消的网络库和个人生词入口。
+
+
+2026-10-09单词/跟读发布：PR8和PR9已上传并以依赖分支为base，90个发布文件、25项公网身份核验通过，12份原词库不变。维护PR7补根静态资源和历史备份兼容，已正向合并到两个功能分支；main/dev未自动合并。业务构建94f215a，部署提交eb8dfe0，实际验收见WORD_SHADOWING.md。

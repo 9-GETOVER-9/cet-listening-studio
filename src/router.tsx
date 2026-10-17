@@ -16,6 +16,7 @@ const Review = lazyWithRecovery(() => import('@/pages/Review'))
 const Walkman = lazyWithRecovery(() => import('@/pages/Walkman'))
 const Notebook = lazyWithRecovery(() => import('@/pages/Notebook'))
 const WordPractice = lazyWithRecovery(() => import('@/pages/WordPractice'))
+const NCEShadowing = lazyWithRecovery(() => import('@/pages/NCEShadowing'))
 const Profile = lazyWithRecovery(() => import('@/pages/Profile'))
 const LearningStats = lazyWithRecovery(() => import('@/pages/LearningStats'))
 const Feedback = lazyWithRecovery(() => import('@/pages/Feedback'))
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Home /> },
       { path: 'cet', element: <ContentSelector /> },
       { path: 'nce', element: <NCESelector /> },
+      { path: 'nce/shadowing/:moduleId', element: <NCEShadowing /> },
       { path: 'ielts', element: <IELTSHub /> },
       { path: 'ielts/listening', element: <IELTSDictation /> },
       { path: 'ielts/reading-538', element: <IELTSReading /> },

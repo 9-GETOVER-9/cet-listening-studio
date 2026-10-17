@@ -393,9 +393,9 @@ function ShadowingStudy({ owner, moduleId, range, targetId, isPro, recordingOpen
           audioControl={<div className="nce-audio-row">
             <Button type="button" variant="ghost" className="nce-play" disabled={!current.audioFile || recordingBusy} onClick={() => {
               setPlaybackSignal(value => value + 1);
-              if (audio.state === 'playing') audio.player.stop();
+              if (audio.state === 'playing' || audio.state === 'loading') audio.player.stop();
               else { if (prefs.muted) changePrefs({ muted: false }); audio.player.play({ id: current.cardId, word: '', audio: `/data/audio/${current.audioFile}` }, { ...prefs, muted: false }); }
-            }}>{audio.state === 'playing' ? <Square aria-hidden className="h-6 w-6" /> : <Volume2 aria-hidden className="h-6 w-6" />}{audio.state === 'playing' ? '停止播放' : '播放原音'}</Button>
+            }}>{audio.state === 'playing' ? <Square aria-hidden className="h-6 w-6" /> : <Volume2 aria-hidden className="h-6 w-6" />}{audio.state === 'loading' ? '正在加载 · 点击取消' : audio.state === 'playing' ? '停止播放' : '播放原音'}</Button>
             <span className="text-xs text-slate-400">{prefs.speed}× · 教材原音</span>
           </div>}
           analysisOpen={prefs.showAnalysis} onAnalysisChange={() => changePrefs({ showAnalysis: !prefs.showAnalysis })}

@@ -1,39 +1,62 @@
-import { expect, it } from 'vitest'
-const modules = import.meta.glob('./wordPracticeAudio.ts')
-async function api() {
-  expect(modules['./wordPracticeAudio.ts'], 'cancellable practice playback must exist').toBeDefined()
-  return await modules['./wordPracticeAudio.ts']() as typeof import('./wordPracticeAudio')
-}
-it('cancels repeats and ignores earlier audio callbacks after switching words', async () => {
-  const p = await api()
-  const audios: HTMLAudioElement[] = []
-  let starts = 0
-  const factory = () => {
-    const audio = { play: async () => { starts++ }, pause: () => {}, onended: null, onerror: null } as unknown as HTMLAudioElement
-    audios.push(audio); return audio
-  }
+import { afterEach, expect, it, vi } from 'vitest'
+import { PracticeAudio } from './wordPracticeAudio'
+function setup(play = vi.fn(async () => {})) {
+  const audio = { play, pause: vi.fn(), currentTime: 0, onended: null, onerror: null, onplaying: null, onpause: null, onwaiting: null, ontimeupdate: null } as unknown as HTMLAudioElement
+  const factory = vi.fn(() => audio)
   const states: string[] = []
-  const player = new p.PracticeAudio(factory, state => states.push(state))
-  player.play({ id: 'a', word: 'one', audio: '/one' }, { repeats: 3, speed: 1, muted: false })
-  const oldEnd = audios[0].onended!
-  player.play({ id: 'b', word: 'two', audio: '/two' }, { repeats: 1, speed: 0.75, muted: false })
-  oldEnd.call(audios[0], new Event('ended'))
-  expect(starts).toBe(2)
-  expect(states.at(-1)).toBe('playing')
-  expect(audios[1].playbackRate).toBe(0.75)
+  const player = new PracticeAudio(factory, state => states.push(state))
+  return { audio, factory, states, player, play }
+}
+const word = { id: 'a', word: 'one', audio: '/one' }
+const options = { repeats: 2, speed: 1, muted: false }
+afterEach(() => vi.useRealTimers())
+it('reuses the mobile-unlocked media element for repeats and later words', () => {
+  const { player, audio, factory } = setup()
+  player.play(word, options)
+  const oldEnd = audio.onended!
+  oldEnd.call(audio, new Event('ended'))
+  player.play({ ...word, audio: '/two' }, options)
+  oldEnd.call(audio, new Event('ended'))
+  expect(factory).toHaveBeenCalledTimes(1)
+  expect(audio.src).toBe('/two')
   player.stop()
-  expect(states.at(-1)).toBe('idle')
 })
-it('repeats the current real audio and mute cancels playback', async () => {
-  const p = await api()
-  const audios: HTMLAudioElement[] = []
-  const player = new p.PracticeAudio(() => {
-    const audio = { play: async () => {}, pause: () => {}, onended: null, onerror: null } as unknown as HTMLAudioElement
-    audios.push(audio); return audio
-  }, () => {})
-  player.play({ id: 'a', word: 'one', audio: '/one' }, { repeats: 2, speed: 1, muted: false })
-  audios[0].onended!.call(audios[0], new Event('ended'))
-  expect(audios).toHaveLength(2)
-  player.update({ muted: true, speed: 1.25 })
-  expect(audios[1].onended).toBeNull()
+it('reports actual playback rather than calling a pending play playing', async () => {
+  const { player, audio, states } = setup(vi.fn(() => new Promise<void>(() => {})))
+  player.play(word, options)
+  expect(states.at(-1)).toBe('loading')
+  audio.onplaying!.call(audio, new Event('playing'))
+  expect(states.at(-1)).toBe('playing')
+  player.stop()
+})
+it('exits stalled loading and permits a fresh user retry', async () => {
+  vi.useFakeTimers()
+  const { player, states, play } = setup(vi.fn(() => new Promise<void>(() => {})))
+  player.play(word, options)
+  await vi.advanceTimersByTimeAsync(15000)
+  expect(states.at(-1)).toBe('error')
+  player.play(word, options)
+  expect(play).toHaveBeenCalledTimes(2)
+  expect(states.at(-1)).toBe('loading')
+  player.stop()
+})
+it('does not let an old play rejection break a newer request', async () => {
+  let rejectOld!: (reason: Error) => void
+  const play = vi.fn().mockImplementationOnce(() => new Promise<void>((_, reject) => { rejectOld = reject })).mockResolvedValue(undefined)
+  const { player, states } = setup(play)
+  player.play(word, options)
+  player.play({ ...word, audio: '/two' }, options)
+  rejectOld(new Error('interrupted'))
+  await Promise.resolve()
+  expect(states.at(-1)).not.toBe('error')
+  player.stop()
+})
+it('handles permission rejection and stops repeats when muted', async () => {
+  const { player, audio, states } = setup(vi.fn().mockRejectedValue(new Error('NotAllowedError')))
+  player.play(word, options)
+  await Promise.resolve()
+  expect(states.at(-1)).toBe('error')
+  player.update({ muted: true, speed: 1 })
+  expect(audio.onended).toBeNull()
+  expect(states.at(-1)).toBe('idle')
 })

@@ -1,6 +1,6 @@
 # 个人复习参数
 
-入口：我的 → 设置 → 个人复习参数。听力主卡、难点本、雅思阅读 538 分别训练、应用和恢复默认。此功能在本地 feature/fsrs-personal-optimization 开发，未部署。
+入口：我的 → 设置 → 个人复习参数。听力主卡、难点本、雅思阅读 538 分别训练、应用和恢复默认。2026-10-23 已发布到 https://www.listening.website/profile，发布源码为 `fc825a5`。
 
 ## 使用
 
@@ -47,4 +47,11 @@
 - 61个Vitest文件、302项测试通过；全量ESLint无错误/警告，TypeScript及Vite/PWA生产构建通过。构建保留原有 sonner 动静态导入与 Browserslist 数据过旧提示。
 - 隔离Chromium开发与生产构建均完成真实 Worker 训练、应用、刷新保留和恢复默认。合成80卡/720评分，64卡训练、16卡验证，验证损失0.3820→0.3555；此数字不是用户实际学习效果。
 - 生产构建验证存储配额失败保留默认、恢复存储后应用、取消计算、320px无横向溢出，以及应用/恢复前后全部测试卡的D/S、due、reps逐项不变；开发页375px亦无横向溢出。没有读取用户真实账号的历史或验证跨设备同步。
-- 私有验收脚本/截图在 `output/playwright/fsrs-personal/`，不提交合成学习记录或截图。生产预览 `http://127.0.0.1:5214/profile`；没有发布网站或推送远程。
+- 私有验收脚本/截图在 `output/playwright/fsrs-personal/`，不提交合成学习记录或截图。生产预览 `http://127.0.0.1:5214/profile` 保留；网站发布验证见下节，分支尚未推送远程。
+
+## 2026-10-23 线上发布
+
+- 从干净维护工作区重新构建 `fc825a5`，通过 `scripts/deploy.ps1 -FrontendOnly -SkipBuild` 发布完整前端包。94个文件逐项服务器 SHA256 与本地产物一致，HTTPS 返回200；14份既有数据JSON哈希不变，音频未打包或替换。
+- 发布前备份：`/var/www/backups/cet-listening-20261023-104849-BsGjlg`。保留旧哈希资源，原 `app/` 的未提交修改未覆盖。
+- 隔离游客浏览器在公网实际加载 `fsrsOptimizer.worker-BBzzvMG9.js`，完成合成历史优化、应用、刷新保留、恢复默认、保存失败回退及取消。测试卡原有D/S、due、reps逐项不变，320px无横向溢出，未出现页面异常或写入网络请求。此验收不代表真实账号效果或物理手机验收。
+- 发布日志、哈希清单和浏览器结果在私有 `output/release-fsrs-20261023/`；线上截图及验收脚本在 `output/playwright/fsrs-personal/`。

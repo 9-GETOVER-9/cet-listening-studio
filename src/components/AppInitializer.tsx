@@ -23,6 +23,7 @@ import { signOutCurrentDevice } from '@/lib/sessionPolicy'
 import { router } from '@/router'
 import { useSettingsStore } from '@/store/settingsStore'
 import { getListeningStorageError, retryListeningWrites, setListeningOwner } from '@/lib/audioTimeTracker'
+import { setFSRSOwner } from '@/lib/fsrsPreferences'
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([
@@ -146,6 +147,7 @@ export function AppInitializer() {
         if (!result) return
 
         session = result.data.session ?? null
+        setFSRSOwner(session?.user.id ?? 'guest')
         setListeningOwner(session?.user.id ?? 'guest')
 
         if (session?.user) {
@@ -195,6 +197,7 @@ export function AppInitializer() {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setFSRSOwner(session?.user.id ?? 'guest')
       setListeningOwner(session?.user.id ?? 'guest')
       if (session?.user) {
         setCurrentUserId(session.user.id)

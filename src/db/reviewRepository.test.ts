@@ -96,4 +96,13 @@ describe('commitCardRating', () => {
     expect(jobs.map((item) => item.operationId)).toEqual(['review-operation-new'])
     await expect(db.studyLog.count()).resolves.toBe(2)
   })
+
+  it('records history sequence and does not rescore an operation after outbox delivery', async () => {
+    const input = { cardId: card.cardId, rating: Rating.Good, operationId: 'delivered', reviewedAt: new Date('2026-08-16T00:00:00Z') }
+    await commitCardRating(input)
+    await db.syncOutbox.clear()
+    await commitCardRating(input)
+    expect((await db.cards.get(card.cardId))?.fsrsMain.reps).toBe(1)
+    expect((await db.studyLog.toArray())[0]).toMatchObject({ beforeReps: 0 })
+  })
 })

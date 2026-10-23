@@ -41,6 +41,7 @@ import { clearRemoteLearningData } from '@/lib/sync'
 import { getLocalDateStr } from '@/lib/utils'
 import { useSettingsStore } from '@/store/settingsStore'
 import { SentenceAnnotationSettings } from '@/components/SentenceAnnotationSettings'
+import { FSRSOptimizationPanel } from '@/components/FSRSOptimizationPanel'
 import type { StudyLogItem } from '@/types'
 
 interface Stats {
@@ -567,6 +568,7 @@ export default function Profile() {
             <Separator />
 
             <SentenceAnnotationSettings />
+            {!authLoading && <FSRSOptimizationPanel key={user?.id ?? 'guest'} owner={user?.id ?? 'guest'} />}
 
             <Separator />
 

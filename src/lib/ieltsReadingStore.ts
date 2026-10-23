@@ -94,7 +94,7 @@ export async function commitReadingReview(input: ReviewInput): Promise<void> {
     if (await readingDB.logs.get([input.owner, input.operationId])) return
     if (input.mode !== 'retry') {
       const previous = await readingDB.progress.get([input.owner, input.card.id])
-      const fsrs = scheduleFSRSState(previous?.fsrs ?? createInitialFSRSState(input.reviewedAt), input.rating, input.reviewedAt)
+      const fsrs = scheduleFSRSState(previous?.fsrs ?? createInitialFSRSState(input.reviewedAt), input.rating, input.reviewedAt, { scope: 'reading', owner: input.owner })
       await readingDB.progress.put({ owner: input.owner, cardId: input.card.id, fsrs, covered: [...new Set([...(previous?.covered ?? []), ...shown])], updatedAt: reviewedAt })
     }
     await readingDB.logs.add({ owner: input.owner, operationId: input.operationId, cardId: input.card.id, rating: input.rating, mode: input.mode, selected, shown, missed, extra, passed: input.passed, reviewedAt, ...(question ? { question } : {}) })

@@ -1,5 +1,6 @@
 import { db } from '@/db/schema'
 import { scheduleFSRSState } from '@/lib/fsrsScheduler'
+import { getFSRSOwner } from '@/lib/fsrsPreferences'
 import type { FSRSState, Rating, SyncOutboxItem } from '@/types'
 
 export interface CommitCardRatingInput {
@@ -20,6 +21,7 @@ export async function commitCardRating({
   operationId,
   reviewedAt,
 }: CommitCardRatingInput): Promise<CommitCardRatingResult> {
+  const owner = getFSRSOwner()
   const result = await db.transaction(
     'rw',
     [db.cards, db.studyLog, db.syncOutbox],
@@ -36,8 +38,12 @@ export async function commitCardRating({
       if (!card) {
         throw new Error(`Card not found: ${cardId}`)
       }
+      if (await db.studyLog.where('operationId').equals(operationId).first()) {
+        return { operationId, fsrsState: card.fsrsMain }
+      }
+      if (getFSRSOwner() !== owner) throw new Error('账号已切换，请重新评分')
 
-      const fsrsState = scheduleFSRSState(card.fsrsMain, rating, reviewedAt)
+      const fsrsState = scheduleFSRSState(card.fsrsMain, rating, reviewedAt, { owner })
       const timestamp = reviewedAt.getTime()
       const syncJob: SyncOutboxItem = {
         operationId,
@@ -58,6 +64,8 @@ export async function commitCardRating({
         action: 'review',
         rating,
         timestamp,
+        owner,
+        beforeReps: card.fsrsMain.reps,
       })
       await db.syncOutbox.where('cardId').equals(cardId).delete()
       await db.syncOutbox.add(syncJob)

@@ -9,6 +9,7 @@ import { shouldActivateRating } from '@/lib/ratingActivation'
 import { cn } from '@/lib/utils'
 import type { FSRSState, Rating } from '@/types'
 import { Button } from '@/components/ui/button'
+import { useFSRSParameterKey } from '@/hooks/useFSRSParameterKey'
 
 interface FSRSButtonsProps {
   cardId: string
@@ -33,7 +34,12 @@ export function FSRSButtons({ cardId, fsrsState, disabled, className, onRateStar
   const [loading, setLoading] = useState(false)
   const interactionLock = useRef(false)
   const [previewAt] = useState(() => new Date())
-  const previews = useMemo(() => previewFSRSRatings(fsrsState, previewAt), [fsrsState, previewAt])
+  const parameterKey = useFSRSParameterKey()
+  const previews = useMemo(() => {
+    // Reading the key invalidates an open preview on account/parameter changes.
+    void parameterKey
+    return previewFSRSRatings(fsrsState, previewAt)
+  }, [fsrsState, previewAt, parameterKey])
 
   const handleRate = async (rating: Rating) => {
     if (interactionLock.current || loading || disabled) return

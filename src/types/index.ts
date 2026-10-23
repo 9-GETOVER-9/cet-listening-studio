@@ -135,6 +135,17 @@ export interface StudyLogItem {
   action: 'review' | 'bookmark' | 'merge'
   rating?: Rating
   timestamp: number
+  owner?: string
+  beforeReps?: number
+}
+
+export interface NotebookReviewLog {
+  operationId: string
+  notebookId: string
+  owner?: string
+  rating: Rating
+  timestamp: number
+  beforeReps: number
 }
 
 export interface ListeningLogItem {

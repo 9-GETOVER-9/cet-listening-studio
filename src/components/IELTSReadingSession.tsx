@@ -5,6 +5,7 @@ import { buildReadingQuestion, gradeReadingQuestion, READING_RELATIONS, type Rea
 import { commitReadingReview, saveReadingSession, type ReadingSession, type ReadingSnapshot } from '@/lib/ieltsReadingStore'
 import { createInitialFSRSState, previewFSRSRatings } from '@/lib/fsrsScheduler'
 import { Rating } from '@/types'
+import { useFSRSParameterKey } from '@/hooks/useFSRSParameterKey'
 
 interface Props { cards: ReadingCard[]; session: ReadingSession; data: ReadingSnapshot; onEnd: () => Promise<void>; onNotesBlocked: (blocked: boolean) => void; notesBlocked: boolean }
 function interval(date: Date) {
@@ -13,6 +14,7 @@ function interval(date: Date) {
 }
 export function IELTSReadingSession({ cards, session: initial, data, onEnd, onNotesBlocked, notesBlocked }: Props) {
   const [session, setSession] = useState(initial)
+  useFSRSParameterKey('reading', session.owner)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [finished, setFinished] = useState(false)
@@ -29,7 +31,7 @@ export function IELTSReadingSession({ cards, session: initial, data, onEnd, onNo
   const progress = data.progress.find(p => p.cardId === card.id)
   const question = session.question ?? buildReadingQuestion(card, cards, progress?.fsrs.reps ?? 0)
   const result = session.mode === 'recall' ? undefined : gradeReadingQuestion(question, session.selected)
-  const previews = previewFSRSRatings(progress?.fsrs ?? createInitialFSRSState())
+  const previews = previewFSRSRatings(progress?.fsrs ?? createInitialFSRSState(), new Date(), { scope: 'reading', owner: session.owner })
   async function operation(action: () => Promise<void>) {
     if (lock.current) return
     lock.current = true; setBusy(true); setError('')

@@ -6,6 +6,7 @@ import type {
   ListeningLogItem,
   StudyLogItem,
   SyncOutboxItem,
+  NotebookReviewLog,
 } from '@/types'
 import { normalizeFSRSState } from '@/lib/fsrsState'
 
@@ -18,6 +19,7 @@ class AppDB extends Dexie {
   listeningLog!: Table<ListeningLogItem>
   syncOutbox!: Table<SyncOutboxItem>
   settings!: Table<{ key: string; value: unknown }>
+  notebookReviews!: Table<NotebookReviewLog>
 
   constructor() {
     super('cet-listening-studio')
@@ -57,6 +59,9 @@ class AppDB extends Dexie {
       listeningLog: '++id, cardId, timestamp',
       syncOutbox: '&operationId, cardId, kind, nextAttemptAt, createdAt',
       settings: 'key',
+    })
+    this.version(4).stores({
+      notebookReviews: '&operationId, notebookId, owner, timestamp',
     })
   }
 }

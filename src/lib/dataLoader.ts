@@ -604,12 +604,15 @@ export async function getInitializedCardCount(): Promise<number> {
 }
 
 export async function clearAllData(): Promise<void> {
+  const { clearPersonalParameters } = await import('./fsrsPreferences')
+  clearPersonalParameters()
   await Promise.all([
     db.cards.clear(),
     db.audio.clear(),
     db.notebook.clear(),
     db.modules.clear(),
     db.studyLog.clear(),
+    db.notebookReviews.clear(),
     db.listeningLog.clear(),
     db.syncOutbox.clear(),
     db.settings.clear(),

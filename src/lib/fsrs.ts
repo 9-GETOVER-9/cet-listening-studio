@@ -2,10 +2,11 @@ import type { FSRSState, Rating } from '@/types'
 import { supabase } from '@/lib/supabase'
 import { syncNotebookItem } from '@/lib/sync'
 import { commitCardRating } from '@/db/reviewRepository'
+import { commitNotebookRating } from '@/db/notebookReview'
+import { getFSRSOwner } from './fsrsPreferences'
 import {
   createInitialFSRSState,
   previewFSRSRatings,
-  scheduleFSRSState,
 } from '@/lib/fsrsScheduler'
 import { isDueNow, isDueToday } from '@/lib/reviewTiming'
 
@@ -39,20 +40,12 @@ export async function rateNotebookItem(
   rating: Rating
 ): Promise<void> {
   const { db } = await import('@/db/schema')
-  const item = await db.notebook.get(notebookId)
-
-  if (!item) {
-    throw new Error(`Notebook item not found: ${notebookId}`)
-  }
-
-  const newFsrsState = scheduleFSRSState(item.fsrsNotebook, rating, new Date())
-  await db.notebook.update(notebookId, {
-    fsrsNotebook: newFsrsState,
-  })
+  const owner = getFSRSOwner()
+  await commitNotebookRating(notebookId, rating, new Date(), owner, crypto.randomUUID())
 
   // 后台同步到云端
   const { data: { session } } = await supabase.auth.getSession()
-  if (session?.user) {
+  if (session?.user && session.user.id === owner) {
     const updatedItem = await db.notebook.get(notebookId)
     if (updatedItem) {
       void syncNotebookItem(session.user.id, updatedItem)

@@ -1,7 +1,7 @@
 import { db } from '@/db/schema'
 import { checkSpelling, type IELTSCard, type IELTSCorpus } from './ieltsDictation'
 import { frequencyDB, readFrequencyProgress, saveFrequencyOutcome, type FrequencyReason } from './ieltsFrequencyProgress'
-import { scheduleFSRSState } from './fsrsScheduler'
+import { commitNotebookRating } from '@/db/notebookReview'
 import { Rating, type LevelType, type NotebookItem } from '@/types'
 
 export type PracticeSource = 'wanglu' | 'frequency' | 'notebook'
@@ -180,13 +180,13 @@ export async function confirmPractice(session: PracticeSession, active = () => t
       return next
     })
   }
-  return await db.transaction('rw', db.settings, db.notebook, async () => {
+  return await db.transaction('rw', db.settings, db.notebook, db.notebookReviews, async () => {
     if (!active()) throw new Error('会话已切换，停止保存。')
     if (await db.settings.get(receiptKey)) return (await db.settings.get(sessionKey(session.owner, session.context)))?.value as PracticeSession || next
     if (word.source === 'notebook') {
       const item = await db.notebook.get(word.notebookId || word.id)
       if (!item) throw new Error('词汇已被删除，本题无法保存。')
-      await db.notebook.update(item.notebookId, { fsrsNotebook: scheduleFSRSState(item.fsrsNotebook, session.firstVerdict ? Rating.Good : Rating.Again, new Date(confirmedAt)) })
+      await commitNotebookRating(item.notebookId, session.firstVerdict ? Rating.Good : Rating.Again, new Date(confirmedAt), session.owner, `word:${session.sessionId}:${session.position}`)
       const mistakeKey = `word-practice:notebook-mistakes:${session.owner}`
       const pendingIds = new Set(((await db.settings.get(mistakeKey))?.value || []) as string[])
       if (session.firstVerdict) pendingIds.delete(item.notebookId); else pendingIds.add(item.notebookId)

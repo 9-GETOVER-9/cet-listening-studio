@@ -1,12 +1,26 @@
-# CET Listening Studio · 四六级与新概念听力训练
+<div align="center">
 
-从听音辨词到精听纠错、难点收藏和间隔复习，把一次听力练习变成可持续的学习记录。
+# CET Listening Studio
 
-**React · TypeScript · Vite · IndexedDB · FSRS**
+**听音、练习、标记难点，再把学过的内容带回复习。**
+
+`四六级` · `新概念英语` · `难点本` · `间隔复习`
+
+[![GitHub Stars](https://img.shields.io/github/stars/9-GETOVER-9/cet-listening-studio?style=for-the-badge&color=839778)](https://github.com/9-GETOVER-9/cet-listening-studio/stargazers)
+
+[快速开始](#section-2) · [功能矩阵](#section-3) · [运行前配置](#section-7)
+
+</div>
+
+---
+
+<a id="section-1"></a>
 
 ## 一句话介绍
 
 一个在浏览器中使用的听力训练应用，提供四六级与新概念英语内容入口、卡片训练、难点本和综合复习。
+
+<a id="section-2"></a>
 
 ## 快速开始
 
@@ -16,6 +30,8 @@ cd cet-listening-studio
 pnpm install
 pnpm dev
 ```
+
+<a id="section-3"></a>
 
 ## 功能矩阵
 
@@ -27,11 +43,15 @@ pnpm dev
 | 综合复习 | 根据学习记录安排待复习卡片 |
 | 学习概览 | 查看当天任务与进度 |
 
+<a id="section-4"></a>
+
 ## 核心工作流
 
 ```text
 选材料 → 听力训练 → 标记难点 → 难点本 → 综合复习
 ```
+
+<a id="section-5"></a>
 
 ## 项目结构
 
@@ -43,80 +63,16 @@ pnpm dev
 | `supabase/` | 云端相关配置与脚本 |
 | `DEPLOY.md` | 部署说明 |
 
+<a id="section-6"></a>
+
 ## 验证与部署
 
 `pnpm test`、`pnpm lint` 和 `pnpm build` 分别运行测试、静态检查与构建。部署步骤见 [DEPLOY.md](DEPLOY.md)。
 
-## 详细说明
+<a id="section-7"></a>
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 运行前配置
 
-Currently, two official plugins are available:
+先参考 [.env.example](.env.example) 配置 `VITE_SUPABASE_URL` 与 `VITE_SUPABASE_ANON_KEY`；登录依赖自己的 Supabase 项目。数据库配置见 [supabase/](supabase/)。不要把服务端密钥写入前端环境变量。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+课程加载器会请求 `/data/modules.json` 及 `/data/audio/` 下的素材。当前源码仓库不包含完整课程数据与音频，运行时需要自行提供有权使用的对应素材。安装前端依赖不等于已经安装课程内容。

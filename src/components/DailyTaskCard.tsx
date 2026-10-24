@@ -1,5 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, RefreshCw } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
@@ -10,111 +9,31 @@ interface DailyTaskCardProps {
   completed: number
   remaining: number
   loading?: boolean
+  onRefresh?: () => void
 }
 
-/**
- * 今日任务卡片
- * 显示今日待复习数量和进度
- * 全部完成时显示庆祝动画
- */
-export function DailyTaskCard({
-  className = '',
-  total,
-  completed,
-  remaining,
-  loading = false,
-}: DailyTaskCardProps) {
+export function DailyTaskCard({ className = '', total, completed, remaining, loading = false, onRefresh }: DailyTaskCardProps) {
   const progress = total > 0 ? Math.min(100, (completed / total) * 100) : 0
-  const isComplete = remaining === 0 && total > 0
+  const isComplete = !loading && remaining === 0 && total > 0
+  const message = loading ? '正在读取今日进度…'
+    : total === 0 ? '今天暂无到期任务，可以选择一项课程开始练习。'
+      : isComplete ? '今日复习已完成，给自己的坚持一点肯定。'
+        : `还有 ${remaining} 张待复习，按自己的节奏继续。`
 
-  const getMessage = () => {
-    if (loading) return '加载中...'
-    if (total === 0) return '今日没有待复习的卡片'
-    if (isComplete) return '太棒了！今日任务全部完成 🎉'
-    if (completed === 0) return `今日待复习 ${remaining} 张`
-    return `再复习 ${remaining} 张就完成了`
-  }
-
-  return (
-    <Card className={`overflow-hidden ${className}`}>
-      <CardContent className="p-4">
-        {/* 标题 */}
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-gray-900">今日任务</h3>
-          {total > 0 && (
-            <span className="text-sm text-gray-500">
-              {completed} / {total}
-            </span>
-          )}
+  return <Card className={className} aria-busy={loading}>
+    <CardContent className="p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          {isComplete && <CheckCircle2 className="h-4 w-4 text-emerald-700" aria-hidden="true" />}
+          <h2 className="text-sm font-semibold text-[var(--app-ink)]">今日复习进度</h2>
+          {!loading && total > 0 && <span className="text-xs tabular-nums text-[var(--app-muted)]">{completed} / {total}</span>}
         </div>
-
-        {/* 进度条 */}
-        {total > 0 && (
-          <>
-            <Progress value={progress} className="h-2.5" />
-
-            {/* 鼓励文案 */}
-            <p
-              className={`mt-2 text-sm ${
-                isComplete ? 'font-medium text-green-600' : 'text-gray-500'
-              }`}
-            >
-              {getMessage()}
-            </p>
-          </>
-        )}
-
-        {total === 0 && !loading && (
-          <p className="text-sm text-gray-400">{getMessage()}</p>
-        )}
-
-        {/* 庆祝动画 */}
-        <AnimatePresence>
-          {isComplete && (
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-              className="mt-4 flex flex-col items-center"
-            >
-              <motion.div
-                animate={{
-                  scale: [1, 1.1, 1],
-                  rotate: [0, -5, 5, 0],
-                }}
-                transition={{
-                  duration: 0.5,
-                  repeat: 2,
-                  repeatDelay: 1,
-                }}
-              >
-                <CheckCircle2 className="h-12 w-12 text-green-500" />
-              </motion.div>
-              <motion.p
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="mt-2 text-lg font-bold text-green-600"
-              >
-                今日学习完成！
-              </motion.p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* 刷新按钮 */}
-        {!isComplete && total > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-3 w-full"
-            onClick={() => window.location.reload()}
-          >
-            刷新进度
-          </Button>
-        )}
-      </CardContent>
-    </Card>
-  )
+        {onRefresh && <Button variant="ghost" size="sm" disabled={loading} onClick={onRefresh}>
+          <RefreshCw className={loading ? 'motion-safe:animate-spin' : ''} aria-hidden="true" />{loading ? '读取中' : '刷新进度'}
+        </Button>}
+      </div>
+      {!loading && total > 0 && <Progress value={progress} className="mt-3 h-1.5" aria-label="今日复习进度" />}
+      <p role="status" className="mt-2 text-sm leading-6 text-[var(--app-muted)]">{message}</p>
+    </CardContent>
+  </Card>
 }

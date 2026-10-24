@@ -1,5 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion'
-import { useEffect } from 'react'
+import { Suspense, useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 import { NAV_ITEMS } from '@/config/navigation'
@@ -7,7 +6,15 @@ import { cn } from '@/lib/utils'
 import { AccountSyncStatus } from '@/components/AccountSyncStatus'
 import { saveLearningResume, useAccountSyncStatus } from '@/lib/accountSync'
 
-const pageVariants = { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -6 } }
+function PageLoading() {
+  return <div className="quiet-page space-y-6" role="status" aria-label="正在打开页面">
+    <p className="text-sm text-[var(--app-muted)]">正在打开页面…</p>
+    <div aria-hidden="true" className="space-y-4">
+      <div className="h-9 w-44 rounded-lg bg-[var(--app-paper-2)]" />
+      <div className="grid gap-4 sm:grid-cols-2">{[0, 1].map(i => <div key={i} className="h-44 rounded-[var(--app-radius)] border border-[var(--app-line)] bg-[var(--app-surface)]" />)}</div>
+    </div>
+  </div>
+}
 
 export function Layout() {
   const location = useLocation()
@@ -23,14 +30,14 @@ export function Layout() {
   return (
     <div className="min-h-dvh bg-[var(--app-paper)] text-[var(--app-ink)] lg:grid lg:grid-cols-[224px_minmax(0,1fr)]">
       <a href="#content" className="fixed left-4 top-[-5rem] z-[100] bg-[var(--app-ink)] px-4 py-2 text-sm text-white focus:top-4">跳到主要内容</a>
-      <aside className="sticky top-0 hidden h-dvh flex-col border-r border-[var(--app-line)] bg-[color-mix(in_srgb,var(--app-paper)_94%,transparent)] px-[22px] py-[30px] backdrop-blur-xl lg:flex">
+      <aside className="sticky top-0 hidden h-dvh flex-col border-r border-[var(--app-line)] bg-[var(--app-surface)] px-5 py-8 lg:flex">
         <NavLink to="/" className="mb-11 flex items-center gap-3" aria-label="Listening Studio 首页">
-          <span className="grid h-[34px] w-[34px] place-items-center rounded-full border border-[var(--app-ink)] font-serif text-xs font-bold">LS</span>
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--app-accent)] font-serif text-sm font-bold text-white">LS</span>
           <span><strong className="block font-serif text-base leading-tight">Listening Studio</strong><small className="block text-[10px] uppercase tracking-[.16em] text-[var(--app-muted)]">Quiet Edition</small></span>
         </NavLink>
         <nav aria-label="主导航" className="grid gap-1">
           {NAV_ITEMS.map(({ to, icon: Icon, label, index }) => (
-            <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => cn('grid min-h-12 grid-cols-[28px_1fr_auto] items-center rounded-[var(--app-radius)] px-2.5 text-sm font-semibold text-[var(--app-muted)] transition-colors hover:bg-white/40 hover:text-[var(--app-ink)]', isActive && 'bg-[var(--app-surface)] text-[var(--app-ink)] shadow-[inset_2px_0_var(--app-accent)]')}>
+            <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => cn('grid min-h-12 grid-cols-[28px_1fr_auto] items-center rounded-xl px-3 text-sm font-medium text-[var(--app-muted)] transition-colors hover:bg-[var(--app-paper)] hover:text-[var(--app-ink)]', isActive && 'bg-[var(--app-accent-soft)] font-semibold text-[var(--app-accent)]')}>
               <span className="font-serif text-xs font-normal text-[var(--app-muted)]">{index}</span><span>{label}</span><Icon className="h-4 w-4" aria-hidden="true" />
             </NavLink>
           ))}
@@ -40,14 +47,16 @@ export function Layout() {
           <p className="mt-3 font-serif text-sm text-[var(--app-ink)]">今天，也听清一个细节。</p>
         </div>
       </aside>
-      <main id="content" className="min-w-0 pb-20 lg:pb-0">
-        <div className="border-b border-[var(--app-line)] px-4 py-2 lg:hidden"><AccountSyncStatus compact /></div>
-        <AnimatePresence mode="wait"><motion.div key={location.pathname} initial={pageVariants.initial} animate={pageVariants.animate} exit={pageVariants.exit} transition={{ type: 'tween', ease: 'easeOut', duration: 0.24 }}><Outlet /></motion.div></AnimatePresence>
+      <main id="content" className="app-main min-w-0">
+        <div className="border-b border-[var(--app-line)] bg-[var(--app-surface)] px-4 py-3 text-[var(--app-muted)] lg:hidden"><AccountSyncStatus compact /></div>
+        <Suspense key={location.pathname} fallback={<PageLoading />}>
+          <div className="page-enter"><Outlet /></div>
+        </Suspense>
       </main>
-      <nav aria-label="主导航" style={{ gridTemplateColumns: `repeat(${mobileItems.length}, minmax(0, 1fr))` }} className="fixed inset-x-2 bottom-2 z-50 grid border border-[var(--app-line)] bg-[color-mix(in_srgb,var(--app-surface)_94%,transparent)] p-1 shadow-[var(--app-shadow)] backdrop-blur-xl lg:hidden">
+      <nav aria-label="主导航" style={{ gridTemplateColumns: `repeat(${mobileItems.length}, minmax(0, 1fr))` }} className="mobile-nav fixed inset-x-2 z-50 grid rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface)] p-1 shadow-[var(--app-shadow)] lg:hidden">
         {mobileItems.map(({ to, icon: Icon, label }) => (
-          <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => cn('flex min-h-14 flex-col items-center justify-center gap-1 px-1 text-[10px] text-[var(--app-muted)]', isActive && 'bg-[var(--app-ink)] text-white')}>
-            <Icon className="h-4 w-4" aria-hidden="true" /><span>{label}</span>
+          <NavLink key={to} to={to} end={to === '/'} aria-label={label} className={({ isActive }) => cn('flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-[11px] font-medium text-[var(--app-muted)] transition-colors', isActive && 'bg-[var(--app-accent)] text-white')}>
+            <Icon className="h-[18px] w-[18px]" aria-hidden="true" /><span>{to === '/review' ? '复习' : label}</span>
           </NavLink>
         ))}
       </nav>

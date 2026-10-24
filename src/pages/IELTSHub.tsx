@@ -2,20 +2,31 @@ import { Link } from 'react-router-dom'
 import { ArrowUpRight, BookOpen, Headphones } from 'lucide-react'
 import { QuietPageHeader } from '@/components/QuietPageHeader'
 
+const areas = [
+  { to: '/ielts/listening', icon: Headphones, eyebrow: '01 · Listening', title: '听力语料库', description: '从听清一个词，到记住一组表达。', content: '王陆语料 · 雅思高频词汇', features: ['听写测试', '错词复习', '中英随身听'], action: '进入听力练习' },
+  { to: '/ielts/reading-538', icon: BookOpen, eyebrow: '02 · Reading', title: '阅读 538 同义替换', description: '熟悉考点词，也认得它的另一种说法。', content: '第一章 · 三类考点词', features: ['多选辨认', '主动回忆', '间隔复习'], action: '进入阅读练习' },
+]
+
 export default function IELTSHub() {
-  return <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 sm:py-12">
-    <QuietPageHeader eyebrow="IELTS · Your study space" title="雅思，一处学。" description="听清关键词，认出同义替换。选择今天的练习，把积累留给下一次。" stamp={<>LISTEN<br />READ<br />REMEMBER</>} />
-    <div className="grid gap-5 md:grid-cols-2">
-      <Link to="/ielts/listening" className="group rounded-[var(--app-radius)] border border-[var(--app-line)] bg-[var(--app-surface)] p-6 sm:p-8">
-        <Headphones className="mb-8 h-7 w-7 text-[var(--app-accent)]" aria-hidden="true" /><p className="quiet-kicker">01 · LISTENING</p>
-        <h2 className="mt-2 font-serif text-3xl">听力语料库</h2><p className="mt-4 text-sm leading-7 text-[var(--app-muted)]">王陆语料 · 高频词汇<br />听写测试、中英随身听与词条笔记。</p>
-        <span className="mt-8 flex items-center justify-between text-sm font-semibold">进入听力练习<ArrowUpRight className="h-5 w-5" /></span>
-      </Link>
-      <Link to="/ielts/reading-538" className="group rounded-[var(--app-radius)] border border-[var(--app-line)] bg-[var(--app-surface)] p-6 sm:p-8">
-        <BookOpen className="mb-8 h-7 w-7 text-[var(--app-accent)]" aria-hidden="true" /><p className="quiet-kicker">02 · READING</p>
-        <h2 className="mt-2 font-serif text-3xl">阅读 538 同义替换</h2><p className="mt-4 text-sm leading-7 text-[var(--app-muted)]">第一章 · 三类考点词<br />多选辨认、主动回忆与间隔复习。</p>
-        <span className="mt-8 flex items-center justify-between text-sm font-semibold">进入阅读练习<ArrowUpRight className="h-5 w-5" /></span>
-      </Link>
+  return <div className="quiet-page">
+    <QuietPageHeader eyebrow="IELTS · Your study space" title="雅思，一处学。" description="听清关键词，认出同义替换。选一项练习，接着上一次的积累。" />
+    <div className="grid gap-4 md:grid-cols-2">
+      {areas.map(({ to, icon: Icon, eyebrow, title, description, content, features, action }) => <Link key={to} to={to}
+        className="study-link quiet-surface group flex flex-col p-5 sm:p-7">
+        <div className="flex items-center justify-between gap-4">
+          <span className="grid h-12 w-12 place-items-center rounded-xl bg-[var(--app-accent-soft)] text-[var(--app-accent)]"><Icon className="h-6 w-6" aria-hidden="true" /></span>
+          <span className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--app-muted)]">{eyebrow}</span>
+        </div>
+        <h2 className="mt-5 font-serif text-2xl leading-tight sm:text-3xl">{title}</h2>
+        <p className="mt-3 text-sm leading-6 text-[var(--app-muted)]">{description}</p>
+        <p className="mt-1 text-xs leading-6 text-[var(--app-muted)]">{content}</p>
+        <div className="mb-6 mt-4 flex flex-wrap gap-2">
+          {features.map(feature => <span key={feature} className="rounded-full bg-[var(--app-paper)] px-2.5 py-1 text-xs text-[var(--app-muted)]">{feature}</span>)}
+        </div>
+        <span className="mt-auto flex items-center justify-between gap-3 border-t border-[var(--app-line)] pt-4 text-sm font-semibold text-[var(--app-accent)]">
+          {action}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+        </span>
+      </Link>)}
     </div>
   </div>
 }

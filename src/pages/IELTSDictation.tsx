@@ -334,7 +334,7 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
 
       {corpus && !active && !state.finished && <section className={panel} aria-label="选择学习内容">
         <h2 className="mb-4 text-xl font-semibold">{bookTitle}</h2>
-        <div className="mb-5 flex gap-2">
+        <div className="mb-5 flex flex-wrap gap-2">
           <Button variant={mode === 'dictation' ? 'default' : 'outline'} aria-pressed={mode === 'dictation'} onClick={() => { stopAudio(); setMode('dictation') }}>听写测试</Button>
           <Button variant={mode === 'walkman' ? 'default' : 'outline'} aria-pressed={mode === 'walkman'} onClick={() => { stopAudio(); setMode('walkman'); setReviewImported(!!accountImport.model) }}>{book === 'frequency' ? '错词复习' : '随身听'}</Button>
           {book === 'frequency' && <Button variant={mode === 'notes' ? 'default' : 'outline'} aria-pressed={mode === 'notes'} onClick={() => { stopAudio(); setMode('notes') }}>词条笔记</Button>}
@@ -401,7 +401,7 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
             onCompositionStart={() => { answerComposingRef.current = true }} onCompositionEnd={() => { answerComposingRef.current = false }}
             onChange={event => dispatch({ type: 'input', value: event.target.value })}
             autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
-            placeholder="输入英文单词或词组" className="mt-2 w-full border border-[var(--app-line)] bg-[var(--app-surface)] p-4 text-xl disabled:opacity-75" />
+            placeholder="输入英文单词或词组" className="mt-2 w-full rounded-[var(--app-radius)] border border-[var(--app-line)] bg-[var(--app-surface)] p-4 text-xl transition-colors focus:border-[var(--app-accent)] disabled:opacity-75" />
           {state.verdict === null && <div className="mt-5 flex flex-wrap gap-3">
             <Button data-frequency-enter type="submit" disabled={!state.draft.trim() || !!audioError}>检查答案</Button>
             <Button type="button" variant="outline" disabled={!!audioError} onClick={() => {

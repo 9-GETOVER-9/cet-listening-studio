@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -274,20 +273,20 @@ export default function Profile() {
   const studyRate = stats.totalCards > 0 ? Math.round((stats.studiedCards / stats.totalCards) * 100) : 0
 
   return (
-    <ScrollArea className="h-dvh">
+    <>
       <div className="quiet-page space-y-4">
         <div className="mb-8"><p className="quiet-kicker mb-2">Identity & Rhythm</p><h1 className="quiet-display text-4xl md:text-6xl">我的学习设置。</h1></div>
         <Card>
-          <CardContent className="flex items-center gap-4 p-4">
-            <Avatar className="h-16 w-16">
+          <CardContent className="flex flex-wrap items-center gap-4 p-4 sm:p-5">
+            <Avatar className="h-14 w-14 shrink-0">
               <AvatarFallback className="text-xl">{nickname ? nickname.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
             </Avatar>
-            <div className="flex-1">
+            <div className="min-w-0 flex-1 basis-40">
               {editingNickname ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Input
                     autoFocus
-                    className="max-w-[200px]"
+                    className="w-full max-w-[240px]"
                     placeholder="输入昵称"
                     value={tempNickname}
                     onChange={(event) => setTempNickname(event.target.value)}
@@ -300,8 +299,8 @@ export default function Profile() {
                   <Button size="sm" variant="ghost" onClick={() => setEditingNickname(false)}>取消</Button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold text-gray-900">{nickname || '设置昵称'}</h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="break-all text-lg font-semibold text-gray-900">{nickname || '设置昵称'}</h2>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -314,7 +313,7 @@ export default function Profile() {
                   </Button>
                 </div>
               )}
-              <p className="mt-1 text-sm text-gray-500">{user?.email ?? '访客体验中'}</p>
+              <p className="mt-1 break-all text-sm text-gray-500">{user?.email ?? '访客体验中'}</p>
             </div>
             {user ? (
               <Button size="sm" variant="ghost" onClick={() => void handleSignOut()}>
@@ -485,11 +484,11 @@ export default function Profile() {
         <Card>
           <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Settings className="h-4 w-4" />设置</CardTitle></CardHeader>
           <CardContent className="space-y-1">
-            <div className="flex items-center justify-between py-3">
+            <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div><p className="font-medium text-gray-900">默认播放速度</p><p className="text-sm text-gray-500">听力卡片的默认播放速度</p></div>
-              <div className="flex items-center gap-1">
+              <div className="grid grid-cols-4 gap-1.5">
                 {[0.75, 1, 1.25, 1.5].map((speedOption) => (
-                  <Button key={speedOption} className="min-w-14" size="sm" variant={playSpeed === speedOption ? 'default' : 'outline'} onClick={() => { setPlaySpeed(speedOption); toast.success(`播放速度已设置为 ${speedOption}x`) }}>
+                  <Button key={speedOption} className="min-w-0 px-2" size="sm" aria-pressed={playSpeed === speedOption} variant={playSpeed === speedOption ? 'default' : 'outline'} onClick={() => { setPlaySpeed(speedOption); toast.success(`播放速度已设置为 ${speedOption}x`) }}>
                     {speedOption}x
                   </Button>
                 ))}
@@ -591,6 +590,6 @@ export default function Profile() {
 
         <div className="py-4 text-center text-xs text-gray-400"><p>CET Listening Studio v1.0.0</p><p className="mt-1">Powered by FSRS · Built with React</p></div>
       </div>
-    </ScrollArea>
+    </>
   )
 }

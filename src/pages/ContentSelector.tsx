@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useReducer } from 'react'
 import { liveQuery } from 'dexie'
 import { useNavigate } from 'react-router-dom'
 import { Lock } from 'lucide-react'
@@ -11,8 +11,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '
 import { Button } from '@/components/ui/button'
 import { getCETModules } from '@/db/crud'
 import type { Module } from '@/types'
-import { cn } from '@/lib/utils'
 import { usePro } from '@/hooks/usePro'
+import { CET_CATALOG_BATCH_SIZE, cetCatalogReducer, filterCETCatalog, initialCETCatalog } from '@/lib/cetCatalog'
 
 /**
  * 内容选择页
@@ -28,10 +28,8 @@ export default function ContentSelector() {
   const [loading, setLoading] = useState(true)
 
   // 筛选条件
-  const [selectedLevel, setSelectedLevel] = useState<'CET4' | 'CET6' | 'all'>('all')
-  const [selectedExamDate, setSelectedExamDate] = useState<string>('all')
-  const [selectedSection, setSelectedSection] = useState<string>('all')
-  const [selectedType, setSelectedType] = useState<string>('all')
+  const [catalog, updateCatalog] = useReducer(cetCatalogReducer, initialCETCatalog)
+  const { filters } = catalog
 
   // 模块数据
   const [modules, setModules] = useState<Module[]>([])
@@ -56,20 +54,15 @@ export default function ContentSelector() {
   const examDates = useMemo(() => {
     const dates = modules
       .map((m) => m.examDate)
-      .filter((d): d is string => d !== undefined)
+      .filter((d): d is string => Boolean(d))
     return [...new Set(dates)].sort().reverse()
   }, [modules])
 
   // 筛选后的模块
-  const filteredModules = useMemo(() => {
-    return modules.filter((m) => {
-      if (selectedLevel !== 'all' && m.level !== selectedLevel) return false
-      if (selectedExamDate !== 'all' && m.examDate !== selectedExamDate) return false
-      if (selectedSection !== 'all' && m.section !== selectedSection) return false
-      if (selectedType !== 'all' && m.type !== selectedType) return false
-      return true
-    })
-  }, [modules, selectedLevel, selectedExamDate, selectedSection, selectedType])
+  const filteredModules = useMemo(() => filterCETCatalog(modules, filters), [modules, filters])
+  const visibleModules = filteredModules.slice(0, catalog.visibleCount)
+  const remainingCount = filteredModules.length - visibleModules.length
+  const hasFilters = Object.values(filters).some(value => value !== 'all')
 
   // 难度 badge variant
   const getDifficultyVariant = (difficulty: string) => {
@@ -122,21 +115,22 @@ export default function ContentSelector() {
       {/* 标题 */}
       <div className="mb-6 border-b border-[var(--app-line)] pb-6">
         <p className="quiet-kicker mb-2">Exam Archive</p>
-        <h1 className="quiet-display text-4xl md:text-6xl">四六级听力档案。</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          {filteredModules.length} 个模块可用
+        <h1 className="quiet-display text-4xl md:text-5xl">四六级听力档案。</h1>
+        <p className="mt-3 text-sm text-[var(--app-muted)]">
+          按考试、年份或题型，找到今天要练的内容。
         </p>
       </div>
 
       {/* 筛选器 */}
-      <div className="quiet-surface space-y-3 p-4 md:p-6">
+      <div className="quiet-surface grid gap-5 p-4 md:grid-cols-2 md:p-6" aria-label="筛选听力课程">
         {/* 四六级选择 */}
         <div className="space-y-2">
           <p className="text-xs font-medium text-gray-500">考试级别</p>
           <ToggleGroup
             type="single"
-            value={selectedLevel}
-            onValueChange={(v) => v && setSelectedLevel(v as 'CET4' | 'CET6' | 'all')}
+            value={filters.level}
+            onValueChange={(value) => { if (value) updateCatalog({ type: 'filter', key: 'level', value }) }}
+            aria-label="考试级别"
             className="justify-start"
           >
             <ToggleGroupItem value="all" className="flex-1 sm:flex-initial">
@@ -152,45 +146,25 @@ export default function ContentSelector() {
         </div>
 
         {/* 考试日期 */}
-        <div className="space-y-2">
-          <p className="text-xs font-medium text-gray-500">考试日期</p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setSelectedExamDate('all')}
-              className={cn(
-                'rounded-md px-3 py-1.5 text-sm transition-colors',
-                selectedExamDate === 'all'
-                  ? 'bg-brand text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              )}
-            >
-              全部
-            </button>
-            {examDates.slice(0, 6).map((date) => (
-              <button
-                key={date}
-                onClick={() => setSelectedExamDate(date)}
-                className={cn(
-                  'rounded-md px-3 py-1.5 text-sm transition-colors',
-                  selectedExamDate === date
-                    ? 'bg-brand text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                )}
-              >
-                {date}
-              </button>
-            ))}
-          </div>
-        </div>
+        <label className="block space-y-2 text-xs font-medium text-[var(--app-muted)]">
+          <span>考试日期</span>
+          <select value={filters.examDate}
+            onChange={event => updateCatalog({ type: 'filter', key: 'examDate', value: event.target.value })}
+            className="min-h-11 w-full rounded-[var(--app-radius)] border border-[var(--app-line)] bg-[var(--app-surface)] px-3 text-sm text-[var(--app-ink)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+            <option value="all">全部日期</option>
+            {examDates.map(date => <option key={date} value={date}>{date}</option>)}
+          </select>
+        </label>
 
         {/* Section 选择 */}
         <div className="space-y-2">
           <p className="text-xs font-medium text-gray-500">Section</p>
           <ToggleGroup
             type="single"
-            value={selectedSection}
-            onValueChange={(v) => v && setSelectedSection(v)}
-            className="justify-start"
+            value={filters.section}
+            onValueChange={(value) => { if (value) updateCatalog({ type: 'filter', key: 'section', value }) }}
+            aria-label="听力部分"
+            className="flex-wrap justify-start"
           >
             <ToggleGroupItem value="all">全部</ToggleGroupItem>
             <ToggleGroupItem value="A">Section A</ToggleGroupItem>
@@ -204,9 +178,10 @@ export default function ContentSelector() {
           <p className="text-xs font-medium text-gray-500">题型</p>
           <ToggleGroup
             type="single"
-            value={selectedType}
-            onValueChange={(v) => v && setSelectedType(v)}
-            className="justify-start"
+            value={filters.type}
+            onValueChange={(value) => { if (value) updateCatalog({ type: 'filter', key: 'type', value }) }}
+            aria-label="题型"
+            className="flex-wrap justify-start"
           >
             <ToggleGroupItem value="all">全部</ToggleGroupItem>
             <ToggleGroupItem value="news">新闻</ToggleGroupItem>
@@ -218,6 +193,10 @@ export default function ContentSelector() {
 
       {/* 模块卡片列表 */}
       <div className="flex-1 py-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p role="status" className="text-sm text-[var(--app-muted)]">已显示 <strong className="font-semibold text-[var(--app-ink)]">{visibleModules.length}</strong> / {filteredModules.length} 个模块</p>
+          {hasFilters && <Button variant="ghost" size="sm" onClick={() => updateCatalog({ type: 'reset' })}>清除筛选</Button>}
+        </div>
         {filteredModules.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-gray-400">
             <Lock className="mb-2 h-12 w-12" />
@@ -225,7 +204,7 @@ export default function ContentSelector() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {filteredModules.map((module) => {
+            {visibleModules.map((module) => {
               const progress = module.totalCards > 0
                 ? Math.round((module.studiedCards / module.totalCards) * 100)
                 : 0
@@ -233,8 +212,18 @@ export default function ContentSelector() {
               return (
                 <Card
                   key={module.moduleId}
-                  className="cursor-pointer transition-shadow hover:shadow-md"
+                  className="cursor-pointer transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                   onClick={() => handleModuleClick(module)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${module.title || module.moduleId} · ${module.examDate ?? ''} · ${module.level}${module.level === 'CET6' && !isProActive ? ' · 解锁课程' : ''}`}
+                  onKeyDown={event => {
+                    if (event.target !== event.currentTarget) return
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      if (!event.repeat) handleModuleClick(module)
+                    }
+                  }}
                 >
                   <CardContent className="p-4">
                     {/* 标题行 */}
@@ -285,6 +274,11 @@ export default function ContentSelector() {
             })}
           </div>
         )}
+        {remainingCount > 0 && <div className="mt-6 flex justify-center">
+          <Button variant="outline" onClick={() => updateCatalog({ type: 'more', total: filteredModules.length })}>
+            加载更多 · {Math.min(CET_CATALOG_BATCH_SIZE, remainingCount)} 个模块
+          </Button>
+        </div>}
       </div>
 
       <Sheet open={showProSheet} onOpenChange={setShowProSheet}>

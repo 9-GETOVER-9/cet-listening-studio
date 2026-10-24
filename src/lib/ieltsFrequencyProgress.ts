@@ -90,3 +90,14 @@ export function selectFrequencyTestCards(cards: readonly IELTSCard[], progress: 
     return true
   })
 }
+export function summarizeFrequencyChapters(owner: string, cards: readonly IELTSCard[], progress: readonly FrequencyProgress[]) {
+  const byId = new Map(progress.filter(record => record.owner === owner).map(record => [record.cardId, record]))
+  const chapters = new Map<number, { mastered: number; total: number }>()
+  for (const card of cards) {
+    const count = chapters.get(card.chapter) ?? { mastered: 0, total: 0 }
+    count.total++
+    if (byId.get(card.id)?.passed) count.mastered++
+    chapters.set(card.chapter, count)
+  }
+  return chapters
+}

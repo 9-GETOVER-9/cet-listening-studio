@@ -18,7 +18,7 @@ import { AudioTimeTracker, getListeningOwner } from '@/lib/audioTimeTracker'
 import { createIELTSHistorySession, saveIELTSHistory, type IELTSHistorySession } from '@/lib/ieltsHistory'
 import { checkSpelling, summarizeResults, type IELTSCard, type IELTSCorpus, type IELTSBook } from '@/lib/ieltsDictation'
 import { emptyFrequencyRetry, frequencyRetryReducer, parseFrequencyShortcut } from '@/lib/ieltsFrequencyRetry'
-import { FREQUENCY_REASON_LABELS, saveFrequencyOutcome, selectFrequencyCards, selectFrequencyTestCards, type FrequencyReason } from '@/lib/ieltsFrequencyProgress'
+import { FREQUENCY_REASON_LABELS, saveFrequencyOutcome, selectFrequencyCards, selectFrequencyTestCards, summarizeFrequencyChapters, type FrequencyReason } from '@/lib/ieltsFrequencyProgress'
 import { resolveFrequencyAnnotation, saveFrequencyAnnotation } from '@/lib/ieltsAnnotations'
 
 const CHAPTERS = [3, 4, 5, 8, 11]
@@ -55,6 +55,7 @@ function IELTSStudy({owner}:{owner:string}) {
   const frequency = { ...localFrequency, progress: useMemo(() => projectImportedProgress(localFrequency.progress, accountImport.model?.rows ?? []), [localFrequency.progress, accountImport.model]) }
   const personalChinese = useMemo(() => new Map(accountImport.model?.cards.map(card => [card.id, card])), [accountImport.model])
   const [mode, setMode] = useState<'dictation' | 'walkman' | 'notes'>('dictation')
+  const [reviewImported, setReviewImported] = useState(false)
   const annotations = useIELTSAnnotations(owner, book === 'frequency')
   const chapters = book === 'frequency' ? [1,2,3,4,5,6,7,8] : CHAPTERS
   const groupName = (value: number) => book === 'frequency' ? `Unit ${value}` : `第 ${value} 章`
@@ -124,6 +125,8 @@ function IELTSStudy({owner}:{owner:string}) {
   const eligibleFrequencyCards = useMemo(() => selectFrequencyTestCards(available, frequency.progress), [available, frequency.progress])
   const testCards = book === 'frequency' ? eligibleFrequencyCards : available
   const frequencyReady = !frequency.loading && !frequency.error && !annotations.loading && !annotations.error && !accountImport.loading && !accountImport.error
+  const chapterProgress = useMemo(() => summarizeFrequencyChapters(owner, corpus?.cards ?? [], frequency.progress), [owner, corpus, frequency.progress])
+  const reviewingImport = book === 'frequency' && mode === 'walkman' && reviewImported && !!accountImport.model
   const current = byId.get(state.queue[state.results.length])
   const currentAnnotation = current ? resolveFrequencyAnnotation(current.id, annotations.seeds, annotations.local,
     frequency.progress.find(record => record.cardId === current.id)?.reason) : undefined
@@ -305,8 +308,7 @@ function IELTSStudy({owner}:{owner:string}) {
         {accountImport.model && frequencyReady ? <>
           <p className="mt-3 text-sm">已导入 {accountImport.model.seed.total} 个词 · 正确 {accountImport.model.seed.correct} 词已跳过 · 导入时错词 {accountImport.model.seed.total - accountImport.model.seed.correct} 词</p>
           <p className="mt-2 text-sm text-[var(--app-muted)]">下面汇总本次导入的全部单元，重复词只保留一次。之后的复习结果仍保存在当前浏览器。</p>
-          <IELTSFrequencyReview owner={owner} cards={accountImport.model.cards} progress={frequency.progress} chineseById={personalChinese} rate={rate}
-            indexError="" onReload={accountImport.retry} onStart={cards => start(cards, true)} showFocusLink={false} seeds={annotations.seeds} local={annotations.local} />
+          <Button className="mt-4" variant="outline" onClick={() => { stopAudio(); setMode('walkman'); setReviewImported(true) }}>复习导入错词 · {selectFrequencyCards(accountImport.model.cards, frequency.progress, 'mistakes').length} 词</Button>
         </> : !accountImport.loading && !accountImport.error && <p className="mt-3 text-sm text-[var(--app-muted)]">可导入已有测试结果，已掌握的词会自动跳过。</p>}
         <FrequencyTestImport owner={owner} cards={corpus.cards} onImported={() => { accountImport.retry(); frequency.retry() }} />
       </section>}
@@ -315,14 +317,18 @@ function IELTSStudy({owner}:{owner:string}) {
         <h2 className="mb-4 text-xl font-semibold">{bookTitle}</h2>
         <div className="mb-5 flex gap-2">
           <Button variant={mode === 'dictation' ? 'default' : 'outline'} aria-pressed={mode === 'dictation'} onClick={() => { stopAudio(); setMode('dictation') }}>听写测试</Button>
-          <Button variant={mode === 'walkman' ? 'default' : 'outline'} aria-pressed={mode === 'walkman'} onClick={() => { stopAudio(); setMode('walkman') }}>{book === 'frequency' ? '错词复习' : '随身听'}</Button>
+          <Button variant={mode === 'walkman' ? 'default' : 'outline'} aria-pressed={mode === 'walkman'} onClick={() => { stopAudio(); setMode('walkman'); setReviewImported(!!accountImport.model) }}>{book === 'frequency' ? '错词复习' : '随身听'}</Button>
           {book === 'frequency' && <Button variant={mode === 'notes' ? 'default' : 'outline'} aria-pressed={mode === 'notes'} onClick={() => { stopAudio(); setMode('notes') }}>词条笔记</Button>}
         </div>
         <div className="mb-6 flex flex-wrap gap-2">
-          {chapters.map(ch => <Button key={ch} variant={chapter === ch ? 'default' : 'outline'} aria-pressed={chapter === ch}
-            onClick={() => { setChapter(ch); setSection('all') }}>{groupName(ch)} <span className="ml-1 text-xs opacity-70">{corpus.cards.filter(card => card.chapter === ch).length} 题</span></Button>)}
+          {book === 'frequency' && mode === 'walkman' && accountImport.model && <Button variant={reviewingImport ? 'default' : 'outline'} aria-pressed={reviewingImport}
+            onClick={() => setReviewImported(true)}>我的导入 · 全部单元</Button>}
+          {chapters.map(ch => <Button key={ch} variant={chapter === ch && !reviewingImport ? 'default' : 'outline'} aria-pressed={chapter === ch && !reviewingImport}
+            onClick={() => { setChapter(ch); setSection('all'); setReviewImported(false) }}>{groupName(ch)} <span className="ml-1 text-xs opacity-70">{book === 'frequency'
+              ? `${frequencyReady ? chapterProgress.get(ch)?.mastered ?? 0 : '…'}/${chapterProgress.get(ch)?.total ?? 0} 已掌握`
+              : `${corpus.cards.filter(card => card.chapter === ch).length} 题`}</span></Button>)}
         </div>
-        <div className="grid gap-5 sm:grid-cols-2">
+        {!reviewingImport && <div className="grid gap-5 sm:grid-cols-2">
           <label className="text-sm">选择小节
             <select className="mt-2 block w-full border border-[var(--app-line)] bg-[var(--app-surface)] p-3" value={section} onChange={event => setSection(event.target.value)}>
               <option value="all">全部（{chapterCards.length} 题）</option>
@@ -334,8 +340,8 @@ function IELTSStudy({owner}:{owner:string}) {
               <option value="10">10 题 · 快速测试</option><option value="20">20 题</option><option value="50">50 题</option><option value="all">全部</option>
             </select>
           </label>}
-        </div>
-        {book === 'frequency' && frequencyReady && <p role="status" className="mt-5 text-sm">未测 {untested.length} 词 · 已掌握 {available.length - untested.length - pending.length} 词 · 待复习 {pending.length} 词</p>}
+        </div>}
+        {book === 'frequency' && frequencyReady && !reviewingImport && <p role="status" className="mt-5 text-sm">已掌握 {available.length - untested.length - pending.length}/{available.length} 词 · 未测 {untested.length} 词 · 待复习 {pending.length} 词</p>}
         {mode === 'dictation' ? <><p className="my-5 text-sm leading-6 text-[var(--app-muted)]">{book === 'frequency' ? '优先测待复习错词，再测未测词，已掌握的词自动跳过。答错后反复重拼同一个词，首次判定计入准确率；以后新一轮首次答对才移出错词。' : '按原牌组顺序出题，提交后显示答案。'}忽略大小写、多余空格和末尾标点；拼写和词形需要正确。</p>
         <div className="flex flex-wrap gap-3"><Button size="lg" disabled={!testCards.length || authLoading || (book === 'frequency' && !frequencyReady)} onClick={() => start(limit === 'all' ? testCards : testCards.slice(0, Number(limit)))}>
           <Headphones className="mr-2 h-4 w-4" />开始听写 · {limit === 'all' ? testCards.length : Math.min(testCards.length, Number(limit))} 题
@@ -345,10 +351,11 @@ function IELTSStudy({owner}:{owner:string}) {
         {book === 'frequency' && frequencyReady && !testCards.length && <p role="status" className="mt-4 text-sm">所选内容已全部掌握，可以重新测验。</p>}
         </> : mode === 'notes' && book === 'frequency' ? frequencyReady && <IELTSNotesLibrary key={`${owner}:${chapter}:${section}`} owner={owner} cards={available}
           seeds={annotations.seeds} local={annotations.local} progress={frequency.progress} />
-          : book === 'frequency' ? frequencyReady && <IELTSFrequencyReview key={`${owner}:${chapter}:${section}`} owner={owner} cards={available} progress={frequency.progress}
+          : book === 'frequency' ? frequencyReady && (reviewingImport && accountImport.model ? <IELTSFrequencyReview key={`${owner}:import`} owner={owner} cards={accountImport.model.cards} progress={frequency.progress} chineseById={personalChinese} rate={rate}
+            indexError="" onReload={accountImport.retry} onStart={cards => start(cards, true)} showFocusLink={false} seeds={annotations.seeds} local={annotations.local} /> : <IELTSFrequencyReview key={`${owner}:${chapter}:${section}`} owner={owner} cards={available} progress={frequency.progress}
           seeds={annotations.seeds} local={annotations.local}
           chapter={chapter} section={section}
-          chineseById={chineseById} rate={rate} indexError={indexError} onReload={() => setReload(value => value + 1)} onStart={cards => start(cards, true)} />
+          chineseById={chineseById} rate={rate} indexError={indexError} onReload={() => setReload(value => value + 1)} onStart={cards => start(cards, true)} />)
           : <IELTSWalkman corpus={corpus} chapter={chapter} section={section} title={bookTitle} rate={rate} book={book} />}
       </section>}
 

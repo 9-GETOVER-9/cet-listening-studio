@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { beforeEach, expect, it, vi } from 'vitest'
-import { frequencyDB, readFrequencyProgress, saveFrequencyOutcome, selectFrequencyTestCards } from './ieltsFrequencyProgress'
+import { frequencyDB, readFrequencyProgress, saveFrequencyOutcome, selectFrequencyTestCards, summarizeFrequencyChapters } from './ieltsFrequencyProgress'
 import { applyFrequencyImport, createFrequencyImport, decodeFrequencyImport, importCards, projectImportedProgress, validateImportAccount } from './frequencyImport'
 import type { IELTSCard } from './ieltsDictation'
 import { loadPracticeWords, parsePracticeOptions } from './wordPractice'
@@ -8,6 +8,20 @@ import { loadPracticeWords, parsePracticeOptions } from './wordPractice'
 const cards: IELTSCard[] = ['ice', 'tools', 'ice', 'new'].map((word, i) => ({ id: `f${i}`, word, answers: [word], chapter: 1, section: 'a', audio: '/audio.mp3' }))
 const rows = [{ word: 'ice', passed: true }, { word: 'tools', passed: false }, { word: 'whales', passed: false }, { word: 'plants', passed: true }]
 beforeEach(async () => { await frequencyDB.delete(); await frequencyDB.open() })
+
+it('counts mastered native cards per unit for only the current owner after import and review', async () => {
+  const units = cards.map((card, i) => ({ ...card, chapter: i < 2 ? 1 : 2 }))
+  const seed = await createFrequencyImport('test', rows, units, 123)
+  await applyFrequencyImport('alice', seed, units)
+  await saveFrequencyOutcome({ owner: 'bob', sessionId: 'other', cardId: 'f1', passed: true })
+  const decoded = await decodeFrequencyImport(seed, units)
+  const read = async () => projectImportedProgress(await readFrequencyProgress('alice'), decoded)
+  const mixed = [...await read(), ...await readFrequencyProgress('bob')]
+  expect([...summarizeFrequencyChapters('alice', units, mixed)]).toEqual([[1, { mastered: 1, total: 2 }], [2, { mastered: 1, total: 2 }]])
+  await saveFrequencyOutcome({ owner: 'alice', sessionId: 'review', cardId: 'f1', passed: true })
+  expect(summarizeFrequencyChapters('alice', units, await read()).get(1)).toEqual({ mastered: 2, total: 2 })
+  expect(summarizeFrequencyChapters('guest', units, mixed).get(1)).toEqual({ mastered: 0, total: 2 })
+})
 
 it('retains exact word forms, covers duplicate native cards and round trips compactly', async () => {
   const seed = await createFrequencyImport('test', rows, cards, 123)

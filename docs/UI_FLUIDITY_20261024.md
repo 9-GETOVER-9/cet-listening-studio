@@ -21,7 +21,7 @@
 - monkeytypegame/monkeytype：https://github.com/monkeytypegame/monkeytype 。已读README，专注模式、实时错误/准确率及简洁布局为资料声称；借鉴减少无关干扰，不复制其代码或改变本项目判分。
 - zyronon/TypeWords：https://github.com/zyronon/TypeWords 。已读README，词汇/文章练习、错词与掌握分流、可配置快捷键为资料声称；借鉴课程入口与主操作层级。既有2026-10-24调研已实测课程目录，但不冒充本轮完整练习验证。
 
-当前代码实查：Layout退出等待240ms后入场240ms；唯一外层Suspense包住RouterProvider；CET默认map约575模块；首页320px欢迎块和重复学习入口；Profile内层h-dvh滚动。实际浏览器基线/成品证据后补，只记录真实结果。
+原代码实查：Layout退出等待240ms后入场240ms；唯一外层Suspense包住RouterProvider；CET默认map约575模块；首页320px欢迎块和重复学习入口；Profile内层h-dvh滚动。
 
 补充实际访问：Qwerty 官网初次浏览器调用超时，但恢复后标签成功抵达 https://qwerty.kaiyi.cool/mobile，读取了官方介绍与主操作入口；没有执行其完整练习，不称为键盘训练功能实测。本项目实际旧首页首屏的大欢迎块和重复提示已截图观察；新首页首屏可见课程入口。
 
@@ -35,6 +35,14 @@
 - 实测发现旧Toast盖住手机导航且悬停延长显示；新增1023px以下底部偏移，修复后相同倍速提示仍显示时，命中元素为雅思链接且能成功跳转。
 - 高频听写：acdemic错误显示academic与笔记，Ctrl+2选择拼错，Enter隐藏并清空重拼，academic正确后Enter进入第2词，已确认1/通过0/准确率0%。控制台error为空。仅使用本地游客测试，不修改用户线上成绩。
 - 截图：工作区根 ui-home-20261024.jpg、ui-home-mobile-20261024.jpg，不入源码Git。读源码确认reduced-motion规则覆盖新增CSS动画，未模拟系统设置。
+
+## 发布结果
+
+- 源码提交13165cf，分支feature/ui-fluidity-20261024；没有合并main/dev，也没有推送远端。2026-10-24执行`deploy.ps1 -FrontendOnly -SkipBuild`完成线上前端发布。
+- 自动备份：`/var/www/backups/cet-listening-20261024-160212-baV8Rv`。index SHA256：`6ca4277a2770394508eda60fec39ffa693261f791dc5bb933a143ab4f95d3ab3`；94个前端文件逐一哈希一致，15份JSON发布前后相同，音频、教材和私有同步数据库未入包。
+- HTTPS200，同步服务active；同步接口GET受限403；使用实际支持的POST方法、空请求无凭证得到401，认证保护保留。校验清单初次因Windows CRLF将回车当文件名失败，改为LF后94项全通过，没有因此重发版本。
+- 线上IAB游客：首页新样式/课程入口、CET24/575实际显示；过期访客CET6卡按Enter弹出Pro限制，关闭正常，error日志为空。没有操作真实登录账号或线上学习成绩。
+- 线上截图：工作区根`ui-home-online-20261024.jpg`。发布日志、清单和JSON前后哈希位于`output/release-ui-20261024/`（不入Git）。
 
 ## 验收与交付
 

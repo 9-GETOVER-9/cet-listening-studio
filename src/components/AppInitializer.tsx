@@ -1,10 +1,9 @@
-import { Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { RouterProvider } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { toast } from 'sonner'
 import { ensureModuleStatsCache } from '@/db/crud'
 import { InitLoader } from '@/components/InitLoader'
-import { OnboardingGuide } from '@/components/OnboardingGuide'
 import { RouteLoadingFallback } from '@/components/RouteErrorFallback'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -19,9 +18,14 @@ import {
 } from '@/lib/dataLoader'
 import { syncLearningForCurrentUser } from '@/lib/learningSync'
 import { supabase } from '@/lib/supabase'
-import { router } from '@/router'
+import { initialPageReady, router } from '@/router'
 import { useSettingsStore } from '@/store/settingsStore'
 import { getListeningStorageError, retryListeningWrites } from '@/lib/audioTimeTracker'
+
+const OnboardingGuide = lazy(() => import('@/components/OnboardingGuide')
+  .then(module => ({ default: module.OnboardingGuide }))
+  // Optional guidance must not blank the app when its chunk is unavailable offline.
+  .catch(() => ({ default: () => <></> })))
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([
@@ -39,7 +43,7 @@ function runWhenIdle(task: () => void): void {
   globalThis.setTimeout(task, 250)
 }
 
-export function AppInitializer() {
+export function AppInitializer({ onPageReady }: { onPageReady?: () => void }) {
   const [appState, setAppState] = useState<'checking' | 'init' | 'ready'>('checking')
   const [initProgress, setInitProgress] = useState(0)
   const [initError, setInitError] = useState<string | null>(null)
@@ -47,6 +51,20 @@ export function AppInitializer() {
 
   const { onboardingCompleted, setInitialized, setOnboardingCompleted } = useSettingsStore()
   const { initInviteCode } = usePro()
+
+  useEffect(() => {
+    if (appState !== 'ready' || !accountReady || !onPageReady) return
+    let cancelled = false
+    let frame = 0
+    void initialPageReady.then(() => {
+      if (cancelled) return
+      // Let the first route paint before SW installation downloads its offline shell.
+      frame = window.requestAnimationFrame(() => {
+        frame = window.requestAnimationFrame(() => { if (!cancelled) onPageReady() })
+      })
+    })
+    return () => { cancelled = true; window.cancelAnimationFrame(frame) }
+  }, [appState, accountReady, onPageReady])
 
   useEffect(() => startAccountSync(), [])
 
@@ -86,7 +104,7 @@ export function AppInitializer() {
       }
     }
 
-    const runFullDataInit = (blockReady: boolean) => {
+    const runFullDataInit = (blockReady: boolean, beforeStart: Promise<unknown> = initialPageReady) => {
       if (blockReady) {
         setAppState('init')
         setInitProgress(1)
@@ -95,7 +113,7 @@ export function AppInitializer() {
 
       startBackgroundInit((loaded) => {
         if (blockReady && !cancelled) setInitProgress(loaded)
-      }).then(() => {
+      }, blockReady ? undefined : beforeStart).then(() => {
         if (cancelled) return
 
         if (blockReady) {
@@ -169,7 +187,19 @@ export function AppInitializer() {
         }
       }
 
-      if (await isModuleIndexInitialized()) {
+      const hasModuleIndex = await isModuleIndexInitialized()
+      // These pages don't read the CET/NCE catalog to render their main content.
+      // Reserve the import before exposing links, so a quick lesson navigation can await it.
+      if (window.location.pathname === '/' || /^\/ielts(?:\/|$)/.test(window.location.pathname)) {
+        const indexReady = hasModuleIndex ? Promise.resolve() : initializeModuleIndex().catch(err => {
+          console.warn('Module index unavailable; full import will rebuild it:', err)
+        })
+        runFullDataInit(false, Promise.all([initialPageReady, indexReady]))
+        finishReadyState(false)
+        return
+      }
+
+      if (hasModuleIndex) {
         finishReadyState(false)
         runFullDataInit(false)
         return
@@ -258,7 +288,9 @@ export function AppInitializer() {
         <Toaster position="bottom-center" />
       </TooltipProvider>
       {!onboardingCompleted && (
-        <OnboardingGuide onComplete={() => setOnboardingCompleted(true)} />
+        <Suspense fallback={null}>
+          <OnboardingGuide onComplete={() => setOnboardingCompleted(true)} />
+        </Suspense>
       )}
     </>
   )

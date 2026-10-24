@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { db } from '@/db/schema'
 import { mergeCards } from '@/db/crud'
 import { createInitialFSRSState } from '@/lib/fsrs'
-import { initializeData } from './dataLoader'
+import { getInitPromise, initializeData, startBackgroundInit } from './dataLoader'
 import type { Card } from '@/types'
 
 function card(index: number): Card {
@@ -44,4 +44,22 @@ it('removes source cards resurrected by an earlier upgrade', async () => {
   await initializeData()
   expect(await db.cards.bulkGet(['card-1', 'card-2'])).toEqual([undefined, undefined])
   expect(await db.cards.get(merged.cardId)).toEqual(merged)
+})
+
+it('reserves a shared import promise while critical route code finishes downloading', async () => {
+  let allowImport!: () => void
+  const criticalPage = new Promise<void>(resolve => { allowImport = resolve })
+  const pending = startBackgroundInit(undefined, criticalPage)
+  try {
+    expect(getInitPromise()).toBe(pending)
+    expect(startBackgroundInit()).toBe(pending)
+    // Let IndexedDB reads from an ungated importer complete before checking traffic.
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(fetch).not.toHaveBeenCalled()
+  } finally {
+    allowImport()
+    await pending
+  }
+  expect(fetch).toHaveBeenCalledOnce()
+  expect(await db.cards.count()).toBe(4)
 })

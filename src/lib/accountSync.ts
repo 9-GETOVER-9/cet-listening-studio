@@ -148,8 +148,10 @@ export function activateLearningAccount(owner: string): Promise<void> {
       setFSRSOwner(owner); setListeningOwner(owner)
       useAccountSyncStatus.setState({ owner, phase: owner === 'guest' ? 'guest' : 'pending', pending: 0, lastSynced: 0 })
     })
-    if (owner !== 'guest') await syncAccountNow()
+    // Local ownership and cached progress are restored before exposing the UI.
+    // Cloud exchange has its own retry/error state and must not gate first paint.
     useAccountSyncStatus.setState({ ready: true })
+    if (owner !== 'guest') void syncAccountNow()
   })
   return switching
 }

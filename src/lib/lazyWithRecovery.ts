@@ -9,9 +9,14 @@ import {
 type LazyImport<T extends ComponentType<unknown>> = () => Promise<{ default: T }>
 
 export function lazyWithRecovery<T extends ComponentType<unknown>>(loader: LazyImport<T>) {
-  return lazy(async () => {
+  let pending: ReturnType<LazyImport<T>> | undefined
+  const preload = () => pending ??= loader().catch(error => {
+    pending = undefined
+    throw error
+  })
+  const component = lazy(async () => {
     try {
-      const module = await loader()
+      const module = await preload()
       clearChunkReloadAttempt()
       return module
     } catch (error) {
@@ -23,4 +28,5 @@ export function lazyWithRecovery<T extends ComponentType<unknown>>(loader: LazyI
       throw error
     }
   })
+  return Object.assign(component, { preload })
 }

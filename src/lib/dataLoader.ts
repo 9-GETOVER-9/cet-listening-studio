@@ -137,10 +137,12 @@ export function setRetryProgressCallback(
 
 export function startBackgroundInit(
   onProgress?: (loaded: number, total: number) => void,
+  beforeStart: Promise<unknown> = Promise.resolve(),
 ): Promise<void> {
   if (initPromise) return initPromise
 
-  initPromise = initializeData(onProgress).catch((err) => {
+  // Reserve the promise immediately so lesson routes can still await the import.
+  initPromise = beforeStart.then(() => initializeData(onProgress)).catch((err) => {
     initPromise = null
     throw err
   })

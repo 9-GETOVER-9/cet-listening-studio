@@ -1,4 +1,5 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { isValidElement } from 'react'
+import { createBrowserRouter, matchRoutes } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { AuthGuard } from '@/components/AuthGuard'
 import { RouteErrorFallback } from '@/components/RouteErrorFallback'
@@ -61,3 +62,16 @@ export const router = createBrowserRouter([
     ],
   },
 ])
+
+// Download only the URL's page while session/index reads are in flight.
+// A failed speculative request is retried by lazyWithRecovery on actual render.
+export const initialPageReady = typeof window === 'undefined' ? Promise.resolve() : Promise.all(
+  (matchRoutes(router.routes, window.location.pathname) ?? []).map(({ route }) => {
+    const element = route.element
+    if (!isValidElement(element)) return
+    const component: unknown = element.type
+    if (typeof component === 'object' && component !== null && 'preload' in component && typeof component.preload === 'function') {
+      return component.preload()
+    }
+  }),
+).then(() => {}, () => {})

@@ -18,27 +18,32 @@ window.addEventListener('vite:preloadError', (event) => {
   void reloadForFreshChunks()
 })
 
-registerSW({
-  onNeedRefresh() {
-    // 非阻断式：使用 toast 提示更新，允许用户稍后刷新
-    import('sonner').then(({ toast }) => {
-      toast('有新版本可用 ✨', {
-        description: '点击刷新获取最新版本',
-        action: {
-          label: '立即刷新',
-          onClick: () => window.location.reload(),
-        },
-        duration: 30000,
+let offlineRegistered = false
+function registerOfflineSupport() {
+  if (offlineRegistered) return
+  offlineRegistered = true
+  registerSW({
+    onNeedRefresh() {
+      // 非阻断式：使用 toast 提示更新，允许用户稍后刷新
+      import('sonner').then(({ toast }) => {
+        toast('有新版本可用 ✨', {
+          description: '点击刷新获取最新版本',
+          action: {
+            label: '立即刷新',
+            onClick: () => window.location.reload(),
+          },
+          duration: 30000,
+        })
       })
-    })
-  },
-  onOfflineReady() {
-    // PWA 离线就绪（生产环境不需要日志）
-  },
-})
+    },
+    onOfflineReady() {
+      // PWA 离线就绪（生产环境不需要日志）
+    },
+  })
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AppInitializer />
+    <AppInitializer onPageReady={registerOfflineSupport} />
   </StrictMode>,
 )

@@ -80,7 +80,7 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
     return (initialBook === 'frequency' ? [1,2,3,4,5,6,7,8] : CHAPTERS).includes(value) ? value : initialBook === 'frequency' ? 1 : 3
   })
   const [section, setSection] = useState(restored?.section ?? sourceParams.get('section') ?? 'all')
-  const [limit, setLimit] = useState(['10','20','50','all'].includes(sourceParams.get('limit') || '') ? sourceParams.get('limit')! : '20')
+  const [limit, setLimit] = useState(restored?.limit ?? (['10','20','50','all'].includes(sourceParams.get('limit') || '') ? sourceParams.get('limit')! : '20'))
   const [state, dispatch] = useReducer(frequencyRetryReducer, restored?.state ?? emptyFrequencyRetry)
   const [audioError, setAudioError] = useState('')
   const [playing, setPlaying] = useState(false)

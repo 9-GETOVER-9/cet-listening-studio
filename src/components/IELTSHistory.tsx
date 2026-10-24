@@ -8,7 +8,7 @@ export function IELTSHistory({ owner }: { owner: string }) {
   }, [owner])
   return <section className="quiet-surface p-5 md:p-8" aria-label="听写成绩日志">
     <h2 className="text-xl font-semibold">听写成绩日志</h2>
-    <p className="mt-2 text-sm text-[var(--app-muted)]">保存在当前浏览器，刷新后可查看；暂不跨设备同步。{owner === 'guest' ? '当前为访客记录。' : '按当前登录账号分别保存。'}</p>
+    <p className="mt-2 text-sm text-[var(--app-muted)]">{owner === 'guest' ? '当前为访客记录，仅保存在本机浏览器。' : '按当前登录账号保存，联网后自动同步到同账号的其他设备。'}</p>
     {!data ? <p className="mt-4 text-sm">正在读取日志…</p> : data.error ? <p role="alert" className="mt-4 text-sm text-red-600">无法读取本机日志，请检查浏览器存储权限后刷新。</p> : !data.records.length ? <p className="mt-4 text-sm text-[var(--app-muted)]">还没有成绩。完成听写，或确认至少一题后结束本轮，会自动保存。</p> :
       <div className="mt-4 max-h-96 overflow-y-auto divide-y divide-[var(--app-line)]">
         {data.records.map(record => <div key={record.id} className="flex items-start justify-between gap-4 py-4">

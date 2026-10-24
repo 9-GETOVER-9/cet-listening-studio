@@ -3,6 +3,7 @@ import { checkSpelling, type IELTSCard, type IELTSCorpus } from './ieltsDictatio
 import { frequencyDB, readFrequencyProgress, saveFrequencyOutcome, type FrequencyReason } from './ieltsFrequencyProgress'
 import { commitNotebookRating } from '@/db/notebookReview'
 import { Rating, type LevelType, type NotebookItem } from '@/types'
+import { decodeFrequencyImport, FREQUENCY_IMPORT_KEY, projectImportedProgress } from './frequencyImport'
 
 export type PracticeSource = 'wanglu' | 'frequency' | 'notebook'
 export type PracticeMode = 'dictation' | 'meaning'
@@ -77,8 +78,10 @@ export async function loadPracticeWords(owner: string, options: PracticeOptions,
     if (!response.ok) throw new Error('语料加载失败，请重试。')
     const corpus = await response.json() as IELTSCorpus
     if (!Array.isArray(corpus.cards) || !corpus.cards.length) throw new Error('语料数据不完整。')
-    const progress = new Map((options.source === 'frequency' ? await readFrequencyProgress(owner) : []).map(p => [p.cardId, p]))
-    words = corpus.cards.filter(card => (!options.chapter || card.chapter === options.chapter) && (options.section === 'all' || card.section === options.section)).map(card => ({
+    const imported = options.source === 'frequency' ? await frequencyDB.practiceState.get([owner, FREQUENCY_IMPORT_KEY]) : undefined
+    const rows = imported ? await decodeFrequencyImport(imported.value, corpus.cards) : []
+    const progress = new Map(projectImportedProgress(options.source === 'frequency' ? await readFrequencyProgress(owner) : [], rows).map(p => [p.cardId, p]))
+    words = corpus.cards.filter(card => (!options.chapter || card.chapter === options.chapter) && (options.section === 'all' || card.section === options.section) && (!imported || progress.get(card.id)?.passed !== true)).map(card => ({
       id: card.id, word: card.word, answers: card.answers, meaning: card.chinese || '', audio: card.audio,
       source: options.source, sourceLabel: `${options.source === 'frequency' ? '雅思高频' : '王陆语料库'} · ${card.chapter} / ${card.section}`, ieltsCard: card,
       wrong: progress.get(card.id)?.passed === false,

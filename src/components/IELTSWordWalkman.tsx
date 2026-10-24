@@ -28,7 +28,7 @@ export function IELTSWordWalkman({cards,rate,owner}:{cards:IELTSCard[];rate:numb
   <p className="quiet-kicker">随身听 · {card?.chineseAudio?'英文 → 中文':'英文'}</p>
   <p className="mt-3 text-xl font-semibold">{card?.word??'先添加需要复习的词'}</p>
   <p className="mt-2 text-sm text-[var(--app-muted)]">{card?.chinese}</p>
-  <p className="mt-2 text-sm">第 {cards.length?state.index+1:0} / {cards.length} 词{card?.chineseAudio?` · 中英间隔约 ${(2.5/rate).toFixed(1)} 秒 · ${card.chineseAudio.startsWith('/data/audio/ielts-zh/')?'甜美桃子 2.0':'已导入中文录音'}`:''}</p>
+  <p className="mt-2 text-sm">第 {cards.length?state.index+1:0} / {cards.length} 词{card?.chineseAudio?` · 中英间隔约 ${(2.5/rate).toFixed(1)} 秒 · ${card.chineseAudio.startsWith('/data/audio/ielts-zh/')?'甜美桃子 2.0':card.chineseAudio.startsWith('/data/audio/word-supplement/')?'系统合成朗读':'已导入中文录音'}`:''}</p>
   {card&&!card.chineseAudio&&<p role="status" className="mt-2 text-sm">当前词暂无中文配音，将连续播放英文。</p>}
   <div className="my-5 flex flex-wrap gap-3">
    <Button variant="outline" disabled={!cards.length} onClick={()=>playerRef.current?.previous()}>上一词</Button>

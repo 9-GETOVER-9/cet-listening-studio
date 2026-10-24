@@ -22,8 +22,9 @@ interface Props {
   local?: Map<string, FrequencyAnnotation>
   chapter?: number
   section?: string
+  showFocusLink?: boolean
 }
-export function IELTSFrequencyReview({ owner, cards, progress, chineseById, rate, indexError, onReload, onStart, seeds = EMPTY_SEEDS, local = EMPTY_LOCAL, chapter, section = 'all' }: Props) {
+export function IELTSFrequencyReview({ owner, cards, progress, chineseById, rate, indexError, onReload, onStart, seeds = EMPTY_SEEDS, local = EMPTY_LOCAL, chapter, section = 'all', showFocusLink = true }: Props) {
   const [filter, setFilter] = useState<ReasonFilter>('all')
   const [walkman, setWalkman] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -68,7 +69,7 @@ export function IELTSFrequencyReview({ owner, cards, progress, chineseById, rate
       </label>
       <p className="mt-3 text-sm text-[var(--app-muted)]">“发音”表示听辨困难；原因标签不改变系统判定或准确率。</p>
       <div className="my-5 flex flex-wrap gap-3">
-        <Button asChild variant="outline"><a href={`/word-practice?${new URLSearchParams({ source: 'frequency', chapter: String(chapter || cards[0]?.chapter || 1), section, queue: 'mistakes', mode: 'dictation' })}`}>专注错词练习 · 当前小节全部原因</a></Button>
+        {showFocusLink && <Button asChild variant="outline"><a href={`/word-practice?${new URLSearchParams({ source: 'frequency', chapter: String(chapter || cards[0]?.chapter || 1), section, queue: 'mistakes', mode: 'dictation' })}`}>专注错词练习 · 当前小节全部原因</a></Button>}
         <Button disabled={!queue.length || saving} onClick={() => { setWalkman(false); onStart(queue) }}>错词听写 · {queue.length} 题</Button>
         <Button variant="outline" disabled={!queue.length || !!indexError || !chineseById.size} onClick={() => setWalkman(value => !value)}>{walkman ? '收起错词随身听' : '错词随身听'}</Button>
       </div>

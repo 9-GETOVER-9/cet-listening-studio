@@ -11,6 +11,9 @@ import { IELTSWordNotes } from '@/components/IELTSWordNotes'
 import { useIELTSFrequencyProgress } from '@/hooks/useIELTSFrequencyProgress'
 import { useIELTSAnnotations } from '@/hooks/useIELTSAnnotations'
 import { useAuth } from '@/hooks/useAuth'
+import { useAccountFrequencyImport } from '@/hooks/useAccountFrequencyImport'
+import { FrequencyTestImport } from '@/components/FrequencyTestImport'
+import { projectImportedProgress } from '@/lib/frequencyImport'
 import { AudioTimeTracker, getListeningOwner } from '@/lib/audioTimeTracker'
 import { createIELTSHistorySession, saveIELTSHistory, type IELTSHistorySession } from '@/lib/ieltsHistory'
 import { checkSpelling, summarizeResults, type IELTSCard, type IELTSCorpus, type IELTSBook } from '@/lib/ieltsDictation'
@@ -33,7 +36,7 @@ function IELTSStudy({owner}:{owner:string}) {
   const initialBook = sourceParams.get('source') === 'frequency' ? 'frequency' : 'wanglu'
   const authLoading = false
   const [roundCards,setRoundCards] = useState(new Map<string,IELTSCard>())
-  const frequency = useIELTSFrequencyProgress(owner)
+  const localFrequency = useIELTSFrequencyProgress(owner)
   const [questionReason, setQuestionReason] = useState<FrequencyReason | undefined>(undefined)
   const [questionSaving, setQuestionSaving] = useState(false)
   const [questionSaveError, setQuestionSaveError] = useState('')
@@ -48,6 +51,9 @@ function IELTSStudy({owner}:{owner:string}) {
   const [chineseIndex,setChineseIndex] = useState<IELTSCard[]>([])
   const [indexError,setIndexError]=useState('')
   const [book, setBook] = useState<Extract<IELTSBook, 'wanglu' | 'frequency'>>(initialBook)
+  const accountImport = useAccountFrequencyImport(owner, book === 'frequency')
+  const frequency = { ...localFrequency, progress: useMemo(() => projectImportedProgress(localFrequency.progress, accountImport.model?.rows ?? []), [localFrequency.progress, accountImport.model]) }
+  const personalChinese = useMemo(() => new Map(accountImport.model?.cards.map(card => [card.id, card])), [accountImport.model])
   const [mode, setMode] = useState<'dictation' | 'walkman' | 'notes'>('dictation')
   const annotations = useIELTSAnnotations(owner, book === 'frequency')
   const chapters = book === 'frequency' ? [1,2,3,4,5,6,7,8] : CHAPTERS
@@ -117,7 +123,7 @@ function IELTSStudy({owner}:{owner:string}) {
   const pending = useMemo(() => selectFrequencyCards(available, frequency.progress, 'mistakes'), [available, frequency.progress])
   const eligibleFrequencyCards = useMemo(() => selectFrequencyTestCards(available, frequency.progress), [available, frequency.progress])
   const testCards = book === 'frequency' ? eligibleFrequencyCards : available
-  const frequencyReady = !frequency.loading && !frequency.error && !annotations.loading && !annotations.error
+  const frequencyReady = !frequency.loading && !frequency.error && !annotations.loading && !annotations.error && !accountImport.loading && !accountImport.error
   const current = byId.get(state.queue[state.results.length])
   const currentAnnotation = current ? resolveFrequencyAnnotation(current.id, annotations.seeds, annotations.local,
     frequency.progress.find(record => record.cardId === current.id)?.reason) : undefined
@@ -287,10 +293,23 @@ function IELTSStudy({owner}:{owner:string}) {
       </label>
       {book === 'frequency' && frequency.loading && <p role="status">正在读取高频测试进度…</p>}
       {book === 'frequency' && frequency.error && <div role="alert">{frequency.error}<Button variant="outline" className="ml-3" onClick={frequency.retry}>重试读取进度</Button></div>}
+      {book === 'frequency' && accountImport.loading && <p role="status">正在核对账号的个人测试记录…</p>}
+      {book === 'frequency' && accountImport.error && <div role="alert">{accountImport.error}<Button variant="outline" className="ml-3" onClick={accountImport.retry}>重试个人记录</Button></div>}
       {book === 'frequency' && annotations.loading && <p role="status">正在读取高频笔记与标签…</p>}
       {book === 'frequency' && annotations.error && <div role="alert">{annotations.error}<Button variant="outline" className="ml-3" onClick={annotations.retry}>重新加载笔记</Button></div>}
       {loadError ? <div className={panel} role="alert">{loadError}<Button className="ml-3" onClick={() => setReload(reload + 1)}>重新加载</Button></div>
         : !corpus ? <div className={panel} role="status">正在加载听写语料…</div> : null}
+
+      {book === 'frequency' && corpus && !active && !state.finished && <section className={panel} aria-label="我的测试记录">
+        <h2 className="text-xl font-semibold">我的测试记录</h2>
+        {accountImport.model && frequencyReady ? <>
+          <p className="mt-3 text-sm">已导入 {accountImport.model.seed.total} 个词 · 正确 {accountImport.model.seed.correct} 词已跳过 · 导入时错词 {accountImport.model.seed.total - accountImport.model.seed.correct} 词</p>
+          <p className="mt-2 text-sm text-[var(--app-muted)]">下面汇总本次导入的全部单元，重复词只保留一次。之后的复习结果仍保存在当前浏览器。</p>
+          <IELTSFrequencyReview owner={owner} cards={accountImport.model.cards} progress={frequency.progress} chineseById={personalChinese} rate={rate}
+            indexError="" onReload={accountImport.retry} onStart={cards => start(cards, true)} showFocusLink={false} seeds={annotations.seeds} local={annotations.local} />
+        </> : !accountImport.loading && !accountImport.error && <p className="mt-3 text-sm text-[var(--app-muted)]">可导入已有测试结果，已掌握的词会自动跳过。</p>}
+        <FrequencyTestImport owner={owner} cards={corpus.cards} onImported={() => { accountImport.retry(); frequency.retry() }} />
+      </section>}
 
       {corpus && !active && !state.finished && <section className={panel} aria-label="选择学习内容">
         <h2 className="mb-4 text-xl font-semibold">{bookTitle}</h2>

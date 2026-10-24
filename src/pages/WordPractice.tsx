@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { WordPracticeControls } from '@/components/WordPracticeControls'
 import { IELTSWordNotes, type IELTSWordNotesHandle } from '@/components/IELTSWordNotes'
 import { useAuth } from '@/hooks/useAuth'
+import { useAccountFrequencyImport } from '@/hooks/useAccountFrequencyImport'
 import { useIELTSAnnotations } from '@/hooks/useIELTSAnnotations'
 import { useWordPracticeAudio } from '@/hooks/useWordPracticeAudio'
 import { useWordPracticeNotebookSync } from '@/hooks/useWordPracticeNotebookSync'
@@ -24,7 +25,9 @@ export default function WordPractice() {
   const [params] = useSearchParams()
   const options = useMemo(() => parsePracticeOptions(params), [params])
   const owner = user?.id || 'guest'
-  if (loading) return <div className="quiet-page" role="status">正在准备学习记录…</div>
+  const accountImport = useAccountFrequencyImport(owner, options.source === 'frequency')
+  if (loading || accountImport.loading) return <div className="quiet-page" role="status">正在准备学习记录…</div>
+  if (accountImport.error) return <div className="quiet-page" role="alert">{accountImport.error}<Button onClick={accountImport.retry}>重新读取个人记录</Button></div>
   return <PracticeStudy key={`${owner}:${practiceContext(options)}`} owner={owner} options={options} />
 }
 function PracticeStudy({ owner, options }: { owner: string; options: PracticeOptions }) {

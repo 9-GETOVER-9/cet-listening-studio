@@ -39,3 +39,12 @@
 - 新增慢云同步/失败重试、账号缓存隔离、预加载去重与重试、延迟导入可等待性回归；均先复现旧实现失败再修复。
 - 手机浏览器实测：高频听写答错→答案→Ctrl+2→Enter重拼→拼对→下一题，首次判定准确率保留；课程目录加载更多、新概念直达、个人页无横向溢出；已访问个人页离线重开。页面异常为空。仅使用隔离游客数据，未冒充真实账号跨设备验收。
 - 最终测试、发布身份、备份与公网复测见下方完成记录。
+
+### 完成记录
+
+- 源码 `74433dd` 已推送原UI分支。最终71个文件、340项Vitest测试、`pnpm exec eslint src scripts vite.config.ts eslint.config.js`、TypeScript/Vite/PWA构建及diff检查通过。保留既有Sonner混用导入和Browserslist数据库时间提示，未安装或升级依赖。
+- `deploy.ps1 -FrontendOnly -SkipBuild` 成功。前端100个文件逐个SHA256匹配，15份服务器JSON前后相同；index SHA256为 `80df1b6ca1dce4c7526964357c5f656d59cd5899687017888bfa5c1f8e022eae`。备份 `/var/www/backups/cet-listening-20261024-185945-bLL6K0`。同步服务和nginx运行，未登录POST同步接口返回401。
+- 公网游客验证上述听写/课程/个人页/离线流程通过，音频Range响应206，无页面异常。
+- 进一步排查生产网络，确认原TLS握手没有协商ALPN，nginx1.18监听只有 `listen 443 ssl;`。模块编译已含HTTP/2，依照[nginx官方listen说明](https://nginx.org/en/docs/http/ngx_http_core_module.html#listen)，仅将该监听改为 `listen 443 ssl http2;`，先备份、配置检查通过后平滑reload；未使用1.25.1才新增的 `http2 on` 指令。配置备份 `/var/www/backups/cet-nginx-http2-20261024-dh0uzbv5/cet-listening.conf`。ALPN和实际浏览器资源协议均确认h2，旧HTTP/1.1请求仍正常。
+- 开启HTTP/2后同一公网慢网模拟三次主内容出现6036/4936/5188ms，中位5188ms。公网含实际连接与VPN/网络变化，不能将它与本地3120ms混算；此前现场旧版6207ms也不是交替控制实验。HTTP/2后再次公网功能与离线重开、音频206通过。没有实体手机或真实账号跨设备实验。
+- 后续若仍需明显缩短教材首次可学时间，应另行设计按课程分片并验证版本升级、合并卡和账号恢复；目前仍使用完整卡片JSON后台导入，不能把首页出现时间写成全教材准备完成时间。

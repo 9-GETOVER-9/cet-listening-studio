@@ -313,7 +313,7 @@ export async function replaceLocalDataWithRemote(userId: string): Promise<{
   }
 }
 
-export async function clearRemoteLearningData(userId: string): Promise<void> {
+async function clearRemoteCardAndNotebookData(userId: string) {
   const auth = await supabase.auth.getUser()
   if (auth.error || auth.data.user?.id !== userId) throw new Error('请核对当前登录账号后重试清除。')
   const [cardStatesResult, notebookResult] = await Promise.all([
@@ -325,7 +325,12 @@ export async function clearRemoteLearningData(userId: string): Promise<void> {
   if (error) {
     throw new Error(`云端学习数据清除失败：${error.message}`)
   }
-  if (auth.data.user.user_metadata.frequency_import_v1) {
+  return auth.data.user
+}
+
+export async function clearRemoteLearningData(userId: string): Promise<void> {
+  const user = await clearRemoteCardAndNotebookData(userId)
+  if (user.user_metadata.frequency_import_v1) {
     const result = await supabase.auth.updateUser({ data: { frequency_import_v1: null } })
     if (result.error) throw new Error('个人测试导入记录清除失败，请重试。')
   }
@@ -376,6 +381,7 @@ export async function replaceRemoteLearningDataWithLocal(userId: string): Promis
   cardsUploaded: number
   notebooksUploaded: number
 }> {
-  await clearRemoteLearningData(userId)
+  // Replacing the main-card snapshot must preserve independent learning modules.
+  await clearRemoteCardAndNotebookData(userId)
   return fullUpload(userId)
 }

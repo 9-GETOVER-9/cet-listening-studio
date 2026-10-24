@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { default_w } from 'ts-fsrs'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
 import { Button } from './ui/button'
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog'
 import { loadTrainingDataset } from '@/lib/fsrsHistory'
 import { trainingIssue, validateWeights, type Dataset, type OptimizationResult, type OptimizationScope } from '@/lib/fsrsOptimization'
 import { getFSRSOwner, getPersonalParameters, resetPersonalParameters, savePersonalParameters } from '@/lib/fsrsPreferences'
@@ -85,22 +86,49 @@ export function FSRSOptimizationPanel({ owner }: { owner: string }) {
     } catch { setMessage('恢复失败，请重试。') }
   }
   return <Card className="mb-6" data-testid="fsrs-optimization">
-    <CardHeader><CardTitle className="text-base">个人复习参数</CardTitle></CardHeader>
+    <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+      <CardTitle className="text-base">个人复习参数</CardTitle>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 rounded-full text-muted-foreground" aria-label="查看个人复习参数说明" title="查看说明">
+            <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full border border-current text-sm font-semibold">!</span>
+          </Button>
+        </DialogTrigger>
+        <DialogContent aria-describedby="fsrs-optimization-help-description" className="max-h-[85dvh] w-[calc(100%-2rem)] overflow-y-auto bg-[var(--app-surface)] text-left">
+          <DialogHeader className="text-left">
+            <DialogTitle>个人复习参数说明</DialogTitle>
+            <DialogDescription id="fsrs-optimization-help-description">根据你的回忆记录调整复习节奏。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 text-sm leading-6">
+            <section className="space-y-1"><h3 className="font-semibold">保存与生效</h3>
+              <p>计算和参数仅保存在当前浏览器，同账号换设备需分别优化。使用 FSRS-6，目标保留率为 90%。新参数用于后续评分，已有复习日期保持不变。</p>
+            </section>
+            <section className="space-y-1"><h3 className="font-semibold">训练记录 · {scopes[scope]}</h3>
+              {data ? <p>可用 {data.cards.length} 张卡片、{data.reviews} 条评分，其中 {data.interdayReviews} 次跨日复习；排除 {data.excludedCards} 张记录不完整、归属不明或不符合条件的卡片。{data.limited && '本次按完整卡片选取，最多使用 5000 条评分。'}</p> : <p>正在读取记录…</p>}
+              {issue && <p>{issue}</p>}
+              {scope === 'main' && <label className="flex items-start gap-2 pt-2">
+                <input type="checkbox" className="mt-1.5" checked={includeLegacy} disabled={busy} onChange={e => { resetView(); setIncludeLegacy(e.target.checked) }} />
+                <span>本机旧听力评分均由我完成，允许纳入无账号标记的旧记录。</span>
+              </label>}
+            </section>
+            <section className="space-y-1"><h3 className="font-semibold">如何评分</h3>
+              <p>“模糊”表示费力但独立想起；看答案后才明白请选“忘记”。新增难点会逐步积累可训练记录。</p>
+            </section>
+          </div>
+          <DialogClose asChild><Button variant="outline" className="w-full">知道了</Button></DialogClose>
+        </DialogContent>
+      </Dialog>
+    </CardHeader>
     <CardContent className="space-y-4">
-      <p className="text-sm text-muted-foreground">根据你的回忆记录调整复习节奏。计算和参数仅保存在当前浏览器，同账号换设备需分别优化。</p>
       <label className="flex flex-wrap items-center gap-2 text-sm">训练内容
         <select aria-label="参数训练内容" className="max-w-full rounded border bg-background p-2" value={scope} disabled={busy} onChange={e => { resetView(); setIncludeLegacy(false); setScope(e.target.value as OptimizationScope) }}>
           {Object.entries(scopes).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
         </select>
       </label>
-      <p className="text-sm">当前：{profile ? '个人参数' : '默认参数'} · FSRS-6 · 目标保留率 90%</p>
+      <p className="text-sm">当前使用：{profile ? '个人参数' : '默认参数'}</p>
       {profile && <p className="text-xs text-muted-foreground">上次应用：{new Date(profile.savedAt).toLocaleString()}</p>}
-      {scope === 'main' && <label className="flex items-start gap-2 text-sm">
-        <input type="checkbox" className="mt-1" checked={includeLegacy} disabled={busy} onChange={e => { resetView(); setIncludeLegacy(e.target.checked) }} />
-        <span>本机旧听力评分均由我完成，允许纳入无账号标记的旧记录。</span>
-      </label>}
-      {data && <p className="text-sm">可用 {data.cards.length} 张卡片、{data.reviews} 条评分，其中 {data.interdayReviews} 次跨日复习；排除 {data.excludedCards} 张记录不完整、归属不明或不符合条件的卡片。{data.limited && '本次按完整卡片选取，最多使用 5000 条评分。'}</p>}
-      {issue && <p className="text-sm text-muted-foreground">{issue}</p>}
+      {data && <p className="text-sm text-muted-foreground">可用 {data.cards.length} 张卡片 · {data.interdayReviews} 次跨日复习{scope === 'main' && includeLegacy ? ' · 已纳入本机旧记录' : ''}</p>}
+      {issue && <p className="text-sm text-muted-foreground">{data ? '继续积累复习记录后可优化。' : issue}</p>}
       <div className="flex flex-wrap gap-2">
         <Button disabled={busy || !!issue} onClick={() => void start()}>优化我的参数</Button>
         {busy && <Button variant="outline" onClick={() => task.current?.cancel()}>取消优化</Button>}
@@ -114,7 +142,6 @@ export function FSRSOptimizationPanel({ owner }: { owner: string }) {
         {result.acceptable && <Button onClick={apply}>应用个人参数</Button>}
       </div>}
       {message && <p role="status" className="text-sm">{message}</p>}
-      <p className="text-xs text-muted-foreground">“模糊”表示费力但独立想起；看答案后才明白请选“忘记”。新增难点会逐步积累可训练记录。</p>
     </CardContent>
   </Card>
 }

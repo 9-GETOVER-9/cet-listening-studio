@@ -50,7 +50,7 @@ export function ListeningTimeStats({ owner, ready, details = false }: { owner: s
             <div><p className="text-xs text-gray-500">累计听力</p><p className="mt-2 text-xl font-semibold" data-testid="listening-total">{formatListeningTime(summary.total)}</p></div>
           </div>}
         </>}
-      <p className="text-xs leading-5 text-gray-500">按实际播放时间累计，暂停和缓冲不计时。记录从此功能启用后开始，仅保存在当前浏览器，按账号区分。</p>
+      <p className="text-xs leading-5 text-gray-500">按实际播放时间累计，暂停和缓冲不计时。记录从此功能启用后开始；登录后随账号同步，访客记录仅在本机保存。</p>
     </CardContent>
   </Card>
 }

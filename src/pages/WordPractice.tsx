@@ -154,7 +154,9 @@ function PracticeStudy({ owner, options }: { owner: string; options: PracticeOpt
     const current = sessionRef.current
     if (!current || busy.current) return
     const next = practiceReducer(current, action)
-    sessionRef.current = next; setSession(next); persist(next)
+    sessionRef.current = next; setSession(next)
+    // A display timer must not keep overwriting a newer session on another device.
+    if (action.type !== 'tick') persist(next)
   }, [persist])
   const play = useCallback((word: PracticeWord, sentence = false) => {
     audio.player.play({ id: word.id, word: sentence ? word.sentence || word.word : word.word, audio: sentence ? word.sentenceAudio : word.audio }, {

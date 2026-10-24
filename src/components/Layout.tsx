@@ -4,16 +4,20 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 
 import { NAV_ITEMS } from '@/config/navigation'
 import { cn } from '@/lib/utils'
+import { AccountSyncStatus } from '@/components/AccountSyncStatus'
+import { saveLearningResume, useAccountSyncStatus } from '@/lib/accountSync'
 
 const pageVariants = { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -6 } }
 
 export function Layout() {
   const location = useLocation()
+  const owner = useAccountSyncStatus(s => s.owner)
   const mobileItems = NAV_ITEMS.filter((item) => item.mobile)
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0 })
   }, [location.pathname])
+  useEffect(() => { if (!location.pathname.startsWith('/card/')) void saveLearningResume(owner, location.pathname + location.search) }, [owner, location.pathname, location.search])
 
   return (
     <div className="min-h-dvh bg-[var(--app-paper)] text-[var(--app-ink)] lg:grid lg:grid-cols-[224px_minmax(0,1fr)]">
@@ -31,11 +35,12 @@ export function Layout() {
           ))}
         </nav>
         <div className="mt-auto border-t border-[var(--app-line)] pt-5 text-xs text-[var(--app-muted)]">
-          <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[#4e7b58] shadow-[0_0_0_4px_rgba(78,123,88,.1)]" />学习记录保存在本机</div>
+          <AccountSyncStatus compact />
           <p className="mt-3 font-serif text-sm text-[var(--app-ink)]">今天，也听清一个细节。</p>
         </div>
       </aside>
       <main id="content" className="min-w-0 pb-20 lg:pb-0">
+        <div className="border-b border-[var(--app-line)] px-4 py-2 lg:hidden"><AccountSyncStatus compact /></div>
         <AnimatePresence mode="wait"><motion.div key={location.pathname} initial={pageVariants.initial} animate={pageVariants.animate} exit={pageVariants.exit} transition={{ type: 'tween', ease: 'easeOut', duration: 0.24 }}><Outlet /></motion.div></AnimatePresence>
       </main>
       <nav aria-label="主导航" style={{ gridTemplateColumns: `repeat(${mobileItems.length}, minmax(0, 1fr))` }} className="fixed inset-x-2 bottom-2 z-50 grid border border-[var(--app-line)] bg-[color-mix(in_srgb,var(--app-surface)_94%,transparent)] p-1 shadow-[var(--app-shadow)] backdrop-blur-xl lg:hidden">

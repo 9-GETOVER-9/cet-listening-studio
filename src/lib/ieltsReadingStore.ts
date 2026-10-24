@@ -5,7 +5,7 @@ import { normalizeFSRSState } from './fsrsState'
 import { finiteNumber, record, validText, type ReadingCard, type ReadingQuestion } from './ieltsReading'
 
 export interface ReadingProgress { owner: string; cardId: string; fsrs: FSRSState; covered: string[]; updatedAt: number }
-export interface ReadingAnnotation { owner: string; cardId: string; note: string; marked: string[] }
+export interface ReadingAnnotation { owner: string; cardId: string; note: string; marked: string[]; updatedAt?: number }
 export type ReadingMode = 'quiz' | 'recall' | 'retry'
 export interface ReadingSession {
   owner: string; id: string; mode: ReadingMode; cardIds: string[]; cursor: number; selected: string[]
@@ -66,7 +66,7 @@ export async function saveReadingAnnotation(owner: string, card: ReadingCard, pa
   if (patch.marked !== undefined) expressionIds(patch.marked, card)
   await readingDB.transaction('rw', readingDB.annotations, async () => {
     const existing = await readingDB.annotations.get([owner, card.id])
-    await readingDB.annotations.put({ owner, cardId: card.id, note: existing?.note ?? '', marked: existing?.marked ?? [], ...patch })
+    await readingDB.annotations.put({ owner, cardId: card.id, note: existing?.note ?? '', marked: existing?.marked ?? [], ...patch, updatedAt: Date.now() })
   })
 }
 export async function saveReadingSession(session: ReadingSession): Promise<void> {

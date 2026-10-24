@@ -1,0 +1,7 @@
+[Unit]
+Description=Back up private learning sync database
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/listening-sync/backup_sync.py
+UMask=0077

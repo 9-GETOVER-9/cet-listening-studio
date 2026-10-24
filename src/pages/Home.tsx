@@ -18,6 +18,7 @@ import {
 } from '@/db/crud'
 import { useSettingsStore } from '@/store/settingsStore'
 import { usePro } from '@/hooks/usePro'
+import { useAccountSyncStatus } from '@/lib/accountSync'
 import { shouldShowProReminder } from '@/lib/membershipPolicy'
 
 interface Stats {
@@ -37,6 +38,7 @@ interface Stats {
 
 export default function Home() {
   const navigate = useNavigate()
+  const lastSynced = useAccountSyncStatus(s => s.lastSynced)
   const initialized = useSettingsStore((s) => s.initialized)
   const { isGuestTrial, isPro, proDaysLeft, proExpiresAt } = usePro()
 
@@ -107,7 +109,7 @@ export default function Home() {
     }
 
     loadData()
-  }, [])
+  }, [lastSynced])
 
   const StatCard = ({
     icon: Icon,

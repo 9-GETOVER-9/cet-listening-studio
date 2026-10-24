@@ -1,6 +1,6 @@
 import { frequencyDB, type FrequencyReason } from './ieltsFrequencyProgress'
 export interface AnnotationSeed { cardId: string; note: string; reason: FrequencyReason; sourceFlag: string }
-export interface FrequencyAnnotation { owner: string; cardId: string; note?: string; reason?: FrequencyReason }
+export interface FrequencyAnnotation { owner: string; cardId: string; note?: string; updatedAt?: number; reason?: FrequencyReason }
 export const annotationDB = frequencyDB
 function validateId(value: string) {
   if (typeof value !== 'string' || !value.trim()) throw new Error('账号或词条标识无效')
@@ -18,7 +18,7 @@ export async function readFrequencyAnnotations(owner: string): Promise<Frequency
   validateId(owner)
   return annotationDB.annotations.where('owner').equals(owner).toArray()
 }
-export async function saveFrequencyAnnotation(owner: string, cardId: string, patch: { note?: string; reason?: FrequencyReason }): Promise<void> {
+export async function saveFrequencyAnnotation(owner: string, cardId: string, patch: { note?: string; updatedAt?: number; reason?: FrequencyReason }): Promise<void> {
   validateId(owner); validateId(cardId)
   if (!isObject(patch)) throw new Error('笔记内容无效')
   if (patch.note !== undefined) validateNote(patch.note)
@@ -26,7 +26,7 @@ export async function saveFrequencyAnnotation(owner: string, cardId: string, pat
   if (patch.note === undefined && patch.reason === undefined) return
   await annotationDB.transaction('rw', annotationDB.annotations, annotationDB.progress, async () => {
     const previous = await annotationDB.annotations.get([owner, cardId])
-    const next: FrequencyAnnotation = { ...previous, owner, cardId }
+    const next: FrequencyAnnotation = { ...previous, owner, cardId, updatedAt: Date.now() }
     if (patch.note !== undefined) next.note = patch.note
     if (patch.reason !== undefined) next.reason = patch.reason
     await annotationDB.annotations.put(next)

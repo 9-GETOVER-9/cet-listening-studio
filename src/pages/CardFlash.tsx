@@ -21,6 +21,7 @@ import { usePro } from '@/hooks/usePro'
 import { useTapToFlip } from '@/hooks/useTapToFlip'
 import { getInitPromise } from '@/lib/dataLoader'
 import { decodeHtml } from '@/lib/decodeHtml'
+import { saveLearningResume, useAccountSyncStatus } from '@/lib/accountSync'
 import { useSettingsStore } from '@/store/settingsStore'
 import type { Card as CardType, NotebookType } from '@/types'
 
@@ -117,6 +118,10 @@ export default function CardFlash() {
   }, [moduleId, targetCardId, indexFromQuery])
 
   const currentCard = cards[currentIndex]
+  const syncOwner = useAccountSyncStatus(s => s.owner)
+  useEffect(() => {
+    if (currentCard && moduleId) void saveLearningResume(syncOwner, `/card/${encodeURIComponent(moduleId)}?targetCardId=${encodeURIComponent(currentCard.cardId)}`)
+  }, [syncOwner, moduleId, currentCard])
 
   const { playState, speed, play, pause, changeSpeed, playMultiple, isPlaying } = useAudio(
     currentCard?.audioFile || '',

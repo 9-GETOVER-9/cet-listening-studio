@@ -57,6 +57,8 @@ export interface AIAnalysis {
 
 // ── 卡片 ──────────────────────────────────────────────
 export interface Card {
+  /** Indexed local-only projection; avoids scanning the full lesson corpus during sync. */
+  cloudTracked?: number
   cardId: string
   moduleId: string
   audioFile: string

@@ -1,15 +1,3 @@
-import { syncModuleStats } from '@/db/crud'
-import { processReviewOutboxForCurrentUser } from '@/lib/reviewSync'
-import {
-  fullUpload,
-  mergeRemoteDataToLocal,
-  replaceLocalDataWithRemote,
-  replaceRemoteLearningDataWithLocal,
-} from '@/lib/sync'
-import { supabase } from '@/lib/supabase'
-
-const SNAPSHOT_UPLOAD_INTERVAL_MS = 10 * 60_000
-
 export type LearningSyncResult =
   | {
       skipped: false
@@ -150,58 +138,9 @@ export function createLearningSourceSyncActions(deps: LearningSourceSyncDeps): {
   }
 }
 
-function browserIsOnline(): boolean {
-  if (typeof navigator === 'undefined') return true
-  return navigator.onLine
+// Production uses the unified account service. Factories above remain for legacy callers/tests.
+export async function syncLearningForCurrentUser(): Promise<LearningSyncResult> {
+  const { syncAccountNow } = await import('./accountSync')
+  await syncAccountNow()
+  return { skipped: false, cardsMerged: 0, notebooksMerged: 0 }
 }
-
-async function getCurrentUserId(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession()
-  return session?.user?.id ?? null
-}
-
-async function refreshAllModuleStats(): Promise<void> {
-  await syncModuleStats()
-}
-
-async function uploadLocalSnapshotWhenDue(userId: string): Promise<void> {
-  if (typeof localStorage !== 'undefined') {
-    const key = `learningSnapshotUploadedAt:${userId}`
-    const lastUploadedAt = Number(localStorage.getItem(key) ?? 0)
-    if (Number.isFinite(lastUploadedAt) && Date.now() - lastUploadedAt < SNAPSHOT_UPLOAD_INTERVAL_MS) {
-      return
-    }
-
-    await fullUpload(userId)
-    localStorage.setItem(key, String(Date.now()))
-    return
-  }
-
-  await fullUpload(userId)
-}
-
-function markSnapshotUploaded(userId: string): void {
-  if (typeof localStorage === 'undefined') return
-  localStorage.setItem(`learningSnapshotUploadedAt:${userId}`, String(Date.now()))
-}
-
-export const syncLearningForCurrentUser = createLearningSyncRunner({
-  getCurrentUserId,
-  isOnline: browserIsOnline,
-  mergeRemoteDataToLocal,
-  refreshModuleStats: refreshAllModuleStats,
-  processReviewOutbox: processReviewOutboxForCurrentUser,
-  uploadLocalSnapshot: uploadLocalSnapshotWhenDue,
-})
-
-const sourceSyncActions = createLearningSourceSyncActions({
-  getCurrentUserId,
-  isOnline: browserIsOnline,
-  replaceRemoteLearningDataWithLocal,
-  replaceLocalDataWithRemote,
-  refreshModuleStats: refreshAllModuleStats,
-  markSnapshotUploaded,
-})
-
-export const uploadThisDeviceAsLearningSource = sourceSyncActions.uploadThisDeviceAsSource
-export const downloadCloudLearningToThisDevice = sourceSyncActions.downloadCloudToThisDevice

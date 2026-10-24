@@ -20,6 +20,8 @@ import { checkSpelling, summarizeResults, type IELTSCard, type IELTSCorpus, type
 import { emptyFrequencyRetry, frequencyRetryReducer, parseFrequencyShortcut } from '@/lib/ieltsFrequencyRetry'
 import { FREQUENCY_REASON_LABELS, saveFrequencyOutcome, selectFrequencyCards, selectFrequencyTestCards, summarizeFrequencyChapters, type FrequencyReason } from '@/lib/ieltsFrequencyProgress'
 import { resolveFrequencyAnnotation, saveFrequencyAnnotation } from '@/lib/ieltsAnnotations'
+import { readDictationSession, saveDictationSession, type SavedDictationSession } from '@/lib/ieltsSession'
+import { saveLearningResume } from '@/lib/accountSync'
 
 const CHAPTERS = [3, 4, 5, 8, 11]
 const panel = 'quiet-surface p-5 md:p-8'
@@ -27,15 +29,25 @@ const panel = 'quiet-surface p-5 md:p-8'
 export default function IELTSDictation() {
   const { user, loading: authLoading } = useAuth()
   const owner = user?.id ?? 'guest'
+  const [params] = useSearchParams()
+  const book = params.get('source') === 'frequency' ? 'frequency' : 'wanglu'
+  const [restored, setRestored] = useState<{ owner: string; book: string; saved: SavedDictationSession | null } | null>(null)
+  useEffect(() => {
+    if (authLoading) return
+    let active = true
+    void readDictationSession(owner, book).then(saved => { if (active) setRestored({ owner, book, saved }) }).catch(() => { if (active) setRestored({ owner, book, saved: null }) })
+    return () => { active = false }
+  }, [authLoading, owner, book])
   if (authLoading) return <div className="quiet-page" role="status">正在准备学习记录…</div>
-  return <IELTSStudy key={owner} owner={owner} />
+  if (restored?.owner !== owner || restored.book !== book) return <div className="quiet-page" role="status">正在恢复听写进度…</div>
+  return <IELTSStudy key={`${owner}:${book}`} owner={owner} restored={restored.saved} />
 }
 const BOOK_TITLES = { wanglu: '王陆雅思语料库', frequency: '雅思高频语料库' }
-function IELTSStudy({owner}:{owner:string}) {
+function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSession|null}) {
   const [sourceParams] = useSearchParams()
   const initialBook = sourceParams.get('source') === 'frequency' ? 'frequency' : 'wanglu'
   const authLoading = false
-  const [roundCards,setRoundCards] = useState(new Map<string,IELTSCard>())
+  const [roundCards,setRoundCards] = useState(new Map<string,IELTSCard>(restored?.cards.map(card => [card.id, card])))
   const localFrequency = useIELTSFrequencyProgress(owner)
   const [questionReason, setQuestionReason] = useState<FrequencyReason | undefined>(undefined)
   const [questionSaving, setQuestionSaving] = useState(false)
@@ -43,8 +55,8 @@ function IELTSStudy({owner}:{owner:string}) {
   const questionSavingRef = useRef(false)
   const confirmedFrequencyIdsRef = useRef(new Set<string>())
   const mountedRef = useRef(true)
-  const [rate, setRate] = useState(1)
-  const sessionRef = useRef<IELTSHistorySession | null>(null)
+  const [rate, setRate] = useState(restored?.rate ?? 1)
+  const sessionRef = useRef<IELTSHistorySession | null>(restored?.history ?? null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'failed'>('idle')
   const [saveAttempt, setSaveAttempt] = useState(0)
   const [corpus, setCorpus] = useState<IELTSCorpus | null>(null)
@@ -63,12 +75,13 @@ function IELTSStudy({owner}:{owner:string}) {
   const [loadError, setLoadError] = useState('')
   const [reload, setReload] = useState(0)
   const [chapter, setChapter] = useState(() => {
+    if (restored) return restored.chapter
     const value = Number(sourceParams.get('chapter'))
     return (initialBook === 'frequency' ? [1,2,3,4,5,6,7,8] : CHAPTERS).includes(value) ? value : initialBook === 'frequency' ? 1 : 3
   })
-  const [section, setSection] = useState(sourceParams.get('section') || 'all')
+  const [section, setSection] = useState(restored?.section ?? sourceParams.get('section') ?? 'all')
   const [limit, setLimit] = useState(['10','20','50','all'].includes(sourceParams.get('limit') || '') ? sourceParams.get('limit')! : '20')
-  const [state, dispatch] = useReducer(frequencyRetryReducer, emptyFrequencyRetry)
+  const [state, dispatch] = useReducer(frequencyRetryReducer, restored?.state ?? emptyFrequencyRetry)
   const [audioError, setAudioError] = useState('')
   const [playing, setPlaying] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -76,6 +89,12 @@ function IELTSStudy({owner}:{owner:string}) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const formRef = useRef<HTMLFormElement | null>(null)
   const answerComposingRef = useRef(false)
+  useEffect(() => {
+    if (!state.queue.length) return
+    void saveDictationSession({ owner, book, chapter, section, limit, rate, state, cards: [...roundCards.values()], history: sessionRef.current, updatedAt: Date.now() })
+      .catch(() => setQuestionSaveError('听写续练位置保存失败，请保持页面打开后重试。'))
+    void saveLearningResume(owner, `/ielts/listening?source=${book}&chapter=${chapter}&section=${encodeURIComponent(section)}`)
+  }, [owner, book, chapter, section, limit, rate, state, roundCards])
 
   useEffect(()=>{
     const controller=new AbortController()
@@ -307,7 +326,7 @@ function IELTSStudy({owner}:{owner:string}) {
         <h2 className="text-xl font-semibold">我的测试记录</h2>
         {accountImport.model && frequencyReady ? <>
           <p className="mt-3 text-sm">已导入 {accountImport.model.seed.total} 个词 · 正确 {accountImport.model.seed.correct} 词已跳过 · 导入时错词 {accountImport.model.seed.total - accountImport.model.seed.correct} 词</p>
-          <p className="mt-2 text-sm text-[var(--app-muted)]">下面汇总本次导入的全部单元，重复词只保留一次。之后的复习结果仍保存在当前浏览器。</p>
+          <p className="mt-2 text-sm text-[var(--app-muted)]">下面汇总本次导入的全部单元，重复词只保留一次。登录后，之后的复习结果也会自动同步到同一账号的其他设备。</p>
           <Button className="mt-4" variant="outline" onClick={() => { stopAudio(); setMode('walkman'); setReviewImported(true) }}>复习导入错词 · {selectFrequencyCards(accountImport.model.cards, frequency.progress, 'mistakes').length} 词</Button>
         </> : !accountImport.loading && !accountImport.error && <p className="mt-3 text-sm text-[var(--app-muted)]">可导入已有测试结果，已掌握的词会自动跳过。</p>}
         <FrequencyTestImport owner={owner} cards={corpus.cards} onImported={() => { accountImport.retry(); frequency.retry() }} />

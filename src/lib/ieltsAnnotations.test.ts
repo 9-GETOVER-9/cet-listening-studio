@@ -38,7 +38,7 @@ it('upgrades populated v1 progress and receipts intact before saving a v2 annota
   expect(await readFrequencyProgress('alice')).toEqual([progress])
 
   await api.saveFrequencyAnnotation('alice', 'f1', { note: '升级后笔记' })
-  expect(await api.readFrequencyAnnotations('alice')).toEqual([{ owner: 'alice', cardId: 'f1', note: '升级后笔记' }])
+  expect(await api.readFrequencyAnnotations('alice')).toEqual([{ owner: 'alice', cardId: 'f1', note: '升级后笔记', updatedAt: expect.any(Number) }])
   expect(await readFrequencyProgress('alice')).toEqual([progress])
   expect(await frequencyDB.receipts.get(['alice', 'legacy-round', 'f1'])).toEqual(receipt)
 })

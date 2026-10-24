@@ -73,7 +73,7 @@ export function editNCESpans(session: NCESession, id: string, text: string, span
 }
 export async function saveNCESession(session: NCESession) {
     await db.settings.put({
-        key: sessionKey(session.owner, session.context), value: session
+        key: sessionKey(session.owner, session.context), value: { ...session, updatedAt: Date.now() }
     });
 }
 export async function readNCESession(owner: string, context: string): Promise<NCESession | null> {
@@ -159,7 +159,7 @@ function namesKey(owner: string, id: string) {
 export async function saveNCENameOverride(owner: string, id: string, text: string, spans: NCENameSpan[]) {
     await db.settings.put({
         key: namesKey(owner, id), value: {
-            textHash: await nceTextHash(text), spans: validateNCESpans(text, spans)
+            updatedAt: Date.now(), textHash: await nceTextHash(text), spans: validateNCESpans(text, spans)
         }
     });
 }

@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { RouterProvider } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { toast } from 'sonner'
@@ -9,7 +9,7 @@ import { RouteLoadingFallback } from '@/components/RouteErrorFallback'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { usePro } from '@/hooks/usePro'
-import { useSessionGuard } from '@/hooks/useSessionGuard'
+import { activateLearningAccount, startAccountSync, useAccountSyncStatus } from '@/lib/accountSync'
 import {
   initializeModuleIndex,
   isDataInitialized,
@@ -19,11 +19,9 @@ import {
 } from '@/lib/dataLoader'
 import { syncLearningForCurrentUser } from '@/lib/learningSync'
 import { supabase } from '@/lib/supabase'
-import { signOutCurrentDevice } from '@/lib/sessionPolicy'
 import { router } from '@/router'
 import { useSettingsStore } from '@/store/settingsStore'
-import { getListeningStorageError, retryListeningWrites, setListeningOwner } from '@/lib/audioTimeTracker'
-import { setFSRSOwner } from '@/lib/fsrsPreferences'
+import { getListeningStorageError, retryListeningWrites } from '@/lib/audioTimeTracker'
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
   return Promise.race([
@@ -45,19 +43,12 @@ export function AppInitializer() {
   const [appState, setAppState] = useState<'checking' | 'init' | 'ready'>('checking')
   const [initProgress, setInitProgress] = useState(0)
   const [initError, setInitError] = useState<string | null>(null)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const accountReady = useAccountSyncStatus(s => s.ready)
 
   const { onboardingCompleted, setInitialized, setOnboardingCompleted } = useSettingsStore()
   const { initInviteCode } = usePro()
 
-  const handleSessionKicked = useCallback(async () => {
-    toast.error('账号已在其他设备登录，当前设备已退出')
-    await signOutCurrentDevice(supabase.auth)
-    setCurrentUserId(null)
-    window.location.href = '/login'
-  }, [])
-
-  useSessionGuard(currentUserId, handleSessionKicked)
+  useEffect(() => startAccountSync(), [])
 
   useEffect(() => {
     const notify = () => {
@@ -144,14 +135,12 @@ export function AppInitializer() {
     const restoreSession = async () => {
       try {
         const result = await withTimeout(supabase.auth.getSession(), 5000)
-        if (!result) return
+        if (!result) { await activateLearningAccount('guest'); return }
 
         session = result.data.session ?? null
-        setFSRSOwner(session?.user.id ?? 'guest')
-        setListeningOwner(session?.user.id ?? 'guest')
+        await activateLearningAccount(session?.user.id ?? 'guest')
 
         if (session?.user) {
-          setCurrentUserId(session.user.id)
           initInviteCode(session.user.id)
           void withTimeout(
             useSettingsStore.getState().loadUserState(session.user.id, Boolean(session.user.email_confirmed_at), session.user.email),
@@ -163,7 +152,8 @@ export function AppInitializer() {
           settings.setIsPro(false)
         }
       } catch (err) {
-        console.warn('Session restore failed, continuing without auth:', err)
+        console.warn('Account progress restore failed:', err)
+        setInitError('账号进度读取失败，本机记录已保留。请刷新后重试。')
       }
     }
 
@@ -188,7 +178,7 @@ export function AppInitializer() {
       await enterWithModuleIndex()
     }
 
-    void checkInit()
+    void checkInit().catch(() => setInitError('学习记录读取失败，请刷新后重试。'))
 
     return () => {
       cancelled = true
@@ -197,10 +187,8 @@ export function AppInitializer() {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setFSRSOwner(session?.user.id ?? 'guest')
-      setListeningOwner(session?.user.id ?? 'guest')
+      window.setTimeout(() => { void activateLearningAccount(session?.user.id ?? 'guest').catch(() => setInitError('账号进度读取失败，本机记录已保留。请刷新后重试。')) }, 0)
       if (session?.user) {
-        setCurrentUserId(session.user.id)
         initInviteCode(session.user.id)
 
         window.setTimeout(() => {
@@ -217,7 +205,6 @@ export function AppInitializer() {
           })
         }, 0)
       } else {
-        setCurrentUserId(null)
         const settings = useSettingsStore.getState()
         settings.setCurrentUserId('')
         settings.setIsPro(false)
@@ -237,11 +224,12 @@ export function AppInitializer() {
     return () => window.removeEventListener('online', syncLearningProgress)
   }, [])
 
-  if (appState === 'checking') {
+  if (appState === 'checking' || !accountReady) {
     return (
       <InitLoader
         autoStart={false}
         progress={0}
+        error={initError}
         onComplete={() => {}}
       />
     )

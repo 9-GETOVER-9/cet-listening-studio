@@ -5,9 +5,10 @@ export interface FrequencyRetryState extends DictationState {
   frequencyMode: boolean
   firstAttempt: { answer: string; passed: boolean } | null
 }
-export type FrequencyRetryAction = DictationAction | { type: 'retry' } | { type: 'start'; queue: string[]; frequencyMode: boolean }
+export type FrequencyRetryAction = DictationAction | { type: 'restore'; state: FrequencyRetryState } | { type: 'retry' } | { type: 'start'; queue: string[]; frequencyMode: boolean }
 export const emptyFrequencyRetry: FrequencyRetryState = { ...emptyDictation, frequencyMode: false, firstAttempt: null }
 export function frequencyRetryReducer(state: FrequencyRetryState, action: FrequencyRetryAction): FrequencyRetryState {
+  if (action.type === 'restore') return action.state
   if (action.type === 'start') return { ...emptyFrequencyRetry, queue: action.queue,
     frequencyMode: 'frequencyMode' in action ? action.frequencyMode : state.frequencyMode }
   if (state.finished) return state

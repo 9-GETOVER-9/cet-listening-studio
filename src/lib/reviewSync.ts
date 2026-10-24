@@ -1,5 +1,4 @@
 import { db } from '@/db/schema'
-import { supabase } from '@/lib/supabase'
 import type { SyncOutboxItem } from '@/types'
 
 export type ReviewUploader = (job: SyncOutboxItem) => Promise<void>
@@ -32,19 +31,7 @@ export async function processReviewOutbox(
 }
 
 export async function processReviewOutboxForCurrentUser(): Promise<void> {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.user || !navigator.onLine) return
-
-  await processReviewOutbox(async (job) => {
-    const card = await db.cards.get(job.cardId)
-    const { error } = await supabase.from('card_states').upsert({
-      user_id: session.user.id,
-      card_id: job.cardId,
-      fsrs_main: job.fsrsState,
-      ai_unlocked: card?.aiUnlocked ?? false,
-      updated_at: new Date(job.reviewedAt).toISOString(),
-    }, { onConflict: 'user_id,card_id' })
-
-    if (error) throw error
-  })
+  // The unified journal owns account attribution and retry. Legacy unowned jobs are never sent as a new user.
+  const { syncAccountNow } = await import('./accountSync')
+  await syncAccountNow()
 }

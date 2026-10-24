@@ -118,7 +118,7 @@ function ReadingStudy({ owner }: { owner: string }) {
         })}</div>
         {!visible.length && <p className="py-8 text-center text-sm text-[var(--app-muted)]">当前筛选下没有词条。</p>}
       </section>
-      <section className="mt-8 space-y-3 border-t border-[var(--app-line)] pt-5" aria-label="阅读学习备份"><h2 className="font-serif text-xl">把积累留好。</h2><p className="text-xs leading-6 text-[var(--app-muted)]">学习记录、批注与标记保存在当前账号的本机浏览器。导出备份，可在另一台设备恢复；恢复会替换当前账号的阅读学习记录。</p><div className="flex flex-wrap gap-3"><Button variant="outline" disabled={busy || notesBlocked} onClick={() => { void perform(download) }}>导出阅读备份</Button><Button variant="outline" disabled={busy || notesBlocked} onClick={() => input.current?.click()}>恢复阅读备份</Button></div><input ref={input} type="file" accept="application/json,.json" className="sr-only" aria-label="选择阅读备份文件" onChange={e => {
+      <section className="mt-8 space-y-3 border-t border-[var(--app-line)] pt-5" aria-label="阅读学习备份"><h2 className="font-serif text-xl">把积累留好。</h2><p className="text-xs leading-6 text-[var(--app-muted)]">登录后，学习记录、批注与标记随账号自动同步。也可导出独立备份；恢复备份会替换当前账号的阅读记录并同步到其他设备。</p><div className="flex flex-wrap gap-3"><Button variant="outline" disabled={busy || notesBlocked} onClick={() => { void perform(download) }}>导出阅读备份</Button><Button variant="outline" disabled={busy || notesBlocked} onClick={() => input.current?.click()}>恢复阅读备份</Button></div><input ref={input} type="file" accept="application/json,.json" className="sr-only" aria-label="选择阅读备份文件" onChange={e => {
         const file = e.target.files?.[0]; e.target.value = ''; if (!file) return
         void perform(async () => {
           if (file.size > 10 * 1024 * 1024) throw new Error('备份文件超过 10 MB，请检查文件。')

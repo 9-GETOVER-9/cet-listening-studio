@@ -1,0 +1,23 @@
+[Unit]
+Description=Listening Studio account learning sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+EnvironmentFile=/etc/listening-sync.env
+WorkingDirectory=/opt/listening-sync
+ExecStart=/usr/bin/python3 /opt/listening-sync/learning_sync.py
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/listening-sync
+
+[Install]
+WantedBy=multi-user.target

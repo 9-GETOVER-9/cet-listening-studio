@@ -1,7 +1,7 @@
 ﻿import { useEffect, useState } from 'react'
 import dayjs from 'dayjs'
 import { useNavigate } from 'react-router-dom'
-import { BarChart3, Cloud, Gift, LogOut, MessageSquare, Settings, Trash2, User } from 'lucide-react'
+import { BarChart3, Gift, LogOut, MessageSquare, Settings, Trash2, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -28,14 +28,8 @@ import { AchievementGrid, type Achievement } from '@/components/AchievementBadge
 import { ListeningTimeStats } from '@/components/ListeningTimeStats'
 import { DailyCheckIn } from '@/components/DailyCheckIn'
 import { clearOwnedListeningTime } from '@/lib/audioTimeTracker'
-import { clearPersonalWords } from '@/lib/ieltsPersonal'
-import { clearFrequencyProgress } from '@/lib/ieltsFrequencyProgress'
-import { clearFrequencyAnnotations } from '@/lib/ieltsAnnotations'
-import { clearAllData } from '@/lib/dataLoader'
-import {
-  downloadCloudLearningToThisDevice,
-  uploadThisDeviceAsLearningSource,
-} from '@/lib/learningSync'
+import { AccountSyncPanel } from '@/components/AccountSyncStatus'
+import { clearAccountLearning, useAccountSyncStatus } from '@/lib/accountSync'
 import { activateInviteCode } from '@/lib/supabase'
 import { clearRemoteLearningData } from '@/lib/sync'
 import { getLocalDateStr } from '@/lib/utils'
@@ -114,11 +108,11 @@ export default function Profile() {
   const [recentLogs, setRecentLogs] = useState<StudyLogItem[]>([])
   const [heatmapData, setHeatmapData] = useState<Map<string, number>>(new Map())
   const [editingNickname, setEditingNickname] = useState(false)
+  const lastSynced = useAccountSyncStatus(s => s.lastSynced)
   const [tempNickname, setTempNickname] = useState(nickname)
   const [clearConfirmText, setClearConfirmText] = useState('')
   const [activationCode, setActivationCode] = useState('')
   const [activating, setActivating] = useState(false)
-  const [syncingLearning, setSyncingLearning] = useState(false)
 
   useEffect(() => {
     const loadStats = async () => {
@@ -168,7 +162,7 @@ export default function Profile() {
 
     void loadStats()
     void loadActivity()
-  }, [])
+  }, [lastSynced])
 
   const handleSaveNickname = () => {
     setNickname(tempNickname)
@@ -183,11 +177,8 @@ export default function Profile() {
       if (user?.id) {
         await clearRemoteLearningData(user.id)
       }
-      await clearAllData()
+      await clearAccountLearning(readyOwner)
       await clearOwnedListeningTime(readyOwner)
-      await clearPersonalWords(readyOwner)
-      await clearFrequencyProgress(readyOwner)
-      await clearFrequencyAnnotations(readyOwner)
       toast.success('数据已清除')
       window.location.reload()
     } catch {
@@ -232,57 +223,6 @@ export default function Profile() {
       toast.error('网络错误，请稍后重试')
     } finally {
       setActivating(false)
-    }
-  }
-
-  const handleUploadThisDeviceAsSource = async () => {
-    if (!user?.id) {
-      toast.info('登录后可以同步手机和电脑的学习进度')
-      navigate('/login?mode=login')
-      return
-    }
-
-    setSyncingLearning(true)
-    try {
-      const result = await uploadThisDeviceAsLearningSource()
-      if (result.skipped) {
-        toast.info(result.reason === 'offline' ? '当前网络不可用，稍后再试' : '请先登录账号')
-        return
-      }
-
-      toast.success('已把当前设备设为主版本', {
-        description: `已上传 ${result.cardsUploaded} 张卡片进度`,
-      })
-    } catch {
-      toast.error('上传失败，请确认账号和网络后重试')
-    } finally {
-      setSyncingLearning(false)
-    }
-  }
-
-  const handleDownloadCloudToThisDevice = async () => {
-    if (!user?.id) {
-      toast.info('登录后可以同步手机和电脑的学习进度')
-      navigate('/login?mode=login')
-      return
-    }
-
-    setSyncingLearning(true)
-    try {
-      const result = await downloadCloudLearningToThisDevice()
-      if (result.skipped) {
-        toast.info(result.reason === 'offline' ? '当前网络不可用，稍后再试' : '请先登录账号')
-        return
-      }
-
-      toast.success('已用云端进度覆盖本机', {
-        description: `已应用 ${result.cardsApplied} 张，重置 ${result.cardsReset} 张`,
-      })
-      window.location.reload()
-    } catch {
-      toast.error('下载失败，请先在主设备上传进度')
-    } finally {
-      setSyncingLearning(false)
     }
   }
 
@@ -609,26 +549,7 @@ export default function Profile() {
               <div className="flex items-center gap-3"><MessageSquare className="h-5 w-5 text-gray-600" /><div><p className="font-medium text-gray-900">意见反馈</p><p className="text-sm text-gray-500">告诉我们你的建议或问题</p></div></div>
             </button>
             <Separator />
-            <div className="space-y-1">
-              <button
-                type="button"
-                className="flex w-full cursor-pointer items-center justify-between py-3 text-left text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={syncingLearning}
-                onClick={() => void handleUploadThisDeviceAsSource()}
-              >
-                <div className="flex items-center gap-3"><Cloud className="h-5 w-5" /><div><p className="font-medium">上传本机为主</p><p className="text-sm text-gray-500">手机先点：把手机进度存到云端</p></div></div>
-                <Badge variant="secondary">{syncingLearning ? '同步中' : user ? '主版本' : '需登录'}</Badge>
-              </button>
-              <button
-                type="button"
-                className="flex w-full cursor-pointer items-center justify-between py-3 text-left text-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={syncingLearning}
-                onClick={() => void handleDownloadCloudToThisDevice()}
-              >
-                <div className="flex items-center gap-3"><Cloud className="h-5 w-5" /><div><p className="font-medium">用云端覆盖本机</p><p className="text-sm text-gray-500">电脑再点：让电脑变成手机进度</p></div></div>
-                <Badge variant="secondary">{syncingLearning ? '同步中' : user ? '覆盖' : '需登录'}</Badge>
-              </button>
-            </div>
+            <AccountSyncPanel />
           </CardContent>
         </Card>
 

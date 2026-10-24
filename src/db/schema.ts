@@ -63,6 +63,21 @@ class AppDB extends Dexie {
     this.version(4).stores({
       notebookReviews: '&operationId, notebookId, owner, timestamp',
     })
+    this.version(5).stores({
+      cards: 'cardId, moduleId, [fsrsMain.due+moduleId], level, examDate, section, type, difficulty, book, lessonNum, aiUnlocked, cloudTracked',
+    }).upgrade(async transaction => {
+      await transaction.table('cards').toCollection().modify(card => {
+        card.cloudTracked = card.fsrsMain?.reps > 0 || card.aiUnlocked || card.cardId.startsWith('merged_') ? 1 : 0
+      })
+    })
+    this.cards.hook('creating', (_key, card) => {
+      card.cloudTracked = card.fsrsMain?.reps > 0 || card.aiUnlocked || card.cardId.startsWith('merged_') ? 1 : 0
+    })
+    this.cards.hook('updating', (mods, _key, card) => {
+      const patch = mods as Partial<Card> & { 'fsrsMain.reps'?: number }
+      const reps = patch['fsrsMain.reps'] ?? patch.fsrsMain?.reps ?? card.fsrsMain?.reps ?? 0
+      return { cloudTracked: reps > 0 || (patch.aiUnlocked ?? card.aiUnlocked) || card.cardId.startsWith('merged_') ? 1 : 0 }
+    })
   }
 }
 

@@ -101,7 +101,7 @@ export function FSRSOptimizationPanel({ owner }: { owner: string }) {
           </DialogHeader>
           <div className="space-y-4 text-sm leading-6">
             <section className="space-y-1"><h3 className="font-semibold">保存与生效</h3>
-              <p>计算和参数仅保存在当前浏览器，同账号换设备需分别优化。使用 FSRS-6，目标保留率为 90%。新参数用于后续评分，已有复习日期保持不变。</p>
+              <p>优化在本机计算；登录后参数和评分记录随账号同步。使用 FSRS-6，目标保留率为 90%。新参数用于后续评分，已有复习日期保持不变。</p>
             </section>
             <section className="space-y-1"><h3 className="font-semibold">训练记录 · {scopes[scope]}</h3>
               {data ? <p>可用 {data.cards.length} 张卡片、{data.reviews} 条评分，其中 {data.interdayReviews} 次跨日复习；排除 {data.excludedCards} 张记录不完整、归属不明或不符合条件的卡片。{data.limited && '本次按完整卡片选取，最多使用 5000 条评分。'}</p> : <p>正在读取记录…</p>}

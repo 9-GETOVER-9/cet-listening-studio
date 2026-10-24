@@ -127,8 +127,8 @@ export async function readPracticeSession(owner: string, context: string): Promi
 }
 export async function savePracticeSession(session: PracticeSession): Promise<void> {
   const key = sessionKey(session.owner, session.context)
-  if (session.queue[0]?.source === 'frequency') await frequencyDB.practiceState.put({ owner: session.owner, key, value: session })
-  else await db.settings.put({ key, value: session })
+  if (session.queue[0]?.source === 'frequency') await frequencyDB.practiceState.put({ owner: session.owner, key, value: { ...session, updatedAt: Date.now() } })
+  else await db.settings.put({ key, value: { ...session, updatedAt: Date.now() } })
 }
 export type PracticeDailyProgress = Pick<PracticeSettings, 'date' | 'completed'>
 export async function readPracticeDailyProgress(owner: string, now = new Date()): Promise<PracticeDailyProgress> {

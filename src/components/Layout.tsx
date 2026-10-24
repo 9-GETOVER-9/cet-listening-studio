@@ -17,7 +17,8 @@ export function Layout() {
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0 })
   }, [location.pathname])
-  useEffect(() => { if (!location.pathname.startsWith('/card/')) void saveLearningResume(owner, location.pathname + location.search) }, [owner, location.pathname, location.search])
+  // These exercises save their current sentence; their original URL may point to an older target.
+  useEffect(() => { if (!/^\/(card|nce\/shadowing)\//.test(location.pathname)) void saveLearningResume(owner, location.pathname + location.search) }, [owner, location.pathname, location.search])
 
   return (
     <div className="min-h-dvh bg-[var(--app-paper)] text-[var(--app-ink)] lg:grid lg:grid-cols-[224px_minmax(0,1fr)]">

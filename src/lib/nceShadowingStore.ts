@@ -72,8 +72,17 @@ export function editNCESpans(session: NCESession, id: string, text: string, span
     };
 }
 export async function saveNCESession(session: NCESession) {
-    await db.settings.put({
-        key: sessionKey(session.owner, session.context), value: { ...session, updatedAt: Date.now() }
+    const updatedAt = Date.now();
+    const params = new URLSearchParams({ start: String(session.range.start), end: String(session.range.end), mode: session.range.mode });
+    const current = session.queue[session.position];
+    if (current) params.set('targetId', current);
+    // Persist the position and its resume link together. An old entry target
+    // would otherwise override the downloaded session when another device opens it.
+    await db.transaction('rw', db.settings, async () => {
+        await db.settings.put({ key: sessionKey(session.owner, session.context), value: { ...session, updatedAt } });
+        await db.settings.put({ key: `cloud-resume:${session.owner}`, value: {
+            path: `/nce/shadowing/${encodeURIComponent(session.moduleId)}?${params}`, label: '继续上次学习', updatedAt
+        } });
     });
 }
 export async function readNCESession(owner: string, context: string): Promise<NCESession | null> {

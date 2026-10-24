@@ -43,6 +43,7 @@
 - HTTPS200，同步服务active；同步接口GET受限403；使用实际支持的POST方法、空请求无凭证得到401，认证保护保留。校验清单初次因Windows CRLF将回车当文件名失败，改为LF后94项全通过，没有因此重发版本。
 - 线上IAB游客：首页新样式/课程入口、CET24/575实际显示；过期访客CET6卡按Enter弹出Pro限制，关闭正常，error日志为空。没有操作真实登录账号或线上学习成绩。
 - 线上截图：工作区根`ui-home-online-20261024.jpg`。发布日志、清单和JSON前后哈希位于`output/release-ui-20261024/`（不入Git）。
+- Codex/Obsidian项目记忆完成prewrite(UPDATE)、追加正文和claim。closeout dry-run报告库内49个既有未认领改动；显式限定当前文件和claimed-only仍被同一保护规则阻断，故没有刷新记忆索引/提交记忆，也未认领无关文件。该收尾状态不得写成成功。
 
 ## 验收与交付
 

@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from 'react'
 import dayjs from 'dayjs'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { BarChart3, Gift, LogOut, MessageSquare, Settings, Trash2, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   getAllModules,
@@ -89,11 +90,19 @@ function computeAchievements(stats: Stats): Achievement[] {
 
 export default function Profile() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedTab = ['overview', 'preferences', 'account'].includes(searchParams.get('tab') ?? '') ? searchParams.get('tab')! : 'overview'
   const { user, signOut, loading: authLoading } = useAuth()
   const { nickname, playSpeed, logEnabled, setLogEnabled, setNickname, setPlaySpeed } = useSettingsStore()
   const { isGuestTrial, isPro, isLifetimePro, proDaysLeft } = usePro()
   const isGuest = !user
 
+  const owner = useAccountSyncStatus(s => s.owner)
+  const [statsOwner, setStatsOwner] = useState<string | null>(null)
+  const [activityOwner, setActivityOwner] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState('')
+  const [activityError, setActivityError] = useState(false)
+  const [retry, setRetry] = useState(0)
   const [statsLoading, setStatsLoading] = useState(true)
   const [activityLoading, setActivityLoading] = useState(true)
   const [stats, setStats] = useState<Stats>({
@@ -114,6 +123,7 @@ export default function Profile() {
   const [activating, setActivating] = useState(false)
 
   useEffect(() => {
+    let active = true
     const loadStats = async () => {
       try {
         const [allModules, todayTask, notebookCount, streak, todayStudied] =
@@ -128,6 +138,8 @@ export default function Profile() {
         const totalCards = allModules.reduce((sum, module) => sum + module.totalCards, 0)
         const studiedCards = allModules.reduce((sum, module) => sum + module.studiedCards, 0)
 
+        if (!active) return
+        setLoadError('')
         setStats({
           totalCards,
           studiedCards,
@@ -136,8 +148,10 @@ export default function Profile() {
           streak,
           todayStudied,
         })
+      } catch {
+        if (active) setLoadError('学习统计暂时无法读取，请重试。')
       } finally {
-        setStatsLoading(false)
+        if (active) { setStatsOwner(owner); setStatsLoading(false) }
       }
     }
 
@@ -152,16 +166,21 @@ export default function Profile() {
           getStudyDatesInRange(start, end),
         ])
 
+        if (!active) return
+        setActivityError(false)
         setRecentLogs(logs)
         setHeatmapData(heatmap)
+      } catch {
+        if (active) { setActivityError(true); setRecentLogs([]); setHeatmapData(new Map()) }
       } finally {
-        setActivityLoading(false)
+        if (active) { setActivityOwner(owner); setActivityLoading(false) }
       }
     }
 
     void loadStats()
     void loadActivity()
-  }, [lastSynced])
+    return () => { active = false }
+  }, [owner, lastSynced, retry])
 
   const handleSaveNickname = () => {
     setNickname(tempNickname)
@@ -225,10 +244,6 @@ export default function Profile() {
     }
   }
 
-  const handleComingSoon = () => {
-    toast.info('即将上线', { description: '这个功能正在开发中' })
-  }
-
   const formatTime = (timestamp: number) => {
     const date = dayjs(timestamp)
     const now = dayjs()
@@ -261,7 +276,9 @@ export default function Profile() {
     return labels[rating]
   }
 
-  if (statsLoading) {
+  if (statsOwner === owner && loadError) return <div className="quiet-page space-y-4" role="alert"><h1 className="quiet-display text-3xl">我的学习空间</h1><p>{loadError}</p><Button onClick={() => { setLoadError(''); setStatsLoading(true); setRetry(value => value + 1) }}>重新读取</Button><Button variant="outline" onClick={() => navigate('/courses')}>先去选择课程</Button></div>
+
+  if (statsLoading || statsOwner !== owner) {
     return (
       <div className="space-y-4 p-4">
         <Skeleton className="h-32 w-full" />
@@ -270,12 +287,11 @@ export default function Profile() {
     )
   }
 
+  const activityPending = activityLoading || activityOwner !== owner
   const studyRate = stats.totalCards > 0 ? Math.round((stats.studiedCards / stats.totalCards) * 100) : 0
 
-  return (
-    <>
-      <div className="quiet-page space-y-4">
-        <div className="mb-8"><p className="quiet-kicker mb-2">Identity & Rhythm</p><h1 className="quiet-display text-4xl md:text-6xl">我的学习设置。</h1></div>
+  return <div className="quiet-page space-y-5">
+    <header className="border-b border-[var(--app-line)] pb-5"><p className="quiet-kicker mb-2">Your progress & preferences</p><h1 className="quiet-display text-3xl sm:text-4xl">我的学习空间。</h1></header>
         <Card>
           <CardContent className="flex flex-wrap items-center gap-4 p-4 sm:p-5">
             <Avatar className="h-14 w-14 shrink-0">
@@ -287,6 +303,7 @@ export default function Profile() {
                   <Input
                     autoFocus
                     className="w-full max-w-[240px]"
+                    aria-label="昵称"
                     placeholder="输入昵称"
                     value={tempNickname}
                     onChange={(event) => setTempNickname(event.target.value)}
@@ -327,81 +344,9 @@ export default function Profile() {
             )}
           </CardContent>
         </Card>
-
-        {isGuest && (
-          <Card className="border-blue-200 bg-blue-50">
-            <CardContent className="space-y-3 p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-brand">
-                  <Gift className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">注册账号，领取 2 个月 Pro</p>
-                  <p className="mt-1 text-sm leading-6 text-gray-600">
-                    当前是 1 天 Pro 体验。注册后可保存学习记录，并继续使用 AI 解析、句子拼接和完整内容。
-                  </p>
-                </div>
-              </div>
-              <Button className="w-full" onClick={() => navigate('/login?mode=register')}>
-                注册领取 2 个月 Pro
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        <Card>
-          <CardContent className="space-y-4 p-4">
-            {isPro ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-yellow-400 to-orange-400 text-lg">P</div>
-                  <div>
-                    <p className="font-semibold text-gray-900">Pro 会员</p>
-                    <p className="text-sm text-gray-500">
-                      {isGuestTrial ? '今日 Pro 体验中' : isLifetimePro ? '永久 Pro' : `剩余 ${proDaysLeft} 天`}
-                    </p>
-                  </div>
-                </div>
-                <Badge className="bg-gradient-to-r from-yellow-400 to-orange-400 text-white">Pro</Badge>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-lg">P</div>
-                  <div>
-                    <p className="font-semibold text-gray-900">升级 Pro</p>
-                    <p className="text-sm text-gray-500">解锁无限 AI 解析和句子拼接</p>
-                  </div>
-                </div>
-                <Button className="w-full" variant="outline" onClick={handleComingSoon}>查看免费版权益</Button>
-              </div>
-            )}
-
-            {!isGuest && (
-              <>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">续期邀请码</p>
-                  <div className="flex gap-2">
-                    <Input
-                      className="font-mono text-sm uppercase"
-                      placeholder="输入邀请码（如 CET-XXXX-XXXX）"
-                      value={activationCode}
-                      onChange={(event) => setActivationCode(event.target.value.toUpperCase())}
-                      onKeyDown={(event) => event.key === 'Enter' && void handleActivateCode()}
-                    />
-                    <Button className="shrink-0" disabled={activating} onClick={() => void handleActivateCode()}>
-                      {activating ? '续期中...' : '续期'}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-gray-400">邀请码只用于 Pro 续期，一次延长 30 天。</p>
-                </div>
-
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <DailyCheckIn userId={user?.id} ready={!authLoading} />
+    <Tabs value={selectedTab} onValueChange={value => setSearchParams({ tab: value }, { replace: true })}>
+      <TabsList className="mb-4 grid h-auto w-full grid-cols-3" aria-label="个人中心分类"><TabsTrigger value="overview" className="min-h-11">学习概览</TabsTrigger><TabsTrigger value="preferences" className="min-h-11">练习设置</TabsTrigger><TabsTrigger value="account" className="min-h-11">账号与会员</TabsTrigger></TabsList>
+      <TabsContent value="overview" className="space-y-4">{activityError && <div role="alert" className="quiet-surface p-4 text-sm">活动记录暂时无法读取。<Button variant="outline" className="ml-2" onClick={() => setRetry(value => value + 1)}>重试</Button></div>}        <DailyCheckIn userId={user?.id} ready={!authLoading} />
         <ListeningTimeStats owner={user?.id ?? 'guest'} ready={!authLoading} />
 
         <Card>
@@ -415,14 +360,14 @@ export default function Profile() {
 
             <div>
               <p className="mb-2 text-xs text-gray-500">近 12 周复习热力图</p>
-              {activityLoading ? (
+              {activityPending ? (
                 <Skeleton className="h-28 w-full" />
               ) : (
                 <div className="overflow-x-auto">
-                  <div className="flex gap-1" style={{ minWidth: 'max-content' }}>
+                  <div aria-hidden="true" className="flex gap-1" style={{ minWidth: 'max-content' }}>
                     {Array.from({ length: 12 }, (_, weekIndex) => {
                       const weekStart = new Date()
-                      weekStart.setDate(weekStart.getDate() - (11 - weekIndex) * 7 - weekStart.getDay() - 6)
+                      weekStart.setDate(weekStart.getDate() - 83 + weekIndex * 7)
                       return (
                         <div key={weekIndex} className="flex flex-col gap-[2px]">
                           {Array.from({ length: 7 }, (_, dayIndex) => {
@@ -432,12 +377,12 @@ export default function Profile() {
                             const todayStr = getLocalDateStr()
                             const isFuture = dateStr > todayStr
                             const count = isFuture ? 0 : (heatmapData.get(dateStr) || 0)
-                            const color = count === 0 ? '#1e293b' : count <= 2 ? '#166534' : count <= 4 ? '#16a34a' : '#4ade80'
+                            const color = count === 0 ? 'var(--app-paper-2)' : count <= 2 ? '#b9cfc8' : count <= 4 ? '#6d9b8a' : '#376b57'
                             return (
                               <div
                                 key={dayIndex}
                                 title={isFuture ? '' : `${dateStr}: ${count}次`}
-                                style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: isFuture ? '#0f172a' : color, opacity: isFuture ? 0.3 : 1, cursor: isFuture ? 'default' : 'pointer' }}
+                                style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: isFuture ? '#0f172a' : color, opacity: isFuture ? 0.3 : 1, cursor: 'default' }}
                               />
                             )
                           })}
@@ -449,10 +394,12 @@ export default function Profile() {
               )}
               <div className="mt-1 flex items-center gap-2 text-xs text-gray-400">
                 <span>少</span>
-                <div className="flex gap-[2px]">{['#1e293b', '#166534', '#16a34a', '#4ade80'].map((color) => <div key={color} style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: color }} />)}</div>
+                <div className="flex gap-[2px]">{['var(--app-paper-2)', '#b9cfc8', '#6d9b8a', '#376b57'].map((color) => <div key={color} style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: color }} />)}</div>
                 <span>多</span>
-                <span className="ml-auto text-[10px]">未来日期留空</span>
+                <span className="ml-auto text-xs">含今天，共 84 天</span>
               </div>
+              {!activityPending && !activityError && <details className="mt-3 rounded-lg border border-[var(--app-line)] p-3"><summary className="min-h-11 cursor-pointer py-2 text-sm text-[var(--app-accent)]">查看每日复习记录 · {heatmapData.size} 天有记录</summary><div className="max-h-64 overflow-y-auto pt-2">{heatmapData.size ? <table className="w-full text-left text-xs"><caption className="sr-only">近 84 天每日复习次数</caption><thead><tr><th className="py-2">日期</th><th className="py-2 text-right">复习次数</th></tr></thead><tbody>{[...heatmapData].sort(([a], [b]) => b.localeCompare(a)).map(([date, count]) => <tr key={date} className="border-t border-[var(--app-line)]"><td className="py-2">{date}</td><td className="py-2 text-right">{count} 次</td></tr>)}</tbody></table> : <p className="py-3 text-sm text-[var(--app-muted)]">近 84 天暂无复习记录。</p>}</div></details>}
+
             </div>
 
             <Button className="w-full" variant="outline" onClick={() => navigate('/profile/stats')}>
@@ -463,12 +410,12 @@ export default function Profile() {
             <Separator />
 
             <div>
-              <div className="mb-2 flex items-center justify-between text-sm"><span className="text-gray-500">总体进度</span><span className="font-medium">{studyRate}%</span></div>
+              <div className="mb-2 flex items-center justify-between text-sm"><span className="text-gray-500">课程学习覆盖率</span><span className="font-medium">{studyRate}%</span></div>
               <Progress className="h-2" value={studyRate} />
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm"><span className="text-gray-500">复习完成率</span><span className="font-medium">{studyRate}%</span></div>
+              <div className="flex items-center justify-between text-sm"><span className="text-gray-500">已学卡片 / 全部卡片</span><span className="font-medium">{stats.studiedCards} / {stats.totalCards}</span></div>
               <div className="flex items-center justify-between text-sm"><span className="text-gray-500">难点收藏</span><span className="font-medium">{stats.notebookCount} 条</span></div>
             </div>
           </CardContent>
@@ -482,80 +429,9 @@ export default function Profile() {
         </Card>
 
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Settings className="h-4 w-4" />设置</CardTitle></CardHeader>
-          <CardContent className="space-y-1">
-            <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div><p className="font-medium text-gray-900">默认播放速度</p><p className="text-sm text-gray-500">听力卡片的默认播放速度</p></div>
-              <div className="grid grid-cols-4 gap-1.5">
-                {[0.75, 1, 1.25, 1.5].map((speedOption) => (
-                  <Button key={speedOption} className="min-w-0 px-2" size="sm" aria-pressed={playSpeed === speedOption} variant={playSpeed === speedOption ? 'default' : 'outline'} onClick={() => { setPlaySpeed(speedOption); toast.success(`播放速度已设置为 ${speedOption}x`) }}>
-                    {speedOption}x
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className="flex items-center justify-between py-3">
-              <div><p className="font-medium text-gray-900">学习日志</p><p className="text-sm text-gray-500">记录每日学习情况</p></div>
-              <Button size="sm" variant={logEnabled ? 'default' : 'outline'} onClick={() => { const next = !logEnabled; setLogEnabled(next); toast.success(`学习日志已${next ? '开启' : '关闭'}`) }}>
-                {logEnabled ? '开启' : '关闭'}
-              </Button>
-            </div>
-
-            <Separator />
-
-            <SentenceAnnotationSettings />
-            {!authLoading && <FSRSOptimizationPanel key={user?.id ?? 'guest'} owner={user?.id ?? 'guest'} />}
-
-            <Separator />
-
-            <AlertDialog>
-              <div className="flex items-center justify-between py-3">
-                <div><p className="font-medium text-red-600">清除学习数据</p><p className="text-sm text-gray-500">重置本机与云端的学习进度和收藏</p></div>
-                <AlertDialogTrigger asChild>
-                  <Button className="text-red-500" size="sm" variant="outline" disabled={authLoading}><Trash2 className="mr-1 h-4 w-4" />清除</Button>
-                </AlertDialogTrigger>
-              </div>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>确认清除数据</AlertDialogTitle>
-                  <AlertDialogDescription>这会清除当前账号在本机和云端的所有学习进度、待复习任务和难点收藏，且无法恢复。</AlertDialogDescription>
-                </AlertDialogHeader>
-                <div className="space-y-3">
-                  <p>请输入 <strong className="text-red-600">清除数据</strong> 以确认：</p>
-                  <Input className="mt-2" placeholder="请输入“清除数据”" value={clearConfirmText} onChange={(event) => setClearConfirmText(event.target.value)} />
-                </div>
-                <AlertDialogFooter>
-                  <AlertDialogCancel onClick={() => setClearConfirmText('')}>取消</AlertDialogCancel>
-                  <AlertDialogAction className="bg-red-500 hover:bg-red-600" disabled={authLoading||clearConfirmText !== '清除数据'} onClick={() => { setClearConfirmText(''); void handleClearData() }}>
-                    确认清除
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="space-y-1 p-4">
-            <button
-              type="button"
-              className="-mx-4 flex w-[calc(100%+2rem)] cursor-pointer rounded-lg px-4 py-3 text-left transition-colors hover:bg-gray-50"
-              onClick={() => navigate('/feedback')}
-            >
-              <div className="flex items-center gap-3"><MessageSquare className="h-5 w-5 text-gray-600" /><div><p className="font-medium text-gray-900">意见反馈</p><p className="text-sm text-gray-500">告诉我们你的建议或问题</p></div></div>
-            </button>
-            <Separator />
-            <AccountSyncPanel />
-          </CardContent>
-        </Card>
-
-        <Card>
           <CardHeader className="pb-2"><CardTitle className="text-base">近期学习记录</CardTitle></CardHeader>
           <CardContent>
-            {activityLoading ? (
+            {activityPending ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((item) => (
                   <Skeleton key={item} className="h-12 w-full" />
@@ -586,10 +462,128 @@ export default function Profile() {
               </div>
             )}
           </CardContent>
+        </Card></TabsContent>
+      <TabsContent value="preferences" className="space-y-4">        <Card>
+          <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Settings className="h-4 w-4" />设置</CardTitle></CardHeader>
+          <CardContent className="space-y-1">
+            <div className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div><p className="font-medium text-gray-900">默认播放速度</p><p className="text-sm text-gray-500">听力卡片的默认播放速度</p></div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[0.75, 1, 1.25, 1.5].map((speedOption) => (
+                  <Button key={speedOption} className="min-w-0 px-2" size="sm" aria-pressed={playSpeed === speedOption} variant={playSpeed === speedOption ? 'default' : 'outline'} onClick={() => { setPlaySpeed(speedOption); toast.success(`播放速度已设置为 ${speedOption}x`) }}>
+                    {speedOption}x
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between py-3">
+              <div><p className="font-medium text-gray-900">学习日志</p><p className="text-sm text-gray-500">记录每日学习情况</p></div>
+              <Button aria-label="记录学习日志" aria-pressed={logEnabled} size="sm" variant={logEnabled ? 'default' : 'outline'} onClick={() => { const next = !logEnabled; setLogEnabled(next); toast.success(`学习日志已${next ? '开启' : '关闭'}`) }}>
+                {logEnabled ? '开启' : '关闭'}
+              </Button>
+            </div>
+
+            <Separator />
+
+            <SentenceAnnotationSettings />
+            {!authLoading && <FSRSOptimizationPanel key={user?.id ?? 'guest'} owner={user?.id ?? 'guest'} />}
+
+          </CardContent>
+        </Card></TabsContent>
+      <TabsContent value="account" className="space-y-4">        <Card>
+          <CardContent className="space-y-4 p-4">
+            {isPro ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--app-accent)] text-lg text-white">P</div>
+                  <div>
+                    <p className="font-semibold text-gray-900">Pro 会员</p>
+                    <p className="text-sm text-gray-500">
+                      {isGuestTrial ? '今日 Pro 体验中' : isLifetimePro ? '永久 Pro' : `剩余 ${proDaysLeft} 天`}
+                    </p>
+                  </div>
+                </div>
+                <Badge className="bg-[var(--app-accent)] text-white">Pro</Badge>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-lg">P</div>
+                  <div>
+                    <p className="font-semibold text-gray-900">免费版</p>
+                    <p className="text-sm text-gray-500">基础课程与每日免费额度</p>
+                  </div>
+                </div>
+                <p className="text-xs leading-6 text-[var(--app-muted)]">免费学习 CET-4 与新概念前两册；Pro 可使用 CET-6、新概念全四册及无限 AI 解析与句子拼接。</p>
+              </div>
+            )}
+
+            {isGuest && <div className="rounded-xl bg-[var(--app-accent-soft)] p-4"><div className="flex items-center gap-2 text-sm font-semibold"><Gift className="h-4 w-4" aria-hidden="true" />注册领取 2 个月 Pro</div><p className="mt-2 text-sm leading-6 text-[var(--app-muted)]">{isGuestTrial ? '今日 Pro 体验中。' : '当前为访客免费版。'}注册后可同步学习记录，继续使用完整内容。</p><Button className="mt-4 w-full" onClick={() => navigate('/login?mode=register')}>注册领取</Button></div>}
+            {!isGuest && (
+              <>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">续期邀请码</p>
+                  <div className="flex gap-2">
+                    <Input
+                      className="font-mono text-sm uppercase"
+                      aria-label="续期邀请码"
+                      placeholder="输入邀请码（如 CET-XXXX-XXXX）"
+                      value={activationCode}
+                      onChange={(event) => setActivationCode(event.target.value.toUpperCase())}
+                      onKeyDown={(event) => event.key === 'Enter' && void handleActivateCode()}
+                    />
+                    <Button className="shrink-0" disabled={activating} onClick={() => void handleActivateCode()}>
+                      {activating ? '续期中...' : '续期'}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-400">邀请码只用于 Pro 续期，一次延长 30 天。</p>
+                </div>
+
+              </>
+            )}
+          </CardContent>
         </Card>
 
-        <div className="py-4 text-center text-xs text-gray-400"><p>CET Listening Studio v1.0.0</p><p className="mt-1">Powered by FSRS · Built with React</p></div>
-      </div>
-    </>
-  )
+        <Card>
+          <CardContent className="space-y-1 p-4">
+            <button
+              type="button"
+              className="-mx-4 flex w-[calc(100%+2rem)] cursor-pointer rounded-lg px-4 py-3 text-left transition-colors hover:bg-gray-50"
+              onClick={() => navigate('/feedback')}
+            >
+              <div className="flex items-center gap-3"><MessageSquare className="h-5 w-5 text-gray-600" /><div><p className="font-medium text-gray-900">意见反馈</p><p className="text-sm text-gray-500">告诉我们你的建议或问题</p></div></div>
+            </button>
+            <Separator />
+            <AccountSyncPanel />
+          </CardContent>
+        </Card><Card><CardHeader><CardTitle className="text-base">数据管理</CardTitle></CardHeader><CardContent>            <AlertDialog>
+              <div className="flex items-center justify-between py-3">
+                <div><p className="font-medium text-red-600">清除学习数据</p><p className="text-sm text-gray-500">重置本机与云端的学习进度和收藏</p></div>
+                <AlertDialogTrigger asChild>
+                  <Button className="text-red-500" size="sm" variant="outline" disabled={authLoading}><Trash2 className="mr-1 h-4 w-4" />清除</Button>
+                </AlertDialogTrigger>
+              </div>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>确认清除数据</AlertDialogTitle>
+                  <AlertDialogDescription>这会清除当前账号在本机和云端的所有学习进度、待复习任务和难点收藏，且无法恢复。</AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="space-y-3">
+                  <p>请输入 <strong className="text-red-600">清除数据</strong> 以确认：</p>
+                  <Input aria-label="输入清除数据以确认" className="mt-2" placeholder="请输入“清除数据”" value={clearConfirmText} onChange={(event) => setClearConfirmText(event.target.value)} />
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => setClearConfirmText('')}>取消</AlertDialogCancel>
+                  <AlertDialogAction className="bg-red-500 hover:bg-red-600" disabled={authLoading||clearConfirmText !== '清除数据'} onClick={() => { setClearConfirmText(''); void handleClearData() }}>
+                    确认清除
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog></CardContent></Card></TabsContent>
+    </Tabs>
+    <p className="py-3 text-center text-xs text-[var(--app-muted)]">Listening Studio · 让每一次积累都有记录</p>
+  </div>
 }

@@ -5,6 +5,7 @@ import { AuthGuard } from '@/components/AuthGuard'
 import { RouteErrorFallback } from '@/components/RouteErrorFallback'
 import { lazyWithRecovery } from '@/lib/lazyWithRecovery'
 
+const Courses = lazyWithRecovery(() => import('@/pages/Courses'))
 const Home = lazyWithRecovery(() => import('@/pages/Home'))
 const Login = lazyWithRecovery(() => import('@/pages/Login'))
 const ContentSelector = lazyWithRecovery(() => import('@/pages/ContentSelector'))
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Home /> },
+      { path: 'courses', element: <Courses /> },
       { path: 'cet', element: <ContentSelector /> },
       { path: 'nce', element: <NCESelector /> },
       { path: 'nce/shadowing/:moduleId', element: <NCEShadowing /> },

@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/button'
 import { getCETModules } from '@/db/crud'
 import type { Module } from '@/types'
 import { usePro } from '@/hooks/usePro'
-import { CET_CATALOG_BATCH_SIZE, cetCatalogReducer, filterCETCatalog, initialCETCatalog } from '@/lib/cetCatalog'
+import { difficultyLabel, listeningTitle } from '@/lib/coursePresentation'
+import { CET_CATALOG_BATCH_SIZE, cetCatalogReducer, filterCETCatalog, sortCETCatalog, initialCETCatalog } from '@/lib/cetCatalog'
 
 /**
  * 内容选择页
@@ -23,6 +24,10 @@ export default function ContentSelector() {
   const navigate = useNavigate()
   const { isPro: isProActive } = usePro()
   const [showProSheet, setShowProSheet] = useState(false)
+
+  const [loadError, setLoadError] = useState(false)
+  const [retry, setRetry] = useState(0)
+  const [sortOrder, setSortOrder] = useState<'latest' | 'oldest'>('latest')
 
   // 加载状态
   const [loading, setLoading] = useState(true)
@@ -38,17 +43,19 @@ export default function ContentSelector() {
   useEffect(() => {
     const subscription = liveQuery(() => getCETModules()).subscribe({
       next: (allModules) => {
+        setLoadError(false)
         setModules(allModules)
         setLoading(false)
       },
       error: (error) => {
         console.error('Failed to load CET modules:', error)
+        setLoadError(true)
         setLoading(false)
       },
     })
 
     return () => subscription.unsubscribe()
-  }, [])
+  }, [retry])
 
   // 获取所有可选的考试日期（去重）
   const examDates = useMemo(() => {
@@ -59,7 +66,7 @@ export default function ContentSelector() {
   }, [modules])
 
   // 筛选后的模块
-  const filteredModules = useMemo(() => filterCETCatalog(modules, filters), [modules, filters])
+  const filteredModules = useMemo(() => sortCETCatalog(filterCETCatalog(modules, filters), sortOrder), [modules, filters, sortOrder])
   const visibleModules = filteredModules.slice(0, catalog.visibleCount)
   const remainingCount = filteredModules.length - visibleModules.length
   const hasFilters = Object.values(filters).some(value => value !== 'all')
@@ -115,7 +122,7 @@ export default function ContentSelector() {
       {/* 标题 */}
       <div className="mb-6 border-b border-[var(--app-line)] pb-6">
         <p className="quiet-kicker mb-2">Exam Archive</p>
-        <h1 className="quiet-display text-4xl md:text-5xl">四六级听力档案。</h1>
+        <h1 className="quiet-display text-3xl md:text-4xl">四六级听力档案。</h1>
         <p className="mt-3 text-sm text-[var(--app-muted)]">
           按考试、年份或题型，找到今天要练的内容。
         </p>
@@ -158,7 +165,7 @@ export default function ContentSelector() {
 
         {/* Section 选择 */}
         <div className="space-y-2">
-          <p className="text-xs font-medium text-gray-500">Section</p>
+          <p className="text-xs font-medium text-gray-500">听力部分</p>
           <ToggleGroup
             type="single"
             value={filters.section}
@@ -167,9 +174,9 @@ export default function ContentSelector() {
             className="flex-wrap justify-start"
           >
             <ToggleGroupItem value="all">全部</ToggleGroupItem>
-            <ToggleGroupItem value="A">Section A</ToggleGroupItem>
-            <ToggleGroupItem value="B">Section B</ToggleGroupItem>
-            <ToggleGroupItem value="C">Section C</ToggleGroupItem>
+            <ToggleGroupItem value="A" aria-label="Section A">A 部分</ToggleGroupItem>
+            <ToggleGroupItem value="B" aria-label="Section B">B 部分</ToggleGroupItem>
+            <ToggleGroupItem value="C" aria-label="Section C">C 部分</ToggleGroupItem>
           </ToggleGroup>
         </div>
 
@@ -195,9 +202,10 @@ export default function ContentSelector() {
       <div className="flex-1 py-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <p role="status" className="text-sm text-[var(--app-muted)]">已显示 <strong className="font-semibold text-[var(--app-ink)]">{visibleModules.length}</strong> / {filteredModules.length} 个模块</p>
+          <label className="flex items-center gap-2 text-xs text-[var(--app-muted)]">排序<select className="min-h-11 rounded-lg border border-[var(--app-line)] bg-[var(--app-surface)] px-3 text-sm text-[var(--app-ink)]" value={sortOrder} onChange={event => setSortOrder(event.target.value as 'latest' | 'oldest')}><option value="latest">最新真题优先</option><option value="oldest">最早真题优先</option></select></label>
           {hasFilters && <Button variant="ghost" size="sm" onClick={() => updateCatalog({ type: 'reset' })}>清除筛选</Button>}
         </div>
-        {filteredModules.length === 0 ? (
+        {loadError ? <div role="alert" className="quiet-surface space-y-3 p-6"><p>课程暂时无法读取，请重试。</p><Button variant="outline" onClick={() => { setLoading(true); setRetry(value => value + 1) }}>重新读取</Button></div> : filteredModules.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-gray-400">
             <Lock className="mb-2 h-12 w-12" />
             <p>没有找到匹配的模块</p>
@@ -216,7 +224,7 @@ export default function ContentSelector() {
                   onClick={() => handleModuleClick(module)}
                   role="button"
                   tabIndex={0}
-                  aria-label={`${module.title || module.moduleId} · ${module.examDate ?? ''} · ${module.level}${module.level === 'CET6' && !isProActive ? ' · 解锁课程' : ''}`}
+                  aria-label={`${listeningTitle(module.title || module.moduleId)} · ${module.examDate ?? ''} · ${module.level}${module.level === 'CET6' && !isProActive ? ' · 解锁课程' : ''}`}
                   onKeyDown={event => {
                     if (event.target !== event.currentTarget) return
                     if (event.key === 'Enter' || event.key === ' ') {
@@ -230,7 +238,7 @@ export default function ContentSelector() {
                     <div className="mb-2 flex items-start justify-between gap-2">
                       <div className="flex-1">
                         <h3 className="font-semibold text-gray-900">
-                          {module.title || module.moduleId}
+                          {listeningTitle(module.title || module.moduleId)}
                         </h3>
                         <p className="mt-0.5 text-xs text-gray-500">
                           {module.examDate ?? ''} · {module.level}
@@ -242,7 +250,7 @@ export default function ContentSelector() {
                         )}
                         {getStatusBadge(module)}
                         <Badge variant={getDifficultyVariant(module.difficulty)}>
-                          {module.difficulty}
+                          {difficultyLabel(module.difficulty)}
                         </Badge>
                       </div>
                     </div>
@@ -303,8 +311,8 @@ export default function ContentSelector() {
                 <li>✓ AI 解析无限次</li>
               </ul>
             </div>
-            <Button className="w-full bg-yellow-500 hover:bg-yellow-600 text-white">
-              开通 PRO
+            <Button className="w-full" onClick={() => navigate('/profile?tab=account')}>
+              查看会员与邀请码
             </Button>
             <Button variant="outline" className="w-full" onClick={() => setShowProSheet(false)}>
               先学习免费内容

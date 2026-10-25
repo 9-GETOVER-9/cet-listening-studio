@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
-import { ArrowLeft, CheckCircle2, Headphones, RotateCcw, Star, Trash2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Headphones, RotateCcw, Play, Pause, Star, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AIPanel } from '@/components/AIPanel'
 import { AnnotatedSentence } from '@/components/AnnotatedSentence'
 import { NCEPracticeActions } from '@/components/NCEPracticeActions'
+import { PracticeAudioBar } from '@/components/PracticeAudioBar'
+import { difficultyLabel } from '@/lib/coursePresentation'
 import { FSRSButtons } from '@/components/FSRSButtons'
 import { JourneyCompletionDialog } from '@/components/JourneyCompletionDialog'
 import {
@@ -284,8 +286,7 @@ export default function Review() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
-      const tag = target.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || target?.closest('[role="button"]')) return
+      if (target?.closest('button, input, textarea, select, summary, a, [contenteditable], [role="button"]')) return
       if (e.key === ' ') { e.preventDefault(); handlePlayPause() }
     }
     window.addEventListener('keydown', handler)
@@ -315,7 +316,7 @@ export default function Review() {
           <div className="text-6xl">📚</div>
           <h1 className="mt-4 text-2xl font-bold text-gray-900">还没有待复习的卡片</h1>
           <p className="mt-2 max-w-xs text-sm text-gray-500">
-            先去浏览 CET 或 NCE 的卡片，给它们打分后，这里就会自动出现你的专属复习队列
+            先选择四六级或新概念课程练习。为卡片评分后，到期的内容会自动进入这里。
           </p>
           {streak > 0 && (
             <div className="mt-4 flex justify-center">
@@ -324,7 +325,7 @@ export default function Review() {
           )}
           <div className="mt-6 flex gap-3 justify-center">
             <Button variant="outline" onClick={() => navigate('/')}>返回首页</Button>
-            <Button onClick={() => navigate('/cet')}>去学习新卡片</Button>
+            <Button onClick={() => navigate('/courses')}>去学习新卡片</Button>
           </div>
         </motion.div>
       </div>
@@ -402,7 +403,7 @@ export default function Review() {
     : 0
 
   return (
-    <div className="quiet-page flex min-h-dvh flex-col">
+    <div data-practice className="quiet-page practice-page flex min-h-dvh flex-col">
       {/* Top bar */}
       <div className="mb-5 border-b border-[var(--app-line)] pb-4">
         <div className="flex items-center justify-between">
@@ -425,7 +426,7 @@ export default function Review() {
       <div className="flex flex-1 justify-center">
         <div className="w-full max-w-4xl">
           <Card
-            className="min-h-[620px] w-full cursor-pointer select-none shadow-[var(--app-shadow)]"
+            className="min-h-80 w-full select-none shadow-[var(--app-shadow)]"
             style={{ touchAction: 'pan-y pinch-zoom' }}
             {...cardTap.handlers}
           >
@@ -448,7 +449,7 @@ export default function Review() {
                       : 'advanced'
                     }
                   >
-                    {currentCard.difficulty}
+                    {difficultyLabel(currentCard.difficulty)}
                   </Badge>
                 </div>
               </div>
@@ -463,19 +464,16 @@ export default function Review() {
                     className={`flex h-22 w-22 items-center justify-center rounded-full border-2 bg-white shadow-md transition-all duration-100 active:scale-95 ${
                       playState === 'playing' ? 'border-brand shadow-lg' : 'border-gray-200 hover:border-brand hover:shadow-lg'
                     } ${playState === 'loading' ? 'opacity-70' : ''}`}
-                    onPointerDown={(e) => handlePlayPause(e)}
+                    onClick={(e) => handlePlayPause(e)}
                     disabled={playState === 'loading'}
                     style={{ touchAction: 'manipulation' }}
                   >
                     {playState === 'loading' ? (
                       <RotateCcw className="h-8 w-8 animate-spin text-gray-400" />
                     ) : playState === 'playing' ? (
-                      <div className="flex gap-1.5">
-                        <div className="h-6 w-2 animate-pulse rounded bg-brand" />
-                        <div className="h-6 w-2 animate-pulse rounded bg-brand" />
-                      </div>
+                      <Pause className="h-8 w-8 text-brand" aria-hidden="true" />
                     ) : (
-                      <div className="ml-1 h-0 w-0 border-b-[12px] border-l-[20px] border-r-0 border-t-[12px] border-b-transparent border-l-brand border-t-transparent" />
+                      <Play className="ml-1 h-8 w-8 fill-current text-brand" aria-hidden="true" />
                     )}
                   </button>
 
@@ -491,7 +489,7 @@ export default function Review() {
                             ? 'bg-brand text-white shadow-md'
                             : 'border-2 border-gray-200 bg-white text-gray-700 active:bg-gray-50'
                         }`}
-                        onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); handleChangeSpeed(opt) }}
+                        onClick={(e) => { e.stopPropagation(); handleChangeSpeed(opt) }}
                         style={{ touchAction: 'manipulation' }}
                       >
                         {opt}x
@@ -540,6 +538,7 @@ export default function Review() {
                     </p>
                   </div>
 
+                  <details data-interactive className="rounded-xl border border-[var(--app-line)] p-3"><summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-[var(--app-accent)]">查看详细解析</summary><div className="pt-3">
                   <AIPanel
                     analysis={currentCard.aiAnalysis}
                     aiRemaining={aiRemaining}
@@ -551,7 +550,7 @@ export default function Review() {
                       else toast.info(result.message)
                     }}
                   />
-
+</div></details>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Button
                       className="w-full"
@@ -576,15 +575,7 @@ export default function Review() {
                     </Button>
                   </div>
 
-                  <div className="pb-safe pt-2">
-                    <FSRSButtons
-                      key={currentCard.cardId}
-                      cardId={currentCard.cardId}
-                      fsrsState={currentCard.fsrsMain}
-                      onRateStart={cardTap.suppressTap}
-                      onRated={handleRated}
-                    />
-                  </div>
+
                 </div>
               )}
             </CardContent>
@@ -596,6 +587,10 @@ export default function Review() {
           </div>
         </div>
       </div>
+      {isFlipped && <section className="practice-dock" aria-label="音频与记忆评分"><div className="practice-dock-inner">
+        <PracticeAudioBar playing={playState === 'playing'} loading={playState === 'loading'} error={playState === 'error'} speed={speed} onPlay={() => handlePlayPause()} onSpeed={handleChangeSpeed} onFlip={handleFlip} />
+        <FSRSButtons key={currentCard.cardId} cardId={currentCard.cardId} fsrsState={currentCard.fsrsMain} onRateStart={cardTap.suppressTap} onRated={handleRated} />
+      </div></section>}
       <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

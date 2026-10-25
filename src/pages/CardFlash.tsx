@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMemo } from 'react'
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Layers, RotateCcw, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Layers, MoreHorizontal, Pause, Play, RotateCcw, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { CommitCardRatingResult } from '@/db/reviewRepository'
 import { AIPanel } from '@/components/AIPanel'
 import { AnnotatedSentence } from '@/components/AnnotatedSentence'
 import { NCEPracticeActions } from '@/components/NCEPracticeActions'
+import { PracticeAudioBar } from '@/components/PracticeAudioBar'
+import { difficultyLabel, listeningTitle } from '@/lib/coursePresentation'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { FSRSButtons } from '@/components/FSRSButtons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -26,16 +28,6 @@ import { useSettingsStore } from '@/store/settingsStore'
 import type { Card as CardType, NotebookType } from '@/types'
 
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5]
-
-function encourageText(index: number, total: number): string {
-  const ratio = index / Math.max(total - 1, 1)
-  if (index === 0) return '\u{1F331} 万事开头难，坚持就是胜利！'
-  if (index === total - 1) return '\u{1F389} 最后一张了，太棒了！'
-  if (ratio < 0.25) return '\u{1F4AA} 好的开始是成功的一半！'
-  if (ratio < 0.5) return '\u{1F525} 继续保持，你已经渐入佳境了！'
-  if (ratio < 0.75) return '⚡ 过半了，你的努力看得见！'
-  return '\u{1F31F} 快完成了，再加把劲！'
-}
 
 export default function CardFlash() {
   const { moduleId } = useParams<{ moduleId: string }>()
@@ -120,8 +112,12 @@ export default function CardFlash() {
   const currentCard = cards[currentIndex]
   const syncOwner = useAccountSyncStatus(s => s.owner)
   useEffect(() => {
-    if (currentCard && moduleId) void saveLearningResume(syncOwner, `/card/${encodeURIComponent(moduleId)}?targetCardId=${encodeURIComponent(currentCard.cardId)}`)
-  }, [syncOwner, moduleId, currentCard])
+    if (!currentCard || !moduleId) return
+    const courseLabel = currentCard.level === 'NCE'
+      ? `${currentCard.book ?? 'NCE'} · Lesson ${currentCard.lessonNum ?? ''}`
+      : `${currentCard.level} · ${currentCard.examDate ?? ''} · ${listeningTitle(currentCard.title ?? '')}`
+    void saveLearningResume(syncOwner, `/card/${encodeURIComponent(moduleId)}?targetCardId=${encodeURIComponent(currentCard.cardId)}`, `${courseLabel} · 第 ${currentIndex + 1} / ${cards.length} 句`)
+  }, [syncOwner, moduleId, currentCard, currentIndex, cards.length])
 
   const { playState, speed, play, pause, changeSpeed, playMultiple, isPlaying } = useAudio(
     currentCard?.audioFile || '',
@@ -308,19 +304,6 @@ export default function CardFlash() {
     setTimeout(() => { flipLockRef.current = false }, 300)
   }, [mergeSheetOpen])
 
-  const handleCardKeyDown = useCallback((event: ReactKeyboardEvent<HTMLElement>) => {
-    if (mergeSheetOpen) return
-    if (event.key !== 'Enter' && event.key !== ' ') return
-
-    const target = event.target as HTMLElement
-    if (target.closest('button') || target.closest('input') || target.closest('[data-interactive]')) {
-      return
-    }
-
-    event.preventDefault()
-    handleFlip()
-  }, [handleFlip, mergeSheetOpen])
-
   const shouldIgnoreBackAction = useCallback(() => (
     Date.now() < backActionLockUntilRef.current
   ), [])
@@ -374,8 +357,7 @@ export default function CardFlash() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
-      const tagName = target?.tagName ?? ''
-      if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'BUTTON' || target?.closest('[role="button"]')) return
+      if (target?.closest('button, input, textarea, select, summary, a, [contenteditable], [role="button"], [role="menuitem"]')) return
 
       switch (event.key) {
         case 'ArrowLeft':
@@ -465,7 +447,7 @@ export default function CardFlash() {
   }, 0)
 
   return (
-    <div className="quiet-page flex min-h-dvh flex-col">
+    <div data-practice className="quiet-page practice-page flex min-h-dvh flex-col">
       <div className="mb-5 flex items-center justify-between border-b border-[var(--app-line)] pb-4">
         <Button
           size="sm"
@@ -478,13 +460,13 @@ export default function CardFlash() {
           <ArrowLeft className="mr-1 h-4 w-4" />
           返回
         </Button>
-        <span className="text-sm font-medium text-gray-700">
+        <h1 className="min-w-0 flex-1 px-2 text-center text-xs font-medium leading-5 text-[var(--app-ink)] sm:text-sm">
           {isNotebookReview
             ? `难点复习 ${notebookIndex + 1}/${notebookQueue.length}`
             : currentCard.level === 'NCE'
               ? `${currentCard.book || 'NCE'} · Lesson ${currentCard.lessonNum || ''}`
-              : currentCard.title || moduleId}
-        </span>
+              : listeningTitle(currentCard.title || moduleId || '')}
+        </h1>
         <div className="flex items-center gap-1">
           <Button size="icon" variant="outline" aria-label="上一张卡片" onClick={goPrev} disabled={currentIndex === 0 || isNotebookReview}>
             <ChevronLeft className="h-4 w-4" />
@@ -492,25 +474,20 @@ export default function CardFlash() {
           <Button size="icon" variant="outline" aria-label="下一张卡片" onClick={() => void goNext()} disabled={isNotebookReview}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="ghost" aria-label="删除当前卡片" className="text-red-400 hover:text-red-600" onClick={() => void handleDeleteCard()}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="ghost" aria-label="更多卡片操作"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem className="text-red-600" onSelect={() => void handleDeleteCard()}><Trash2 className="mr-2 h-4 w-4" />删除当前卡片</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
         </div>
       </div>
 
       <div className="flex flex-1 justify-center">
         <div className="w-full max-w-4xl">
           <Card
-            className="min-h-[620px] w-full cursor-pointer select-none shadow-[var(--app-shadow)]"
-            role="button"
-            tabIndex={0}
-            aria-pressed={isFlipped}
-            aria-label={isFlipped ? '当前显示答案，按回车或空格可翻回题面' : '当前显示题面，按回车或空格可显示答案'}
+            className="min-h-80 w-full select-none shadow-[var(--app-shadow)]"
+            role="region"
+            aria-label={isFlipped ? '卡片答案' : '听力题面'}
             style={{ touchAction: 'pan-y pinch-zoom' }}
             {...cardTap.handlers}
-            onKeyDown={handleCardKeyDown}
           >
-            <CardContent className="p-6 md:p-10">
+            <CardContent className="p-5 md:p-8">
               <div className="mb-4 flex items-center justify-between">
                 <Badge variant="outline">{currentIndex + 1} / {cards.length}</Badge>
                 <div className="flex items-center gap-2">
@@ -527,7 +504,7 @@ export default function CardFlash() {
                             : 'advanced'
                     }
                   >
-                    {currentCard.difficulty}
+                    {difficultyLabel(currentCard.difficulty)}
                   </Badge>
                 </div>
               </div>
@@ -546,11 +523,11 @@ export default function CardFlash() {
                     {playState === 'loading' ? (
                       <RotateCcw className="h-8 w-8 animate-spin text-gray-400" />
                     ) : playState === 'playing' ? (
-                      <div className="flex gap-1.5"><div className="h-6 w-2 animate-pulse rounded bg-brand" /><div className="h-6 w-2 animate-pulse rounded bg-brand" /></div>
+                      <Pause className="h-8 w-8 text-brand" aria-hidden="true" />
                     ) : playState === 'error' ? (
                       <div className="text-xs text-red-500">加载失败</div>
                     ) : (
-                      <div className="ml-1 h-0 w-0 border-b-[12px] border-l-[20px] border-r-0 border-t-[12px] border-b-transparent border-l-brand border-t-transparent" />
+                      <Play className="ml-1 h-8 w-8 fill-current text-brand" aria-hidden="true" />
                     )}
                   </button>
 
@@ -700,7 +677,7 @@ export default function CardFlash() {
                       </SheetContent>
                     </Sheet>
                   ) : (
-                    <Button className="mt-4 text-gray-400" disabled size="sm" variant="ghost"><Layers className="mr-1 h-4 w-4" />解锁句子拼接功能</Button>
+                    <Button className="mt-4 text-gray-500" onClick={() => navigate('/profile?tab=account')} size="sm" variant="ghost"><Layers className="mr-1 h-4 w-4" />解锁句子拼接功能</Button>
                   )}
                 </div>
               ) : (
@@ -721,6 +698,7 @@ export default function CardFlash() {
                     <p className="mb-1 text-xs font-medium text-gray-500">中文</p>
                     <p className="text-sm text-gray-600">{decodeHtml(currentCard.chineseText)}</p>
                   </div>
+                  <details data-interactive className="rounded-xl border border-[var(--app-line)] p-3"><summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-[var(--app-accent)]">查看详细解析</summary><div className="pt-3">
                   <AIPanel
                     analysis={currentCard.aiAnalysis}
                     aiRemaining={aiRemaining}
@@ -732,7 +710,7 @@ export default function CardFlash() {
                       if (result.success) toast.success(result.message)
                       else toast.info(result.message)
                     }}
-                  />
+                  /></div></details>
                   <Button
                     className="w-full"
                     size="sm"
@@ -746,17 +724,7 @@ export default function CardFlash() {
                   >
                     收藏整句发音到难点本
                   </Button>
-                  <div className="pb-safe pt-2">
-                    <p className="mb-2 text-xs text-gray-500">{encourageText(currentIndex, cards.length)}</p>
-                    <FSRSButtons
-                      key={currentCard.cardId}
-                      cardId={currentCard.cardId}
-                      fsrsState={currentCard.fsrsMain}
-                      onRateStart={cardTap.suppressTap}
-                      onRated={handleRated}
-                    />
-                    <p className="mt-2 text-center text-xs text-gray-400">所选间隔会决定这张卡何时进入综合复习队列</p>
-                  </div>
+
                 </div>
               )}
             </CardContent>
@@ -765,6 +733,11 @@ export default function CardFlash() {
           <div className="mt-4 flex justify-center gap-4 pb-safe text-xs text-gray-400"><span>空格：播放</span><span>左右方向键：切换</span></div>
         </div>
       </div>
+      {isFlipped && <section className="practice-dock" aria-label="音频与记忆评分"><div className="practice-dock-inner">
+        <PracticeAudioBar playing={isPlaying} loading={playState === 'loading'} error={playState === 'error'} speed={speed} onPlay={() => handlePlayPause()} onSpeed={handleChangeSpeed} onFlip={handleFlip} />
+        <FSRSButtons key={currentCard.cardId} cardId={currentCard.cardId} fsrsState={currentCard.fsrsMain} onRateStart={cardTap.suppressTap} onRated={handleRated} />
+        <p className="mt-2 text-center text-[11px] text-[var(--app-muted)]">根据记忆程度评分，安排下一次复习</p>
+      </div></section>}
     </div>
   )
 }

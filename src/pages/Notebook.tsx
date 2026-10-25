@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { BookOpen, Headphones, MessageSquareText, ScrollText, Trash2, RotateCcw, Crown, Volume2 } from 'lucide-react'
+import { BookOpen, Headphones, MessageSquareText, ScrollText, Trash2, RotateCcw, Volume2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -151,7 +151,7 @@ export default function Notebook() {
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <p className="quiet-kicker mb-2">Listening Notes</p>
-            <h1 className="quiet-display text-4xl md:text-6xl">难点收集本。</h1>
+            <h1 className="quiet-display text-3xl md:text-4xl">难点收集本。</h1>
             <p className="mt-1 text-sm text-gray-500">共 {totalCount} 条收藏</p>
           </div>
           {/* ✅ 修复问题6：专项复习改为从第一条开始连续复习 */}
@@ -176,6 +176,7 @@ export default function Notebook() {
             <Button
               variant="outline"
               size="sm"
+              disabled={loading || items.length === 0}
               onClick={() => {
                 if (items.length === 0) {
                   toast.info('当前分类暂无收藏')
@@ -217,17 +218,11 @@ export default function Notebook() {
                 <div className="flex flex-col items-center justify-center py-12 text-gray-400">
                   <BookOpen className="mb-2 h-12 w-12" />
                   <p>暂无收藏</p>
-                  <p className="mt-1 text-sm">在听力卡片页点击收藏添加</p>
-                </div>
-              ) : isAtLimit ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <Crown className="mb-3 h-12 w-12 text-yellow-500" />
-                  <p className="font-medium text-gray-700">难点本已达上限</p>
-                  <p className="mt-1 text-sm text-gray-500">免费版最多保存 {PRO_LIMIT} 条收藏</p>
-                  <p className="mt-2 text-xs text-gray-400">升级Pro可解锁无限收藏</p>
+                  <p className="mt-1 text-center text-sm leading-6">练习时点击单词、短语或收藏整句，记录听不清的地方。</p><Button className="mt-5" variant="outline" onClick={() => navigate('/courses')}>选择课程，添加第一条难点</Button>
                 </div>
               ) : (
                 <div className="space-y-3 pb-6">
+                  {isAtLimit && <div className="quiet-surface flex flex-wrap items-center justify-between gap-3 p-4"><p className="text-sm text-[var(--app-muted)]">免费收藏已达 {PRO_LIMIT} 条，已有内容仍可阅读和复习。</p><Button size="sm" variant="outline" onClick={() => navigate('/profile?tab=account')}>查看会员</Button></div>}
                   {items.map((item) => (
                     <Card key={item.notebookId} className="transition-shadow hover:shadow-md">
                       <CardContent className="p-4">

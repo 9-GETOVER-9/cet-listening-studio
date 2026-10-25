@@ -1,9 +1,11 @@
+import type { ReactNode } from 'react'
 import { CheckCircle2, RefreshCw } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
 
 interface DailyTaskCardProps {
+  action?: ReactNode
   className?: string
   total: number
   completed: number
@@ -12,7 +14,7 @@ interface DailyTaskCardProps {
   onRefresh?: () => void
 }
 
-export function DailyTaskCard({ className = '', total, completed, remaining, loading = false, onRefresh }: DailyTaskCardProps) {
+export function DailyTaskCard({ className = '', total, completed, remaining, loading = false, onRefresh, action }: DailyTaskCardProps) {
   const progress = total > 0 ? Math.min(100, (completed / total) * 100) : 0
   const isComplete = !loading && remaining === 0 && total > 0
   const message = loading ? '正在读取今日进度…'
@@ -21,7 +23,7 @@ export function DailyTaskCard({ className = '', total, completed, remaining, loa
         : `还有 ${remaining} 张待复习，按自己的节奏继续。`
 
   return <Card className={className} aria-busy={loading}>
-    <CardContent className="p-4 sm:p-5">
+    <CardContent className="flex h-full flex-col p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           {isComplete && <CheckCircle2 className="h-4 w-4 text-emerald-700" aria-hidden="true" />}
@@ -33,7 +35,8 @@ export function DailyTaskCard({ className = '', total, completed, remaining, loa
         </Button>}
       </div>
       {!loading && total > 0 && <Progress value={progress} className="mt-3 h-1.5" aria-label="今日复习进度" />}
-      <p role="status" className="mt-2 text-sm leading-6 text-[var(--app-muted)]">{message}</p>
+      <p role="status" className="mt-3 text-sm leading-6 text-[var(--app-muted)]">{message}</p>
+      {action && <div className="mt-auto pt-4">{action}</div>}
     </CardContent>
   </Card>
 }

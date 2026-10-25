@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Module } from '@/types'
-import { cetCatalogReducer, filterCETCatalog, initialCETCatalog } from './cetCatalog'
+import { cetCatalogReducer, filterCETCatalog, sortCETCatalog, initialCETCatalog } from './cetCatalog'
 
 const modules: Module[] = Array.from({ length: 575 }, (_, index) => ({
   moduleId: `module-${index}`, title: `Module ${index}`, level: index % 2 ? 'CET6' : 'CET4',
@@ -45,5 +45,19 @@ describe('CET catalog progressive display', () => {
     const empty = cetCatalogReducer(initialCETCatalog, { type: 'filter', key: 'examDate', value: 'unavailable' })
     expect(filterCETCatalog(modules, empty.filters)).toEqual([])
     expect(modules).toHaveLength(575)
+  })
+})
+
+describe('CET chronology', () => {
+  it('orders newest or oldest first without mutating query results or losing filtered rows', () => {
+    const original = [...modules]
+    const latest = sortCETCatalog(modules, 'latest')
+    expect(latest[0].examDate).toBe('2024.12.01')
+    expect(latest.at(-1)?.examDate).toBe('2016.06.01')
+    expect(sortCETCatalog(modules, 'oldest')[0].examDate).toBe('2016.06.01')
+    expect(modules).toEqual(original)
+    expect(new Set(latest.map(module => module.moduleId))).toEqual(new Set(modules.map(module => module.moduleId)))
+    const filtered = filterCETCatalog(modules, { ...initialCETCatalog.filters, level: 'CET6' })
+    expect(sortCETCatalog(filtered, 'latest')).toHaveLength(filtered.length)
   })
 })

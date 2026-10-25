@@ -37,12 +37,17 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'icon-192.svg', 'icon-512.svg'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}', 'data/ielts-reading-538-v1.json'],
-        globIgnores: ['**/audio/**', 'promo/**', 'landing.html'],
+        globIgnores: ['assets/course-*.png', '**/audio/**', 'promo/**', 'landing.html'],
         manifestTransforms: [async entries => ({
           manifest: entries.filter(entry => !entry.url.endsWith('.js') || shellScripts.has(entry.url)),
           warnings: [],
         })],
         runtimeCaching: [
+          {
+            urlPattern: ({ url, sameOrigin }) => sameOrigin && /\/assets\/course-[^/]+\.png$/.test(url.pathname),
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'course-covers', expiration: { maxEntries: 12, maxAgeSeconds: 30 * 24 * 3600 } },
+          },
           {
             urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith('/assets/') && /\.(js|css)$/.test(url.pathname),
             handler: 'CacheFirst',

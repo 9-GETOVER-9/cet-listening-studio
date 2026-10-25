@@ -1,8 +1,7 @@
 import { Cloud, CloudOff, RefreshCw, AlertCircle } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '@/db/schema'
+import { useLearningResume } from '@/hooks/useLearningResume'
 import { syncAccountNow, useAccountSyncStatus } from '@/lib/accountSync'
 
 export function AccountSyncStatus({ compact = false }: { compact?: boolean }) {
@@ -26,10 +25,8 @@ export function AccountSyncStatus({ compact = false }: { compact?: boolean }) {
 }
 
 export function AccountSyncPanel() {
-  const owner = useAccountSyncStatus(s => s.owner)
-  const resume = useLiveQuery(async () => (await db.settings.get(`cloud-resume:${owner}`))?.value as { path: string; label: string } | undefined, [owner])
-  const path = resume?.path
-  const safePath = path && /^\/(card|nce\/shadowing|word-practice|ielts\/reading-538|ielts\/listening)(\/|\?|$)/.test(path) ? path : null
+  const resume = useLearningResume()
+  const safePath = resume?.path
   return <section className="space-y-3 py-4" aria-label="账号云同步">
     <h3 className="font-semibold">账号云同步</h3>
     <AccountSyncStatus />

@@ -92,9 +92,9 @@ function ReadingStudy({ owner }: { owner: string }) {
     const link = document.createElement('a'); link.href = url; link.download = `reading-538-backup-${new Date().toISOString().slice(0, 10)}.json`; link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000)
     setNotice('阅读记录、批注与当前练习已导出。')
   }
-  return <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8 sm:py-12">
+  return <div data-practice={active ? '' : undefined} className="quiet-page">
     <Link to="/ielts" className="mb-6 inline-block text-sm text-[var(--app-muted)]">← 雅思专区</Link>
-    <QuietPageHeader eyebrow="IELTS · Read & Remember" title="认出另一种表达。" description="阅读 538 · 第一章。同义替换与结构关系，按你的记忆节奏复习。" />
+    {!active && <QuietPageHeader eyebrow="IELTS · Read & Remember" title="认出另一种表达。" description="阅读 538 · 第一章。同义替换与结构关系，按你的记忆节奏复习。" />}
     {error && <div role="alert" className="mb-5 rounded-xl border border-red-300 p-4 text-sm text-red-700">{error}{!active && <Button variant="outline" className="ml-3" onClick={() => setReload(n => n + 1)}>重新加载</Button>}</div>}
     {blocker.state === 'blocked' && <div role="alert" className="mb-4 text-sm">批注尚未保存，请先在编辑区重试。<Button variant="outline" className="ml-3" onClick={() => blocker.reset()}>取消跳转</Button></div>}
     {!corpus || !data ? <ReadingLoadStatus corpusReady={Boolean(corpus)} recordsReady={Boolean(data)} error={error} /> : active && data.session ? <IELTSReadingSession key={data.session.id} cards={cards} session={data.session} data={data} onEnd={end} notesBlocked={notesBlocked} onNotesBlocked={onNotesBlocked} /> : <>

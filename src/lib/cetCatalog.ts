@@ -27,3 +27,10 @@ export function filterCETCatalog(modules: Module[], filters: CETCatalogFilters):
     && (filters.section === 'all' || module.section === filters.section)
     && (filters.type === 'all' || module.type === filters.type))
 }
+
+export function sortCETCatalog(modules: Module[], order: 'latest' | 'oldest'): Module[] {
+  return [...modules].sort((a, b) => {
+    const dateOrder = (b.examDate ?? '').localeCompare(a.examDate ?? '', 'en', { numeric: true })
+    return (order === 'latest' ? dateOrder : -dateOrder) || a.moduleId.localeCompare(b.moduleId, 'en', { numeric: true })
+  })
+}

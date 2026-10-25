@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { liveQuery } from 'dexie'
 import { BookOpen, Lock } from 'lucide-react'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -22,6 +22,9 @@ type CompletionFilter = 'incomplete' | 'completed'
 
 export default function NCESelector() {
   const { isPro } = usePro()
+  const navigate = useNavigate()
+  const [loadError, setLoadError] = useState(false)
+  const [retry, setRetry] = useState(0)
 
   const [selectedBook, setSelectedBook] = useState<NCEBook>('Book1')
   const [modules, setModules] = useState<Module[]>([])
@@ -33,17 +36,19 @@ export default function NCESelector() {
   useEffect(() => {
     const subscription = liveQuery(() => getNCEModulesByBook(selectedBook)).subscribe({
       next: (mods) => {
+        setLoadError(false)
         setModules(mods)
         setLoading(false)
       },
       error: (error) => {
         console.error('Failed to load NCE modules:', error)
+        setLoadError(true)
         setLoading(false)
       },
     })
 
     return () => subscription.unsubscribe()
-  }, [selectedBook])
+  }, [selectedBook, retry])
 
   const handleLockedClick = (book: NCEBook) => {
     setLockedBook(book)
@@ -68,12 +73,12 @@ export default function NCESelector() {
       <div className="mb-6 border-b border-[var(--app-line)] pb-6">
         <div className="flex items-center gap-2 mb-1">
           <BookOpen className="h-5 w-5 text-purple-600" />
-          <h1 className="quiet-display text-4xl md:text-6xl">新概念英语。</h1>
+          <h1 className="quiet-display text-3xl md:text-4xl">新概念英语。</h1>
         </div>
         <p className="text-sm text-gray-500">
           {totalModules > 0
             ? `${completedModules}/${totalModules} 课已完成 · ${studiedCards}/${totalCards} 句已学`
-            : '加载中...'}
+            : loading ? '加载中…' : loadError ? '课程读取失败' : '暂无课程'}
         </p>
       </div>
 
@@ -84,7 +89,9 @@ export default function NCESelector() {
           type="single"
           value={selectedBook}
           onValueChange={(v) => {
-            if (!v) return
+            if (!v || v === selectedBook) return
+            if (!isNCEBookAccessible(v as NCEBook, isPro)) { handleLockedClick(v as NCEBook); return }
+            setLoadError(false)
             setLoading(true)
             setSelectedBook(v as NCEBook)
           }}
@@ -97,7 +104,7 @@ export default function NCESelector() {
                 key={value}
                 value={value}
                 className="flex-1 sm:flex-initial"
-                disabled={locked}
+                aria-label={`${label}${locked ? ' · 需要 Pro，查看解锁方式' : ''}`}
               >
                 {locked && <Lock className="h-3 w-3 mr-1" />}
                 {label}
@@ -134,7 +141,7 @@ export default function NCESelector() {
               <Skeleton key={i} className="h-28 w-full" />
             ))}
           </div>
-        ) : modules.length === 0 ? (
+        ) : loadError ? <div role="alert" className="quiet-surface space-y-3 p-6"><p>课程暂时无法读取，请重试。</p><Button variant="outline" onClick={() => { setLoading(true); setRetry(value => value + 1) }}>重新读取</Button></div> : modules.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <BookOpen className="h-12 w-12 mb-3" />
             <p className="text-sm">暂无课程数据</p>
@@ -148,7 +155,6 @@ export default function NCESelector() {
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {visibleModules.map((mod) => (
-              <div key={mod.moduleId} className="space-y-2">
               <ModuleCard
                 key={mod.moduleId}
                 module={mod}
@@ -156,8 +162,6 @@ export default function NCESelector() {
                 isPro={isPro}
                 onLockedClick={handleLockedClick}
               />
-              {isNCEBookAccessible(mod.book!, isPro) && <Button variant="outline" className="w-full" asChild><Link to={`/nce/shadowing/${encodeURIComponent(mod.moduleId)}`}>输入法跟读练习</Link></Button>}
-              </div>
             ))}
           </div>
         )}
@@ -180,14 +184,13 @@ export default function NCESelector() {
               <p className="font-medium mb-2">PRO 会员权益</p>
               <ul className="space-y-1 text-xs">
                 <li>✓ 新概念 Book 3 & Book 4 全量内容</li>
-                <li>✓ 云端同步（多设备学习）</li>
                 <li>✓ 难点本无上限</li>
                 <li>✓ 长句合并训练</li>
-                <li>✓ 导出难点本</li>
+                <li>✓ AI 解析无限次</li>
               </ul>
             </div>
-            <Button className="w-full bg-purple-600 hover:bg-purple-700">
-              开通 PRO
+            <Button className="w-full" onClick={() => navigate('/profile?tab=account')}>
+              查看会员与邀请码
             </Button>
             <Button variant="outline" className="w-full" onClick={() => setShowLockSheet(false)}>
               先学习免费内容

@@ -299,9 +299,9 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
   }, [active, state.results.length, state.verdict])
 
   return (
-    <div className="quiet-page space-y-6">
-      <QuietPageHeader eyebrow="IELTS · Listen & Learn" title="雅思语料库。"
-        description="听发音，写出单词；也可以按章、按单元开启中英双语随身听。" />
+    <div data-practice={active ? '' : undefined} className="quiet-page space-y-5">
+      {!active && <QuietPageHeader eyebrow="IELTS · Listen & Learn" title="雅思语料库。"
+        description="听发音，写出单词；也可以按章、按单元开启中英双语随身听。" />}
       {!active && <div className="flex flex-wrap gap-2" aria-label="选择语料库">
         {(['wanglu', 'frequency'] as const).map(value => <Button key={value} variant={book === value ? 'default' : 'outline'} aria-pressed={book === value} disabled={frequencyHistoryPending}
           onClick={() => { if (value === book) return; stopAudio(); setRoundCards(new Map()); setCorpus(null); setLoadError(''); setBook(value); if (value === 'wanglu' && mode === 'notes') setMode('dictation'); setChapter(value === 'wanglu' ? 3 : 1); setSection('all'); dispatch({ type: 'start', queue: [] }) }}>
@@ -383,7 +383,7 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
           <span>{groupName(current.chapter)} · {current.section} · 第 {state.results.length + 1} / {state.queue.length} 题</span>
           <Button variant="ghost" size="sm" disabled={questionSaving || !!questionSaveError} onClick={() => { if (questionSavingRef.current || questionSaveError) return; stopAudio(); dispatch({ type: 'finish' }) }}>结束本轮</Button>
         </div>
-        <div className="my-8 text-center">
+        <div className="my-5 text-center">
           <Button size="lg" variant="outline" disabled={questionSaving} onClick={() => play(current)}><Volume2 className="mr-2 h-5 w-5" />{playing ? '正在播放 · 点击重播' : '重播发音'}</Button>
           {audioError && <p role="alert" className="mt-3 text-sm text-red-600">{audioError}</p>}
           <p className="mt-4 text-sm text-[var(--app-muted)]">听到什么，就写下什么。</p>

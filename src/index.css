@@ -32,9 +32,9 @@ html[data-theme='quiet-studio'] {
 
 @theme {
   /* 品牌色 */
-  --color-brand: #2563EB;
-  --color-brand-light: #DBEAFE;
-  --color-brand-dark: #1D4ED8;
+  --color-brand: var(--app-accent);
+  --color-brand-light: var(--app-accent-soft);
+  --color-brand-dark: var(--app-accent);
 
   /* FSRS 按钮色 */
   --color-fsrs-again: #EF4444;
@@ -193,3 +193,15 @@ html[data-theme='quiet-studio'] .shadow-lg { box-shadow: var(--app-shadow) !impo
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Practice keeps audio and rating actions within reach, including safe-area devices. */
+.practice-main { padding-bottom: 0; }
+.practice-page { padding-top: 1.25rem; padding-bottom: calc(12rem + env(safe-area-inset-bottom, 0px)); }
+.practice-dock { position: fixed; z-index: 40; bottom: 0; left: 0; right: 0; border-top: 1px solid var(--app-line); background: var(--app-surface); padding: .75rem 1rem calc(.75rem + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -8px 28px rgb(35 58 71 / .06); }
+.practice-dock-inner { max-width: 52rem; margin-inline: auto; }
+@media (min-width: 1024px) { .practice-dock { left: 224px; } }
+@media (max-width: 639px) { .quiet-page { padding-top: 1.5rem; padding-inline: 1rem; } .practice-page { padding-top: .75rem; } }
+
+.app-shell:has([data-practice]) .mobile-nav { display: none; }
+.app-main:has([data-practice]) { padding-bottom: 0; }
+body:has(.practice-dock) [data-sonner-toaster][data-y-position='bottom'] { bottom: calc(12rem + env(safe-area-inset-bottom, 0px)); }

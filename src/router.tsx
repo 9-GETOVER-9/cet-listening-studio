@@ -14,6 +14,7 @@ const IELTSDictation = lazyWithRecovery(() => import('@/pages/IELTSDictation'))
 const IELTSHub = lazyWithRecovery(() => import('@/pages/IELTSHub'))
 const IELTSReading = lazyWithRecovery(() => import('@/pages/IELTSReading'))
 const CardFlash = lazyWithRecovery(() => import('@/pages/CardFlash'))
+const ReviewHub = lazyWithRecovery(() => import('@/pages/ReviewHub'))
 const Review = lazyWithRecovery(() => import('@/pages/Review'))
 const Walkman = lazyWithRecovery(() => import('@/pages/Walkman'))
 const Notebook = lazyWithRecovery(() => import('@/pages/Notebook'))
@@ -54,7 +55,8 @@ export const router = createBrowserRouter([
       { path: 'ielts/listening', element: <IELTSDictation /> },
       { path: 'ielts/reading-538', element: <IELTSReading /> },
       { path: 'card/:moduleId', element: <CardFlash /> },
-      { path: 'review', element: <Review /> },
+      { path: 'review', element: <ReviewHub /> },
+      { path: 'review/session', element: <Review /> },
       { path: 'walkman', element: <Walkman /> },
       { path: 'notebook', element: <Notebook /> },
       { path: 'word-practice', element: <WordPractice /> },

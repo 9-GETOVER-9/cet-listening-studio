@@ -96,7 +96,7 @@ export default function Home() {
         </div>
         {loadError ? <section role="alert" className="quiet-surface flex flex-col justify-center gap-4 p-5"><p className="text-sm leading-6 text-[var(--app-muted)]">{loadError}</p><Button variant="outline" onClick={refreshStats}><RefreshCw aria-hidden="true" />重新读取</Button></section> : <DailyTaskCard className="h-full" total={stats?.todayTaskTotal ?? 0} completed={stats?.todayTaskCompleted ?? 0}
           remaining={stats?.todayReview ?? 0} loading={statsPending} onRefresh={refreshStats}
-          action={<Button variant="outline" className="h-11 w-full justify-between" onClick={() => navigate(stats && stats.todayReview > 0 ? '/review' : '/courses')}>
+          action={<Button variant="outline" className="h-11 w-full justify-between" onClick={() => navigate(stats && stats.todayReview > 0 ? '/review/session' : '/courses')}>
             {stats && stats.todayReview > 0 ? '开始今日复习' : '选择新的练习'}<ArrowUpRight aria-hidden="true" />
           </Button>} />}
       </section>

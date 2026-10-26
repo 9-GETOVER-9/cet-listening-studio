@@ -31,8 +31,12 @@ export interface JiufenSyncModule {
  applyJiufenIncoming(library:JiufenLibrary):JiufenLibrary;
  createJiufenSync(options:{sourceOwner:string;load:()=>Promise<JiufenLibrary>;commit:(meta:unknown,updates:unknown)=>Promise<void>;exchange:(payload:Record<string,unknown>)=>Promise<unknown>;onStatus?:(status:unknown)=>void}):JiufenSyncEngine
 }
+export const jiufenAssetUrls = {
+ core: '/assets/jiufen/review-core.mjs',
+ sync: '/assets/jiufen/jiufen-sync.mjs?v=bb77da5d9cc8c3561df12aa9c796ccffab0dff9c9819e8b287bb28df530cb4f3',
+} as const
 export async function loadJiufenModules():Promise<{core:JiufenCore;sync:JiufenSyncModule}> {
- const coreUrl='/assets/jiufen/review-core.mjs', syncUrl='/assets/jiufen/jiufen-sync.mjs'
+ const {core:coreUrl,sync:syncUrl}=jiufenAssetUrls
  const [core,sync]=await Promise.all([import(/* @vite-ignore */ coreUrl),import(/* @vite-ignore */ syncUrl)])
  return {core,sync}
 }

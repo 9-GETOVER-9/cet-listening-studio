@@ -319,7 +319,7 @@ export default function Walkman() {
         </p>
         <div className="mt-6 flex gap-3">
           <Button variant="outline" onClick={() => navigate('/')}>回首页</Button>
-          <Button onClick={() => navigate(source === 'notebook-pronunciation' ? '/notebook' : '/review')}>
+          <Button onClick={() => navigate(source === 'notebook-pronunciation' ? '/notebook' : '/review/session')}>
             {source === 'notebook-pronunciation' ? '回难点本' : '去复习'}
           </Button>
         </div>

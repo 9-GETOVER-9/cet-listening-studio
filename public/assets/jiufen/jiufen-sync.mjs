@@ -5,6 +5,12 @@ const same=(a,b)=>JSON.stringify(a??null)===JSON.stringify(b??null);
 const kinds=new Set(['content','memory','note','deleted']);
 export const jiufenKey=(owner,kind,id)=>`jiufen/${encodeURIComponent(owner)}/${kind}/${encodeURIComponent(id)}`;
 export function parseJiufenKey(key){try{const p=key.split('/');if(p.length!==4||p[0]!=='jiufen'||!kinds.has(p[2]))return null;return {sourceOwner:decodeURIComponent(p[1]),kind:p[2],id:decodeURIComponent(p[3])};}catch{return null;}}
+const blankNote=value=>!String(value?.content??'').trim();
+function initialNotePreference(key,local,remote,reason='initial'){
+ if(reason!=='initial'||parseJiufenKey(key)?.kind!=='note')return null;
+ const localBlank=blankNote(local),remoteBlank=blankNote(remote);
+ return localBlank===remoteBlank?null:(localBlank?'remote':'local');
+}
 const contentFields=['key','title','type','unordered','source','rightAnswer','options','sentences','clip','audioUrl','manualClip','imageUrl'];
 export function collectJiufenRecords(sourceOwner,library){
  const records=new Map();
@@ -56,17 +62,29 @@ export function createJiufenSync({sourceOwner,load,commit,exchange,onStatus=()=>
   const data=await load();if(disposed)return;const local=collectJiufenRecords(sourceOwner,data),meta=clone(data.bridgeSync||{});meta.records??={};meta.cursor??=0;const updates=[];
   const pendingFor=(key,value,row)=>({key,value:clone(value),baseVersion:row.version||0,mutationId:globalThis.crypto.randomUUID(),modifiedAt:Date.now()});
   for(const [key,value]of local){const row=meta.records[key]??={version:0,remote:null,observed:null};
-   if(row.conflict){row.conflict.local=clone(value);continue;}if(row.incoming)continue;
+   if(row.conflict){row.conflict.local=clone(value);const preference=initialNotePreference(key,row.conflict.local,row.conflict.remote,row.conflict.reason);
+    if(preference==='remote'){const remote=clone(row.conflict.remote);row.conflict=null;row.pending=null;row.observed=clone(remote);updates.push({key,value:remote,expected:clone(value)});continue;}
+    if(preference==='local'){row.conflict=null;row.pending=pendingFor(key,value,row);row.observed=clone(value);continue;}
+    continue;
+   }if(row.incoming)continue;
    if(!same(value,row.observed)){if(!row.pending||!same(value,row.pending.value))row.pending=pendingFor(key,value,row);row.observed=clone(value);}
   }
+  for(const [key,row]of Object.entries(meta.records)){if(local.has(key)||!row.conflict)continue;const preference=initialNotePreference(key,row.conflict.local,row.conflict.remote,row.conflict.reason);
+   if(preference==='remote'){const remote=clone(row.conflict.remote);row.conflict=null;row.pending=null;row.observed=clone(remote);updates.push({key,value:remote,expected:null});}
+   else if(preference==='local'){const value=clone(row.conflict.local);row.conflict=null;row.pending=pendingFor(key,value,row);row.observed=clone(value);}
+  }
   // Save outbox before any network work, so an offline attempt survives restart.
-  await commit(meta,[]);onStatus({phase:'syncing'});
+  await commit(meta,updates.splice(0));onStatus({phase:'syncing'});
   let more=true;
   while(more&&!disposed){const response=await exchange({changes:[],cursor:meta.cursor});if(disposed)return;const previous=meta.cursor;
    if(!Array.isArray(response.records)||!Number.isInteger(response.cursor)||response.cursor<previous)throw Error('Invalid sync response');
    for(const remote of response.records){if(!valid(remote.key))continue;const row=meta.records[remote.key]??={version:0,remote:null,observed:local.get(remote.key)??null};const current=local.get(remote.key)??null,changed=!same(remote.value,row.remote),pending=row.pending;
     if(pending&&same(pending.value,remote.value)){row.pending=null;row.conflict=null;}
-    else if(changed&&pending){row.conflict={local:clone(pending.value),remote:clone(remote.value),reason:row.version?'concurrent':'initial'};row.pending=null;}
+    else if(changed&&pending){const reason=row.version?'concurrent':'initial',preference=initialNotePreference(remote.key,pending.value,remote.value,reason);
+     if(preference==='remote'){updates.push({key:remote.key,value:clone(remote.value),expected:clone(current)});row.pending=null;row.conflict=null;row.observed=clone(remote.value);}
+     else if(preference==='local'){row.pending={...pending,baseVersion:remote.version,mutationId:globalThis.crypto.randomUUID(),modifiedAt:Date.now()};row.conflict=null;}
+     else {row.conflict={local:clone(pending.value),remote:clone(remote.value),reason};row.pending=null;}
+    }
     else if(changed&&row.incoming){row.incoming.value=clone(remote.value);}
     else if(changed&&!row.conflict)updates.push({key:remote.key,value:clone(remote.value),expected:clone(current)});
     row.version=remote.version;row.remote=clone(remote.value);if(row.conflict)row.conflict.remote=clone(remote.value);

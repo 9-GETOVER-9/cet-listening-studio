@@ -1,6 +1,12 @@
 import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import { loadJiufenLibrary, updateJiufenLibrary } from './jiufenRepository'
+import { jiufenAssetUrls } from './jiufenTypes'
+describe('Jiufen asset loading', () => {
+ it('cache-busts the shared sync engine so deployed fixes replace an older browser module', () => {
+  expect(jiufenAssetUrls.sync).toMatch(/jiufen-sync\.mjs\?v=[a-f0-9]{64}$/)
+ })
+})
 describe('Jiufen private library', () => {
  it('isolates accounts and source owners while applying changes to latest state', async () => {
   await updateJiufenLibrary('a','s', l => ({...l, cards:[{key:'one'}]}))

@@ -1,0 +1,14 @@
+{
+  "source": "九分学长桌面增强版",
+  "scheduler": "fsrs-6-ts-fsrs-5.4.2",
+  "files": {
+    "review-core.mjs": "2a076fed817522a0f8a071d46503e474873b114f308428ff993897a96e935e6b",
+    "three-pass.mjs": "a1af756760da7f96f453a584da7b90aaff45f68591e230bd308dea635c9ed4c8",
+    "listening-time.mjs": "627a7f306b7346cd2052063e4b4eb8c1a09801f7fcf9c072bfc861cef19aa5ff",
+    "ts-fsrs.mjs": "ad4a4b3b7e259fcbf02764454c8f9db4ea3bf5aae2f473198129ecb7728f1a19",
+    "ts-fsrs.LICENSE": "8b83a73dd2894ff553d6de6113064b3ad9dfad3f839837b61f3b183881131d01",
+    "ts-fsrs.provenance.json": "12d46723cdbc232e364508a56817e54669078ebdfcd5bd9151c8c5212b0fec77",
+    "jiufen-sync.mjs": "8414e4137fbc7e0f89bc29c649689548b10cd7c809dc108fe563ac6042207ccd",
+    "index.mjs.map": "c8451f03163a442b4ae7efff5306583a63c4a917548465d9e88ae3cc120f6119"
+  }
+}

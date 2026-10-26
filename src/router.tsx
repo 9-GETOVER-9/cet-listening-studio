@@ -19,6 +19,7 @@ const Walkman = lazyWithRecovery(() => import('@/pages/Walkman'))
 const Notebook = lazyWithRecovery(() => import('@/pages/Notebook'))
 const WordPractice = lazyWithRecovery(() => import('@/pages/WordPractice'))
 const NCEShadowing = lazyWithRecovery(() => import('@/pages/NCEShadowing'))
+const Jiufen = lazyWithRecovery(() => import('@/pages/Jiufen'))
 const Profile = lazyWithRecovery(() => import('@/pages/Profile'))
 const LearningStats = lazyWithRecovery(() => import('@/pages/LearningStats'))
 const Feedback = lazyWithRecovery(() => import('@/pages/Feedback'))
@@ -58,6 +59,7 @@ export const router = createBrowserRouter([
       { path: 'notebook', element: <Notebook /> },
       { path: 'word-practice', element: <WordPractice /> },
       { path: 'notebook/review/:type', element: <Notebook /> },
+      { path: 'jiufen', element: <Jiufen /> },
       { path: 'profile', element: <Profile /> },
       { path: 'profile/stats', element: <LearningStats /> },
       { path: 'feedback', element: <Feedback /> },

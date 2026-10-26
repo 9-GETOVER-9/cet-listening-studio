@@ -1,0 +1,12 @@
+{
+  "name": "ts-fsrs",
+  "version": "5.4.2",
+  "model": "FSRS-6.0",
+  "repository": "git+https://github.com/open-spaced-repetition/ts-fsrs.git",
+  "source": "https://registry.npmjs.org/ts-fsrs/-/ts-fsrs-5.4.2.tgz",
+  "integrity": "sha512-z4qop4pzTcyTzuJ566d9EaX/4bZZzhYfeaPImfVr+xcYT65c5oBgFDijUhCE/D+C78eaolHIhKRZ04/RwF+v2g==",
+  "upstreamFile": "package/dist/index.mjs",
+  "sha256": "ad4a4b3b7e259fcbf02764454c8f9db4ea3bf5aae2f473198129ecb7728f1a19",
+  "license": "MIT",
+  "modified": false
+}

@@ -17,7 +17,7 @@ function Checked([string]$Program, [string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "$Program failed ($LASTEXITCODE)" }
 }
 Checked 'ssh' @($SshTarget, 'mkdir -p /tmp/listening-sync-release && chmod 700 /tmp/listening-sync-release')
-foreach ($name in @('learning_sync.py', 'backup_sync.py', 'listening-sync.service', 'listening-sync-backup.service', 'listening-sync-backup.timer')) {
+foreach ($name in @('learning_sync.py', 'jiufen_sync.py', 'backup_sync.py', 'listening-sync.service', 'listening-sync-backup.service', 'listening-sync-backup.timer')) {
     Checked 'scp' @((Join-Path $root "server/$name"), "${SshTarget}:/tmp/listening-sync-release/$name")
 }
 Checked 'scp' @($envFile, "${SshTarget}:/tmp/listening-sync-release/sync.env")

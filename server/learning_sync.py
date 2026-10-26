@@ -1,5 +1,6 @@
 """Account-isolated text/state sync. Python 3.10+, standard library only."""
 import hashlib
+import ipaddress
 from contextlib import contextmanager
 import json
 import math
@@ -51,6 +52,9 @@ class Store:
                 CREATE INDEX IF NOT EXISTS records_cursor ON records(owner,version);
                 CREATE TABLE IF NOT EXISTS operations(owner TEXT, operation TEXT, ack TEXT, PRIMARY KEY(owner,operation));
             ''')
+
+        from jiufen_sync import Jiufen
+        self.jiufen = Jiufen(self)
 
     @contextmanager
     def connect(self):
@@ -129,6 +133,16 @@ class Authenticator:
             return None
 
 
+def client_ip(peer, forwarded):
+    """Only the loopback nginx boundary may supply its overwritten client header."""
+    try:
+        if ipaddress.ip_address(peer).is_loopback and forwarded:
+            return str(ipaddress.ip_address(forwarded))
+    except ValueError:
+        pass
+    return peer
+
+
 def make_handler(store, authenticate):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, fmt, *args):
@@ -143,12 +157,71 @@ def make_handler(store, authenticate):
             self.end_headers()
             self.wfile.write(body)
 
+        rate_lock = threading.Lock()
+        rate = {}
+
+        def limited(self, bucket, limit):
+            now = time.time()
+            with self.rate_lock:
+                count, until = self.rate.get(bucket, (0, now + 60))
+                if until <= now:
+                    count, until = 0, now + 60
+                if count >= limit:
+                    return True
+                self.rate[bucket] = (count + 1, until)
+                if len(self.rate) > 10000:
+                    for expired in [k for k,v in self.rate.items() if v[1] <= now]:
+                        del self.rate[expired]
+            return False
+
+        def jiufen_post(self):
+            try:
+                route = self.path.removeprefix('/api/jiufen/')
+                if route not in {'pair/start','pair/status','pair/claim','devices','revoke','exchange'}:
+                    return self.reply(404, {'error':'not found'})
+                ip = client_ip(self.client_address[0], self.headers.get('X-Listening-Client-IP'))
+                if route in {'pair/start','pair/status'} and self.limited(('peer',ip,route),12 if route=='pair/start' else 120):
+                    return self.reply(429, {'error':'too many requests'})
+                size = int(self.headers.get('Content-Length','0'))
+                if not 0<size <= (MAX_BODY if route=='exchange' else 4096):
+                    return self.reply(413, {'error':'invalid request size'})
+                payload=json.loads(self.rfile.read(size))
+                expected={'pair/start':{'sourceOwner','deviceName'},'pair/status':{'pairId','deviceSecret'},'pair/claim':{'userCode'},'devices':set(),'revoke':{'deviceId'},'exchange':{'changes','cursor'}}[route]
+                if not isinstance(payload,dict) or set(payload)!=expected: raise ValueError('invalid request')
+                j=store.jiufen
+                if route=='pair/start': return self.reply(200,j.start(payload['sourceOwner'],payload['deviceName']))
+                if route=='pair/status': return self.reply(200,j.status(payload['pairId'],payload['deviceSecret']))
+                header=self.headers.get('Authorization','')
+                token=header[7:] if header.startswith('Bearer ') else ''
+                if not token or len(token)>16384: return self.reply(401,{'error':'login required'})
+                device=j.device(token) if token.startswith('jfdev_') else None
+                if token.startswith('jfdev_'):
+                    if not device or route not in {'exchange','revoke'} or (route=='revoke' and payload['deviceId']!=device['deviceId']): return self.reply(401,{'error':'invalid device'})
+                    owner=device['owner']
+                else:
+                    owner=authenticate(token)
+                    if not owner: return self.reply(401,{'error':'session expired'})
+                identity = ('device',device['deviceId']) if device else ('account',owner)
+                if self.limited(identity+(route,),12 if route=='pair/claim' else 120):
+                    return self.reply(429,{'error':'too many requests'})
+                if route=='pair/claim': result=j.claim(owner,payload['userCode'])
+                elif route=='devices': result=j.devices(owner)
+                elif route=='revoke': result=j.revoke(owner,payload['deviceId'])
+                else: result=j.exchange(owner,payload['changes'],payload['cursor'],device['sourceOwner'] if device else None,device_id=device['deviceId'] if device else None)
+                return self.reply(200,result)
+            except (ValueError,TypeError,KeyError,RecursionError):
+                return self.reply(400,{'error':'invalid Jiufen data'})
+            except Exception:
+                return self.reply(503,{'error':'sync temporarily unavailable'})
+
         def do_POST(self):
+            if self.path.startswith('/api/jiufen/'):
+                return self.jiufen_post()
             if self.path != '/api/learning-sync':
                 return self.reply(404, {'error': 'not found'})
             header = self.headers.get('Authorization', '')
             token = header[7:] if header.startswith('Bearer ') else ''
-            if not token or len(token) > 16384:
+            if not token or token.startswith('jfdev_') or len(token) > 16384:
                 return self.reply(401, {'error': 'login required'})
             owner = authenticate(token)
             if not owner:

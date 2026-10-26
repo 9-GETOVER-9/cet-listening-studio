@@ -558,6 +558,7 @@ export default function Profile() {
             </button>
             <Separator />
             <AccountSyncPanel />
+            {user && <Button variant="outline" className="mt-4 w-full" onClick={() => navigate('/jiufen')}>九分学长 · 私人复习</Button>}
           </CardContent>
         </Card><Card><CardHeader><CardTitle className="text-base">数据管理</CardTitle></CardHeader><CardContent>            <AlertDialog>
               <div className="flex items-center justify-between py-3">

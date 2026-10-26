@@ -1,3 +1,4 @@
+import { jiufenLoginReturn } from '@/lib/jiufenLogin'
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2, Lock, Mail, ShieldCheck, UserPlus } from 'lucide-react'
@@ -73,7 +74,7 @@ export default function Login() {
       }
 
       toast.success('登录成功')
-      navigate('/')
+      navigate(jiufenLoginReturn(searchParams.get('next')))
     } catch (err) {
       const message = err instanceof Error ? err.message : '登录失败'
       if (message.includes('Invalid login credentials')) {
@@ -121,7 +122,7 @@ export default function Login() {
 
       if (user) {
         toast.success('注册成功，已自动登录')
-        navigate('/')
+        navigate(jiufenLoginReturn(searchParams.get('next')))
         return
       }
 

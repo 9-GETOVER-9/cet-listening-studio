@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMemo } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Layers, MoreHorizontal, Pause, Play, RotateCcw, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Eye, Layers, MoreHorizontal, Pause, Play, RotateCcw, Trash2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import type { CommitCardRatingResult } from '@/db/reviewRepository'
 import { AIPanel } from '@/components/AIPanel'
@@ -480,16 +480,23 @@ export default function CardFlash() {
 
       <div className="flex flex-1 justify-center">
         <div className="w-full max-w-4xl">
+          <div className="mb-3 flex items-center justify-between px-1 text-xs text-[var(--app-muted)]">
+            <span>听力精练</span>
+            <span>{currentIndex + 1} / {cards.length}</span>
+          </div>
+          <div className="mb-4 h-1 overflow-hidden rounded-full bg-[var(--app-paper-2)]" aria-hidden="true">
+            <div className="h-full rounded-full bg-[var(--app-accent)] transition-[width] duration-500 ease-out" style={{ width: `${cards.length ? ((currentIndex + 1) / cards.length) * 100 : 0}%` }} />
+          </div>
           <Card
-            className="min-h-80 w-full select-none shadow-[var(--app-shadow)]"
+            className="min-h-80 w-full select-none overflow-hidden rounded-[1.5rem] border-[var(--app-line)] bg-white shadow-[var(--app-shadow)] transition-shadow duration-300"
             role="region"
             aria-label={isFlipped ? '卡片答案' : '听力题面'}
             style={{ touchAction: 'pan-y pinch-zoom' }}
             {...cardTap.handlers}
           >
-            <CardContent className="p-5 md:p-8">
-              <div className="mb-4 flex items-center justify-between">
-                <Badge variant="outline">{currentIndex + 1} / {cards.length}</Badge>
+            <CardContent className="p-5 md:p-9">
+              <div className="mb-5 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--app-muted)]">{isFlipped ? 'A closer look' : 'Listen & remember'}</span>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline">{currentCard.level}</Badge>
                   {currentCard.isMerged && <Badge variant="secondary">已拼接 ({currentCard.mergedLevel}句)</Badge>}
@@ -510,10 +517,12 @@ export default function CardFlash() {
               </div>
 
               {!isFlipped ? (
-                <div className="flex flex-col items-center py-3">
+                <div key="question" className="practice-face-in flex min-h-[19rem] flex-col items-center justify-center py-5 text-center">
+                  <p className="mb-2 text-sm font-medium text-[var(--app-ink)]">先听一遍，试着复述这句话</p>
+                  <p className="mb-7 text-xs text-[var(--app-muted)]">准备好后再翻看答案</p>
                   <button
                     type="button"
-                    className={`flex h-22 w-22 items-center justify-center rounded-full border-2 bg-white shadow-md transition-all duration-100 active:scale-95 ${playState === 'playing' ? 'border-brand shadow-lg' : 'border-gray-200 hover:border-brand hover:shadow-lg'} ${playState === 'loading' ? 'opacity-70' : ''}`}
+                    className={`flex h-20 w-20 items-center justify-center rounded-full ring-8 ring-[var(--app-paper)] transition-all duration-300 active:scale-95 ${playState === 'playing' ? 'bg-[var(--app-accent)] text-white shadow-[0_10px_35px_rgba(35,78,104,0.3)]' : 'bg-[var(--app-accent)] text-white shadow-[0_8px_25px_rgba(35,78,104,0.2)] hover:scale-105'} ${playState === 'loading' ? 'opacity-70' : ''}`}
                     aria-label={playState === 'loading' ? '正在加载音频' : isPlaying ? '暂停音频' : playState === 'error' ? '重试播放音频' : '播放音频'}
                     aria-pressed={isPlaying}
                     onClick={(event) => handlePlayPause(event)}
@@ -523,20 +532,20 @@ export default function CardFlash() {
                     {playState === 'loading' ? (
                       <RotateCcw className="h-8 w-8 animate-spin text-gray-400" />
                     ) : playState === 'playing' ? (
-                      <Pause className="h-8 w-8 text-brand" aria-hidden="true" />
+                      <Pause className="h-8 w-8" aria-hidden="true" />
                     ) : playState === 'error' ? (
                       <div className="text-xs text-red-500">加载失败</div>
                     ) : (
-                      <Play className="ml-1 h-8 w-8 fill-current text-brand" aria-hidden="true" />
+                      <Play className="ml-1 h-8 w-8 fill-current" aria-hidden="true" />
                     )}
                   </button>
 
-                  <div className="mt-4 flex items-center gap-3" role="group" aria-label="播放速度">
+                  <div className="mt-6 flex items-center gap-1 rounded-full bg-[var(--app-paper)] p-1" role="group" aria-label="播放速度">
                     {SPEED_OPTIONS.map((option) => (
                       <button
                         key={option}
                         type="button"
-                        className={`flex h-11 min-w-[48px] items-center justify-center rounded-lg px-3 text-sm font-medium transition-all duration-100 active:scale-95 ${speed === option ? 'bg-brand text-white shadow-md' : 'border-2 border-gray-200 bg-white text-gray-700 active:bg-gray-50'}`}
+                        className={`flex h-9 min-w-[46px] items-center justify-center rounded-full px-3 text-xs font-medium transition-all duration-200 active:scale-95 ${speed === option ? 'bg-white text-[var(--app-accent)] shadow-sm' : 'text-[var(--app-muted)] hover:text-[var(--app-ink)]'}`}
                         aria-pressed={speed === option}
                         onClick={(event) => {
                           event.stopPropagation()
@@ -556,14 +565,14 @@ export default function CardFlash() {
 
                   <button
                     type="button"
-                    className="mt-6 flex h-12 items-center justify-center rounded-lg border-2 border-gray-200 bg-white px-8 text-base font-medium text-gray-700 shadow-sm transition-all duration-100 active:scale-95 active:bg-gray-50 hover:shadow-md"
+                    className="mt-8 flex h-12 items-center justify-center gap-2 rounded-full bg-[var(--app-accent)] px-7 text-sm font-semibold text-white shadow-[0_8px_22px_rgba(35,78,104,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(35,78,104,0.24)] active:scale-[0.98]"
                     onClick={(event) => {
                       event.stopPropagation()
                       handleFlip()
                     }}
                     style={{ touchAction: 'manipulation' }}
                   >
-                    显示答案
+                    <Eye className="h-4 w-4" aria-hidden="true" />查看答案<ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </button>
 
                   {isPro ? (
@@ -681,9 +690,9 @@ export default function CardFlash() {
                   )}
                 </div>
               ) : (
-                <div className="flex flex-col gap-4">
+                <div key="answer" className="practice-face-in flex flex-col gap-5">
                   <div>
-                    <p className="mb-1 text-xs font-medium text-gray-500">English</p>
+                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--app-muted)]">ENGLISH</p>
                     <AnnotatedSentence
                       text={decodeHtml(currentCard.englishText)}
                       analysis={currentCard.aiAnalysis}
@@ -694,9 +703,9 @@ export default function CardFlash() {
                       }}
                     />
                   </div>
-                  <div className="rounded-lg bg-gray-50 p-3">
-                    <p className="mb-1 text-xs font-medium text-gray-500">中文</p>
-                    <p className="text-sm text-gray-600">{decodeHtml(currentCard.chineseText)}</p>
+                  <div className="rounded-2xl bg-[var(--app-paper)] px-4 py-4 md:px-5">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--app-muted)]">中文释义</p>
+                    <p className="text-[15px] leading-7 text-[var(--app-ink)]">{decodeHtml(currentCard.chineseText)}</p>
                   </div>
                   <details data-interactive className="rounded-xl border border-[var(--app-line)] p-3"><summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-[var(--app-accent)]">查看详细解析</summary><div className="pt-3">
                   <AIPanel

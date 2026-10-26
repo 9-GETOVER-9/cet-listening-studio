@@ -45,14 +45,15 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 /**
  * 激活邀请码（调用 Edge Function）
  */
-export async function activateInviteCode(code: string, userId: string): Promise<{
+export async function activateInviteCode(code: string): Promise<{
   success: boolean
   days?: number
+  lifetime?: boolean
   message?: string
   error?: string
 }> {
   const { data, error } = await supabase.functions.invoke('activate-code', {
-    body: { code, userId },
+    body: { code },
   })
 
   if (error) {

@@ -14,20 +14,15 @@ interface ActivationCode {
   code: string
   type: string
   days: number
+  is_lifetime: boolean
   used: boolean
   used_by: string | null
   used_at: string | null
   created_at: string
 }
 
-function generateCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-  const seg = (n: number) => Array.from({ length: n }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-  return `CET-${seg(4)}-${seg(4)}`
-}
-
 export default function Admin() {
-  const [type, setType] = useState<'monthly' | 'yearly'>('monthly')
+  const [type, setType] = useState<'monthly' | 'yearly' | 'lifetime'>('monthly')
   const [quantity, setQuantity] = useState(1)
   const [generating, setGenerating] = useState(false)
   const [codes, setCodes] = useState<ActivationCode[]>([])
@@ -37,13 +32,12 @@ export default function Admin() {
 
   const loadCodes = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('activation_codes')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(200)
+    const { data, error } = await supabase.functions.invoke('manage-activation-codes', {
+      body: { action: 'list' },
+    })
 
-    if (!error && data) setCodes(data)
+    if (!error && data?.success && Array.isArray(data.codes)) setCodes(data.codes)
+    else if (error || data?.error) toast.error(data?.error || '读取激活码失败')
     setLoading(false)
   }, [])
 
@@ -53,19 +47,14 @@ export default function Admin() {
 
   const handleGenerate = async () => {
     setGenerating(true)
-    const days = 30
-    const rows = Array.from({ length: quantity }, () => ({
-      code: generateCode(),
-      type: 'renewal',
-      days,
-    }))
+    const { data, error } = await supabase.functions.invoke('manage-activation-codes', {
+      body: { action: 'generate', quantity, type },
+    })
 
-    const { error } = await supabase.from('activation_codes').insert(rows)
-
-    if (error) {
-      toast.error('生成失败：' + error.message)
+    if (error || !data?.success) {
+      toast.error('生成失败：' + (data?.error || error?.message || '请稍后重试'))
     } else {
-      toast.success(`✅ 成功生成 ${quantity} 个激活码`)
+      toast.success(`成功生成 ${data.codes?.length ?? quantity} 个激活码`)
       await loadCodes()
     }
     setGenerating(false)
@@ -86,14 +75,13 @@ export default function Admin() {
   }
 
   const handleDeleteUsed = async () => {
-    const { error } = await supabase
-      .from('activation_codes')
-      .delete()
-      .eq('used', true)
-    if (!error) {
+    const { data, error } = await supabase.functions.invoke('manage-activation-codes', {
+      body: { action: 'delete_used' },
+    })
+    if (!error && data?.success) {
       toast.success('已清理已使用的激活码')
       await loadCodes()
-    }
+    } else toast.error(data?.error || '清理失败')
   }
 
   const unusedCount = codes.filter(c => !c.used).length
@@ -146,6 +134,16 @@ export default function Admin() {
                 >
                   年付 · 365天 · ¥49.9
                 </button>
+                <button
+                  onClick={() => setType('lifetime')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    type === 'lifetime'
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  终身 Pro
+                </button>
               </div>
             </div>
 
@@ -173,7 +171,7 @@ export default function Admin() {
               onClick={handleGenerate}
               disabled={generating}
             >
-              {generating ? '生成中...' : `生成 ${quantity} 个${type === 'monthly' ? '月付' : '年付'}激活码`}
+              {generating ? '生成中...' : `生成 ${quantity} 个${type === 'monthly' ? '月付' : type === 'yearly' ? '年付' : '终身'}激活码`}
             </Button>
           </CardContent>
         </Card>
@@ -216,12 +214,14 @@ export default function Admin() {
                       </span>
                       <Badge
                         className={`text-xs ${
-                          code.type === 'yearly'
+                          code.is_lifetime
+                            ? 'bg-amber-900 text-amber-300'
+                            : code.type === 'yearly'
                             ? 'bg-purple-900 text-purple-300'
                             : 'bg-blue-900 text-blue-300'
                         }`}
                       >
-                        {code.type === 'yearly' ? '年付' : '月付'}
+                        {code.is_lifetime ? '终身' : code.type === 'yearly' ? '年付' : '月付'}
                       </Badge>
                       {code.used && (
                         <Badge className="text-xs bg-gray-700 text-gray-400">已用</Badge>

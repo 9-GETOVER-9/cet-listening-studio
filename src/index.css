@@ -139,6 +139,11 @@ html[data-theme='quiet-studio'] {
 /* No exit queue: the new page can render immediately while the shell stays available. */
 @keyframes page-appear { from { opacity: 0.65; } to { opacity: 1; } }
 .page-enter { animation: page-appear 140ms ease-out; }
+@keyframes practice-face-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.practice-face-in { animation: practice-face-enter 220ms cubic-bezier(.2,.75,.25,1) both; }
 
 @media (min-width: 1024px) { .app-main { padding-bottom: 0; } }
 

@@ -228,7 +228,7 @@ export default function Profile() {
 
     setActivating(true)
     try {
-      const result = await activateInviteCode(code, user.id)
+      const result = await activateInviteCode(code)
       if (!result.success) {
         toast.error(result.error || '激活失败')
         return
@@ -521,25 +521,25 @@ export default function Profile() {
               </div>
             )}
 
-            {isGuest && <div className="rounded-xl bg-[var(--app-accent-soft)] p-4"><div className="flex items-center gap-2 text-sm font-semibold"><Gift className="h-4 w-4" aria-hidden="true" />注册领取 2 个月 Pro</div><p className="mt-2 text-sm leading-6 text-[var(--app-muted)]">{isGuestTrial ? '今日 Pro 体验中。' : '当前为访客免费版。'}注册后可同步学习记录，继续使用完整内容。</p><Button className="mt-4 w-full" onClick={() => navigate('/login?mode=register')}>注册领取</Button></div>}
+            {isGuest && <div className="rounded-xl bg-[var(--app-accent-soft)] p-4"><div className="flex items-center gap-2 text-sm font-semibold"><Gift className="h-4 w-4" aria-hidden="true" />注册并激活 Pro</div><p className="mt-2 text-sm leading-6 text-[var(--app-muted)]">{isGuestTrial ? '今日 Pro 体验中。' : '当前为访客免费版。'}注册登录后可同步学习记录，也可在下方兑换邀请码，激活终身 Pro。</p><Button className="mt-4 w-full" onClick={() => navigate('/login?mode=register')}>注册账号</Button></div>}
             {!isGuest && (
               <>
                 <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">续期邀请码</p>
+                  <p className="text-sm font-medium text-gray-700">激活会员邀请码</p>
                   <div className="flex gap-2">
                     <Input
                       className="font-mono text-sm uppercase"
-                      aria-label="续期邀请码"
-                      placeholder="输入邀请码（如 CET-XXXX-XXXX）"
+                      aria-label="会员邀请码"
+                      placeholder="输入会员邀请码"
                       value={activationCode}
                       onChange={(event) => setActivationCode(event.target.value.toUpperCase())}
                       onKeyDown={(event) => event.key === 'Enter' && void handleActivateCode()}
                     />
                     <Button className="shrink-0" disabled={activating} onClick={() => void handleActivateCode()}>
-                      {activating ? '续期中...' : '续期'}
+                      {activating ? '激活中...' : '立即激活'}
                     </Button>
                   </div>
-                  <p className="text-xs text-gray-400">邀请码只用于 Pro 续期，一次延长 30 天。</p>
+                  <p className="text-xs leading-5 text-gray-400">每个邀请码限用一次。终身邀请码激活后，当前账号将永久享有 Pro 权益。</p>
                 </div>
 
               </>

@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase'
-import { REGISTERED_TRIAL_DAYS } from '@/lib/guestTrial'
 import { getLocalDateStr, getYesterdayStr } from '@/lib/utils'
 import { isLifetimeProEmail, resolveMembership } from '@/lib/membershipPolicy'
 import { DEFAULT_SENTENCE_ANNOTATIONS, normalizeSentenceAnnotationSettings, type SentenceAnnotationSettings } from '@/lib/sentenceAnnotations'
@@ -62,8 +61,6 @@ function getTodayStr(): string {
 
 const FREE_MERGE_DAILY = 3
 const CHECKIN_CREDITS = 5
-const NEW_USER_TRIAL_DAYS = REGISTERED_TRIAL_DAYS
-
 type ProfileState = {
   ai_credits: number | null
   last_checkin_date: string | null
@@ -129,11 +126,6 @@ export const useSettingsStore = create<SettingsStore>()(
         let profile = data as ProfileState | null
 
         if (!profile && !error) {
-          const trialStartedAt = emailConfirmed ? new Date() : null
-          const trialExpiresAt = trialStartedAt
-            ? new Date(trialStartedAt.getTime() + NEW_USER_TRIAL_DAYS * 24 * 60 * 60 * 1000)
-            : null
-
           const { data: createdProfile, error: createError } = await supabase
             .from('profiles')
             .insert({
@@ -141,9 +133,9 @@ export const useSettingsStore = create<SettingsStore>()(
               ai_credits: 0,
               last_checkin_date: null,
               consecutive_days: 0,
-              is_pro: Boolean(trialStartedAt),
-              pro_expires_at: trialExpiresAt?.toISOString() ?? null,
-              trial_started_at: trialStartedAt?.toISOString() ?? null,
+              is_pro: false,
+              pro_expires_at: null,
+              trial_started_at: null,
             })
             .select('ai_credits, last_checkin_date, consecutive_days, is_pro, pro_expires_at, trial_started_at')
             .single()
@@ -159,24 +151,12 @@ export const useSettingsStore = create<SettingsStore>()(
         let proExpiresAt = profile.pro_expires_at
 
         if (emailConfirmed && !profile.trial_started_at) {
-          const trialStartedAt = new Date()
-          const trialExpiresAt = new Date(trialStartedAt.getTime() + NEW_USER_TRIAL_DAYS * 24 * 60 * 60 * 1000)
+          const { data: trialData, error: trialError } = await supabase.rpc('start_registered_pro_trial')
 
-          const { data: trialData, error: trialError } = await supabase
-            .from('profiles')
-            .update({
-              trial_started_at: trialStartedAt.toISOString(),
-              is_pro: true,
-              pro_expires_at: trialExpiresAt.toISOString(),
-            })
-            .eq('id', userId)
-            .is('trial_started_at', null)
-            .select('is_pro, pro_expires_at')
-            .maybeSingle()
-
-          if (!trialError && trialData) {
-            isPro = trialData.is_pro ?? true
-            proExpiresAt = trialData.pro_expires_at
+          if (!trialError && trialData && typeof trialData === 'object') {
+            const trialProfile = trialData as Pick<ProfileState, 'is_pro' | 'pro_expires_at'>
+            isPro = trialProfile.is_pro ?? isPro
+            proExpiresAt = trialProfile.pro_expires_at
           }
         }
 

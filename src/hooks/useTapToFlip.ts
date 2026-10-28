@@ -77,10 +77,31 @@ export function useTapToFlip({
         const gesture = gestureRef.current
         gestureRef.current = null
 
-        if (disabled || !gesture) return
-        if (gesture.pointerId !== event.pointerId) return
-        if (gesture.moved || gesture.startedOnInteractive) return
-        if (isInteractiveTarget(event.target) || isSuppressed()) return
+        if (disabled) return
+        // Some child controls stop pointer-down propagation; a bubbling
+        // pointer-up without a matching start must never leave a parent click
+        // free to flip the card.
+        if (!gesture) {
+          suppressTap(POST_TAP_CLICK_GUARD_MS)
+          return
+        }
+        // A touch can begin on the card and end on a control (or vice versa).
+        // Even when this pointer-up must not flip, browsers may still emit a
+        // click targeted at the card. Consume that synthetic click so it cannot
+        // turn a scroll or near-control tap into an accidental flip.
+        if (gesture.pointerId !== event.pointerId) {
+          suppressTap(POST_TAP_CLICK_GUARD_MS)
+          return
+        }
+        if (
+          gesture.moved ||
+          gesture.startedOnInteractive ||
+          isInteractiveTarget(event.target) ||
+          isSuppressed()
+        ) {
+          suppressTap(POST_TAP_CLICK_GUARD_MS)
+          return
+        }
 
         handleTap()
       },

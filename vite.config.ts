@@ -12,6 +12,11 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // 监听所有网络接口，支持 VPN 环境
     port: 5173,
+    proxy: {
+      '/api/ielts/cards': { target: 'https://www.listening.website', changeOrigin: true, secure: true },
+      '/api/cambridge': { target: 'https://www.listening.website', changeOrigin: true, secure: true },
+      '/api/jiufen': { target: 'https://www.listening.website', changeOrigin: true, secure: true },
+    },
   },
   plugins: [
     react(),

@@ -131,8 +131,8 @@ it('renders only pending words with editable reasons and separate wrong-word pra
   expect(markup).toContain('wrongword')
   expect(markup).not.toContain('correctword')
   expect(markup).not.toContain('untestedword')
-  expect(markup).toContain('错词听写')
-  expect(markup).toContain('错词随身听')
+  expect(markup).toContain('到期词听写')
+  expect(markup).toContain('试听到期词')
   for (const label of ['未标注', '发音', '拼错', '两者都有']) expect(markup).toContain(label)
 })
 it('renders a completed empty status without an all-card player when no pending words remain', () => {
@@ -140,7 +140,7 @@ it('renders a completed empty status without an all-card player when no pending 
   const markup = renderToStaticMarkup(createElement(review.IELTSFrequencyReview, {
     cards, progress: [], owner: 'alice', rate: 1, chineseById: new Map(), indexError: '', onReload: () => {}, onStart: () => {},
   }))
-  expect(markup).toContain('当前内容没有待复习错词')
+  expect(markup).toContain('当前内容没有到期词')
   expect(markup).not.toContain('<audio')
   expect(markup).not.toContain('播放随身听')
 })

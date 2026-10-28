@@ -5,6 +5,7 @@ import { FREQUENCY_REASON_LABELS, selectFrequencyCards, type FrequencyProgress, 
 import { resolveFrequencyAnnotation, saveFrequencyAnnotation, type AnnotationSeed, type FrequencyAnnotation } from '@/lib/ieltsAnnotations'
 import { IELTSWordNotes } from '@/components/IELTSWordNotes'
 import type { IELTSCard } from '@/lib/ieltsDictation'
+import type { IELTSReviewProgress } from '@/lib/ieltsReview'
 
 type ReasonFilter = 'all' | keyof typeof FREQUENCY_REASON_LABELS
 const EMPTY_SEEDS = new Map<string, AnnotationSeed>()
@@ -13,6 +14,7 @@ interface Props {
   owner: string
   cards: IELTSCard[]
   progress: FrequencyProgress[]
+  reviewRows?: IELTSReviewProgress[]
   chineseById: Map<string, IELTSCard>
   rate: number
   indexError: string
@@ -24,7 +26,7 @@ interface Props {
   section?: string
   showFocusLink?: boolean
 }
-export function IELTSFrequencyReview({ owner, cards, progress, chineseById, rate, indexError, onReload, onStart, seeds = EMPTY_SEEDS, local = EMPTY_LOCAL, chapter, section = 'all', showFocusLink = true }: Props) {
+export function IELTSFrequencyReview({ owner, cards, progress, reviewRows, chineseById, rate, indexError, onReload, onStart, seeds = EMPTY_SEEDS, local = EMPTY_LOCAL, chapter, section = 'all', showFocusLink = true }: Props) {
   const [filter, setFilter] = useState<ReasonFilter>('all')
   const [walkman, setWalkman] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -35,9 +37,14 @@ export function IELTSFrequencyReview({ owner, cards, progress, chineseById, rate
   const [noteId, setNoteId] = useState('')
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false } }, [])
   const reason: FrequencyReason | 'all' = filter === 'unlabelled' ? null : filter
-  const pending = selectFrequencyCards(cards, progress, 'mistakes')
+  const pending = reviewRows
+    ? cards.filter(card => { const row = reviewRows.find(item => item.itemId === card.id); return !!row && row.fsrs.reps > 0 && row.fsrs.due.getTime() <= Date.now() })
+    : selectFrequencyCards(cards, progress, 'mistakes')
   const resolvedProgress = progress.map(record => ({ ...record, reason: resolveFrequencyAnnotation(record.cardId, seeds, local, record.reason).reason }))
-  const selectedIds = JSON.stringify(selectFrequencyCards(cards, resolvedProgress, 'mistakes', reason).map(card => card.id))
+  const selectedIds = JSON.stringify(pending.filter(card => {
+    const row = resolvedProgress.find(item => item.cardId === card.id)
+    return reason === 'all' || (row?.reason ?? null) === reason
+  }).map(card => card.id))
   // Only membership/audio changes replace the player queue. Label-only updates under
   // the all filter keep the same array so the currently playing word can continue.
   const queue = useMemo(() => {
@@ -58,8 +65,8 @@ export function IELTSFrequencyReview({ owner, cards, progress, chineseById, rate
     finally { savingRef.current = false; if (mountedRef.current) setSaving(false) }
   }
   return <section className="mt-6 border-t border-[var(--app-line)] pt-6" aria-label="高频错词复习">
-    <h3 className="text-lg font-semibold">错词复习 · {pending.length} 词待复习</h3>
-    {!pending.length ? <p role="status" className="mt-4 text-sm text-[var(--app-muted)]">当前内容没有待复习错词。测验答错的词会自动收集到这里；已复测通过的词已移出。</p> : <>
+    <h3 className="text-lg font-semibold">间隔复习 · {pending.length} 词到期</h3>
+    {!pending.length ? <p role="status" className="mt-4 text-sm text-[var(--app-muted)]">当前内容没有到期词。新词和错词会按四档记忆排程进入复习队列。</p> : <>
       <label className="mt-4 block text-sm">按错题原因筛选
         <select aria-label="错词原因筛选" className="mt-2 block w-full border border-[var(--app-line)] bg-[var(--app-surface)] p-3" value={filter}
           onChange={event => { setWalkman(false); setFilter(event.target.value as ReasonFilter) }}>
@@ -70,8 +77,8 @@ export function IELTSFrequencyReview({ owner, cards, progress, chineseById, rate
       <p className="mt-3 text-sm text-[var(--app-muted)]">“发音”表示听辨困难；原因标签不改变系统判定或准确率。</p>
       <div className="my-5 flex flex-wrap gap-3">
         {showFocusLink && <Button asChild variant="outline"><a href={`/word-practice?${new URLSearchParams({ source: 'frequency', chapter: String(chapter || cards[0]?.chapter || 1), section, queue: 'mistakes', mode: 'dictation' })}`}>专注错词练习 · 当前小节全部原因</a></Button>}
-        <Button disabled={!queue.length || saving} onClick={() => { setWalkman(false); onStart(queue) }}>错词听写 · {queue.length} 题</Button>
-        <Button variant="outline" disabled={!queue.length || !!indexError || !chineseById.size} onClick={() => setWalkman(value => !value)}>{walkman ? '收起错词随身听' : '错词随身听'}</Button>
+        <Button disabled={!queue.length || saving} onClick={() => { setWalkman(false); onStart(queue) }}>到期词听写 · {queue.length} 题</Button>
+        <Button variant="outline" disabled={!queue.length || !!indexError || !chineseById.size} onClick={() => setWalkman(value => !value)}>{walkman ? '收起到期词随身听' : '试听到期词'}</Button>
       </div>
       {indexError ? <p role="alert" className="mb-4 text-sm text-red-600">{indexError}<Button variant="ghost" onClick={onReload}>重新加载中文配音</Button></p>
         : !chineseById.size && <p role="status" className="mb-4 text-sm">正在加载中文配音索引…</p>}

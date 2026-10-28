@@ -13,6 +13,7 @@ const NCESelector = lazyWithRecovery(() => import('@/pages/NCESelector'))
 const IELTSDictation = lazyWithRecovery(() => import('@/pages/IELTSDictation'))
 const IELTSHub = lazyWithRecovery(() => import('@/pages/IELTSHub'))
 const IELTSReading = lazyWithRecovery(() => import('@/pages/IELTSReading'))
+const IELTSSentenceCards = lazyWithRecovery(() => import('@/pages/IELTSSentenceCards'))
 const CardFlash = lazyWithRecovery(() => import('@/pages/CardFlash'))
 const ReviewHub = lazyWithRecovery(() => import('@/pages/ReviewHub'))
 const Review = lazyWithRecovery(() => import('@/pages/Review'))
@@ -21,6 +22,7 @@ const Notebook = lazyWithRecovery(() => import('@/pages/Notebook'))
 const WordPractice = lazyWithRecovery(() => import('@/pages/WordPractice'))
 const NCEShadowing = lazyWithRecovery(() => import('@/pages/NCEShadowing'))
 const Jiufen = lazyWithRecovery(() => import('@/pages/Jiufen'))
+const CambridgeListening = lazyWithRecovery(() => import('@/pages/CambridgeListening'))
 const Profile = lazyWithRecovery(() => import('@/pages/Profile'))
 const LearningStats = lazyWithRecovery(() => import('@/pages/LearningStats'))
 const Feedback = lazyWithRecovery(() => import('@/pages/Feedback'))
@@ -53,6 +55,8 @@ export const router = createBrowserRouter([
       { path: 'nce/shadowing/:moduleId', element: <NCEShadowing /> },
       { path: 'ielts', element: <IELTSHub /> },
       { path: 'ielts/listening', element: <IELTSDictation /> },
+      { path: 'ielts/listening-cards', element: <IELTSSentenceCards /> },
+      { path: 'cambridge/listening', element: <CambridgeListening /> },
       { path: 'ielts/reading-538', element: <IELTSReading /> },
       { path: 'card/:moduleId', element: <CardFlash /> },
       { path: 'review', element: <ReviewHub /> },
@@ -62,6 +66,7 @@ export const router = createBrowserRouter([
       { path: 'word-practice', element: <WordPractice /> },
       { path: 'notebook/review/:type', element: <Notebook /> },
       { path: 'jiufen', element: <Jiufen /> },
+      { path: 'jiufen/review', element: <Jiufen /> },
       { path: 'profile', element: <Profile /> },
       { path: 'profile/stats', element: <LearningStats /> },
       { path: 'feedback', element: <Feedback /> },

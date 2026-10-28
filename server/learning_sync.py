@@ -13,7 +13,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-PREFIXES = ('card/', 'notebook/', 'study/', 'listening/', 'notebookReview/', 'frequency/', 'reading/', 'history/', 'setting/', 'parameters/', 'listeningTime/', 'personal/')
+PREFIXES = ('card/', 'notebook/', 'study/', 'listening/', 'notebookReview/', 'frequency/', 'reading/', 'ieltsReview/', 'history/', 'setting/', 'parameters/', 'listeningTime/', 'personal/')
 MAX_BODY = 8 * 1024 * 1024
 
 
@@ -54,7 +54,11 @@ class Store:
             ''')
 
         from jiufen_sync import Jiufen
+        from cambridge_library import CambridgeLibrary
+        from ielts_cards import IeltsSentenceCards
         self.jiufen = Jiufen(self)
+        self.cambridge = CambridgeLibrary(self)
+        self.ielts_cards = IeltsSentenceCards(self)
 
     @contextmanager
     def connect(self):
@@ -176,8 +180,8 @@ def make_handler(store, authenticate):
 
         def jiufen_post(self):
             try:
-                route = self.path.removeprefix('/api/jiufen/')
-                if route not in {'pair/start','pair/status','pair/claim','devices','revoke','exchange'}:
+                route = self.path.split('?', 1)[0].removeprefix('/api/jiufen/')
+                if route not in {'pair/start','pair/status','pair/claim','devices','revoke','exchange','audio-cache/start','audio-cache/status','audio/ticket'}:
                     return self.reply(404, {'error':'not found'})
                 ip = client_ip(self.client_address[0], self.headers.get('X-Listening-Client-IP'))
                 if route in {'pair/start','pair/status'} and self.limited(('peer',ip,route),12 if route=='pair/start' else 120):
@@ -186,7 +190,7 @@ def make_handler(store, authenticate):
                 if not 0<size <= (MAX_BODY if route=='exchange' else 4096):
                     return self.reply(413, {'error':'invalid request size'})
                 payload=json.loads(self.rfile.read(size))
-                expected={'pair/start':{'sourceOwner','deviceName'},'pair/status':{'pairId','deviceSecret'},'pair/claim':{'userCode'},'devices':set(),'revoke':{'deviceId'},'exchange':{'changes','cursor'}}[route]
+                expected={'pair/start':{'sourceOwner','deviceName'},'pair/status':{'pairId','deviceSecret'},'pair/claim':{'userCode'},'devices':set(),'revoke':{'deviceId'},'exchange':{'changes','cursor'},'audio-cache/start':{'sourceOwner'},'audio-cache/status':{'sourceOwner'},'audio/ticket':{'sourceOwner','cardKey'}}[route]
                 if not isinstance(payload,dict) or set(payload)!=expected: raise ValueError('invalid request')
                 j=store.jiufen
                 if route=='pair/start': return self.reply(200,j.start(payload['sourceOwner'],payload['deviceName']))
@@ -207,6 +211,9 @@ def make_handler(store, authenticate):
                 if route=='pair/claim': result=j.claim(owner,payload['userCode'])
                 elif route=='devices': result=j.devices(owner)
                 elif route=='revoke': result=j.revoke(owner,payload['deviceId'])
+                elif route=='audio-cache/start': result=j.audio.enqueue_source(owner,payload['sourceOwner'],retry_failed=True)
+                elif route=='audio-cache/status': result=j.audio.summary(owner,payload['sourceOwner'])
+                elif route=='audio/ticket': result=j.audio.card_ticket(owner,payload['sourceOwner'],payload['cardKey'])
                 else: result=j.exchange(owner,payload['changes'],payload['cursor'],device['sourceOwner'] if device else None,device_id=device['deviceId'] if device else None)
                 return self.reply(200,result)
             except (ValueError,TypeError,KeyError,RecursionError):
@@ -214,9 +221,217 @@ def make_handler(store, authenticate):
             except Exception:
                 return self.reply(503,{'error':'sync temporarily unavailable'})
 
+        def jiufen_media(self, method):
+            try:
+                result = store.jiufen.audio.serve(self.path, method, self.headers.get('Range'))
+            except Exception:
+                result = None
+            if not result:
+                self.send_response(404)
+                self.send_header('Cache-Control', 'private, no-store')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return
+            self.send_response(result['status'])
+            self.send_header('Content-Type', result['mime'] or 'audio/mpeg')
+            self.send_header('Accept-Ranges', 'bytes')
+            self.send_header('Cache-Control', 'private, no-store')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Content-Disposition', 'inline')
+            self.send_header('Content-Length', str(result['size']))
+            if result['status'] == 206:
+                self.send_header('Content-Range', f"bytes {result['start']}-{result['end']}/{result['total']}")
+            elif result['status'] == 416:
+                self.send_header('Content-Range', f"bytes */{result['total']}")
+            self.end_headers()
+            if method == 'HEAD' or result['status'] == 416:
+                return
+            try:
+                with open(result['path'], 'rb') as media:
+                    media.seek(result['start'])
+                    remaining = result['size']
+                    while remaining:
+                        block = media.read(min(64 * 1024, remaining))
+                        if not block:
+                            break
+                        self.wfile.write(block)
+                        remaining -= len(block)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+        def cambridge_post(self):
+            try:
+                route = self.path.split('?', 1)[0].removeprefix('/api/cambridge/')
+                expected = {'claim': {'code'}, 'catalog': set(), 'ticket': {'trackId'}}
+                if route not in expected:
+                    return self.reply(404, {'error': 'not found'})
+                ip = client_ip(self.client_address[0], self.headers.get('X-Listening-Client-IP'))
+                size = int(self.headers.get('Content-Length', '0'))
+                if not 0 < size <= 4096:
+                    return self.reply(413, {'error': 'invalid request size'})
+                payload = json.loads(self.rfile.read(size))
+                if not isinstance(payload, dict) or set(payload) != expected[route]:
+                    raise ValueError('invalid request')
+                header = self.headers.get('Authorization', '')
+                token = header[7:] if header.startswith('Bearer ') else ''
+                if not token or token.startswith('jfdev_') or len(token) > 16384:
+                    return self.reply(401, {'error': 'login required'})
+                owner = authenticate(token)
+                if not owner:
+                    return self.reply(401, {'error': 'session expired'})
+                limit = 12 if route == 'claim' else 120
+                if self.limited(('account', owner, 'cambridge', route), limit) or (route == 'claim' and self.limited(('peer', ip, 'cambridge-claim'), 20)):
+                    return self.reply(429, {'error': 'too many requests'})
+                if route == 'claim':
+                    result = store.cambridge.claim(owner, payload['code'])
+                elif route == 'catalog':
+                    result = store.cambridge.catalog(owner)
+                else:
+                    result = store.cambridge.ticket(owner, payload['trackId'])
+                return self.reply(200, result)
+            except PermissionError:
+                return self.reply(403, {'error': 'library not paired'})
+            except (ValueError, TypeError, KeyError, RecursionError):
+                return self.reply(400, {'error': 'invalid Cambridge library request'})
+            except Exception:
+                return self.reply(503, {'error': 'Cambridge library temporarily unavailable'})
+
+        def ielts_cards_post(self):
+            try:
+                route = self.path.split('?', 1)[0].removeprefix('/api/ielts/cards/')
+                expected = {'catalog': set(), 'ticket': {'articleId'}}
+                if route not in expected:
+                    return self.reply(404, {'error': 'not found'})
+                size = int(self.headers.get('Content-Length', '0'))
+                if not 0 < size <= 4096:
+                    return self.reply(413, {'error': 'invalid request size'})
+                payload = json.loads(self.rfile.read(size))
+                if not isinstance(payload, dict) or set(payload) != expected[route]:
+                    raise ValueError('invalid request')
+                header = self.headers.get('Authorization', '')
+                token = header[7:] if header.startswith('Bearer ') else ''
+                if not token or token.startswith('jfdev_') or len(token) > 16384:
+                    return self.reply(401, {'error': 'login required'})
+                owner = authenticate(token)
+                if not owner:
+                    return self.reply(401, {'error': 'session expired'})
+                if self.limited(('account', owner, 'ielts-cards', route), 120):
+                    return self.reply(429, {'error': 'too many requests'})
+                if route == 'catalog':
+                    result = store.ielts_cards.catalog(owner)
+                else:
+                    result = store.ielts_cards.ticket(owner, payload['articleId'])
+                return self.reply(200, result)
+            except PermissionError:
+                return self.reply(401, {'error': 'login required'})
+            except (ValueError, TypeError, KeyError, RecursionError):
+                return self.reply(400, {'error': 'invalid IELTS sentence-card request'})
+            except Exception:
+                return self.reply(503, {'error': 'IELTS sentence-card library temporarily unavailable'})
+
+        def cambridge_media(self, method):
+            try:
+                result = store.cambridge.serve(self.path, method, self.headers.get('Range'))
+            except Exception:
+                result = None
+            if not result:
+                self.send_response(404)
+                self.send_header('Cache-Control', 'private, no-store')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return
+            self.send_response(result['status'])
+            self.send_header('Content-Type', result.get('mime') or 'audio/mpeg')
+            self.send_header('Accept-Ranges', 'bytes')
+            self.send_header('Cache-Control', 'private, no-store')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Content-Disposition', 'inline')
+            self.send_header('Content-Length', str(result['size']))
+            if result['status'] == 206:
+                self.send_header('Content-Range', f"bytes {result['start']}-{result['end']}/{result['total']}")
+            elif result['status'] == 416:
+                self.send_header('Content-Range', f"bytes */{result['total']}")
+            self.end_headers()
+            if method == 'HEAD' or result['status'] == 416:
+                return
+            try:
+                with open(result['path'], 'rb') as media:
+                    media.seek(result['start'])
+                    remaining = result['size']
+                    while remaining:
+                        block = media.read(min(64 * 1024, remaining))
+                        if not block:
+                            break
+                        self.wfile.write(block)
+                        remaining -= len(block)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+        def ielts_cards_media(self, method):
+            try:
+                result = store.ielts_cards.serve(self.path, method, self.headers.get('Range'))
+            except Exception:
+                result = None
+            if not result:
+                self.send_response(404)
+                self.send_header('Cache-Control', 'private, no-store')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return
+            self.send_response(result['status'])
+            self.send_header('Content-Type', result.get('mime') or 'audio/mpeg')
+            self.send_header('Accept-Ranges', 'bytes')
+            self.send_header('Cache-Control', 'private, no-store')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Content-Disposition', 'inline')
+            self.send_header('Content-Length', str(result['size']))
+            if result['status'] == 206:
+                self.send_header('Content-Range', f"bytes {result['start']}-{result['end']}/{result['total']}")
+            elif result['status'] == 416:
+                self.send_header('Content-Range', f"bytes */{result['total']}")
+            self.end_headers()
+            if method == 'HEAD' or result['status'] == 416:
+                return
+            try:
+                with open(result['path'], 'rb') as media:
+                    media.seek(result['start'])
+                    remaining = result['size']
+                    while remaining:
+                        block = media.read(min(64 * 1024, remaining))
+                        if not block:
+                            break
+                        self.wfile.write(block)
+                        remaining -= len(block)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+        def do_GET(self):
+            if self.path.startswith('/api/ielts/cards/media/'):
+                return self.ielts_cards_media('GET')
+            if self.path.startswith('/api/jiufen/media/'):
+                return self.jiufen_media('GET')
+            if self.path.startswith('/api/cambridge/media/'):
+                return self.cambridge_media('GET')
+            return self.reply(404, {'error':'not found'})
+
+        def do_HEAD(self):
+            if self.path.startswith('/api/ielts/cards/media/'):
+                return self.ielts_cards_media('HEAD')
+            if self.path.startswith('/api/jiufen/media/'):
+                return self.jiufen_media('HEAD')
+            if self.path.startswith('/api/cambridge/media/'):
+                return self.cambridge_media('HEAD')
+            self.send_response(404)
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+
         def do_POST(self):
+            if self.path.startswith('/api/ielts/cards/'):
+                return self.ielts_cards_post()
             if self.path.startswith('/api/jiufen/'):
                 return self.jiufen_post()
+            if self.path.startswith('/api/cambridge/'):
+                return self.cambridge_post()
             if self.path != '/api/learning-sync':
                 return self.reply(404, {'error': 'not found'})
             header = self.headers.get('Authorization', '')

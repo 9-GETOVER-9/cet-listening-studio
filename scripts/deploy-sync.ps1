@@ -17,8 +17,23 @@ function Checked([string]$Program, [string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "$Program failed ($LASTEXITCODE)" }
 }
 Checked 'ssh' @($SshTarget, 'mkdir -p /tmp/listening-sync-release && chmod 700 /tmp/listening-sync-release')
-foreach ($name in @('learning_sync.py', 'jiufen_sync.py', 'backup_sync.py', 'listening-sync.service', 'listening-sync-backup.service', 'listening-sync-backup.timer')) {
+foreach ($name in @('learning_sync.py', 'jiufen_sync.py', 'jiufen_audio_cache.py', 'cambridge_library.py', 'ielts_cards.py', 'backup_sync.py', 'listening-sync.service', 'listening-sync-backup.service', 'listening-sync-backup.timer')) {
     Checked 'scp' @((Join-Path $root "server/$name"), "${SshTarget}:/tmp/listening-sync-release/$name")
+}
+$ieltsManifest = Join-Path $root 'output/ielts-cards-private/manifest.json'
+$ieltsAudioArchive = Join-Path $root 'output/ielts-cards-private/audio.tar'
+if (Test-Path -LiteralPath $ieltsManifest -PathType Leaf) {
+    Checked 'scp' @($ieltsManifest, "${SshTarget}:/tmp/listening-sync-release/ielts-cards-manifest.json")
+    if (Test-Path -LiteralPath $ieltsAudioArchive -PathType Leaf) {
+        Checked 'scp' @($ieltsAudioArchive, "${SshTarget}:/tmp/listening-sync-release/ielts-cards-audio.tar")
+        $localArchiveHash = (Get-FileHash -LiteralPath $ieltsAudioArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+        $remoteArchiveOutput = & ssh $SshTarget 'sha256sum /tmp/listening-sync-release/ielts-cards-audio.tar'
+        if ($LASTEXITCODE -ne 0) { throw 'Could not verify uploaded IELTS audio archive' }
+        $remoteArchiveHash = ($remoteArchiveOutput -split '\s+')[0].ToLowerInvariant()
+        if ($remoteArchiveHash -ne $localArchiveHash) { throw 'IELTS audio archive checksum mismatch' }
+    } else {
+        Checked 'ssh' @($SshTarget, 'rm -f -- /tmp/listening-sync-release/ielts-cards-audio.tar')
+    }
 }
 Checked 'scp' @($envFile, "${SshTarget}:/tmp/listening-sync-release/sync.env")
 Checked 'scp' @((Join-Path $PSScriptRoot 'install-sync.sh'), "${SshTarget}:/tmp/listening-sync-release/install-sync.sh")

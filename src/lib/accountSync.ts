@@ -177,7 +177,7 @@ export function startAccountSync(): () => void {
 }
 
 export async function saveLearningResume(owner: string, path: string, label = '继续上次学习') {
-  if (owner !== activeOwner || !/^\/(card|nce\/shadowing|word-practice|ielts\/reading-538|ielts\/listening)(\/|\?|$)/.test(path)) return
+  if (owner !== activeOwner || !/^\/(card|nce\/shadowing|word-practice|ielts\/reading-538|ielts\/listening|ielts\/listening-cards|cambridge\/listening)(\/|\?|$)/.test(path)) return
   await db.settings.put({ key: `cloud-resume:${owner}`, value: { path, label, updatedAt: Date.now() } })
 }
 

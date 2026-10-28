@@ -6,6 +6,7 @@ import { finiteNumber, record, validText, type ReadingCard, type ReadingQuestion
 
 export interface ReadingProgress { owner: string; cardId: string; fsrs: FSRSState; covered: string[]; updatedAt: number }
 export interface ReadingAnnotation { owner: string; cardId: string; note: string; marked: string[]; updatedAt?: number }
+export interface ReadingArchivedCard { owner: string; cardId: string; archived: boolean; updatedAt: number }
 export type ReadingMode = 'quiz' | 'recall' | 'retry'
 export interface ReadingSession {
   owner: string; id: string; mode: ReadingMode; cardIds: string[]; cursor: number; selected: string[]
@@ -15,15 +16,17 @@ export interface ReadingLog {
   owner: string; operationId: string; cardId: string; mode: ReadingMode; rating: Rating
   selected: string[]; shown: string[]; missed: string[]; extra: string[]; passed: boolean; reviewedAt: number; question?: ReadingQuestion
 }
-export interface ReadingSnapshot { progress: ReadingProgress[]; annotations: ReadingAnnotation[]; logs: ReadingLog[]; session?: ReadingSession }
+export interface ReadingSnapshot { progress: ReadingProgress[]; annotations: ReadingAnnotation[]; logs: ReadingLog[]; archivedCards?: ReadingArchivedCard[]; session?: ReadingSession }
 class ReadingDB extends Dexie {
   progress!: Table<ReadingProgress, [string, string]>
   annotations!: Table<ReadingAnnotation, [string, string]>
+  archivedCards!: Table<ReadingArchivedCard, [string, string]>
   logs!: Table<ReadingLog, [string, string]>
   sessions!: Table<ReadingSession, string>
   constructor() {
     super('ielts-reading-538')
     this.version(1).stores({ progress: '[owner+cardId], owner', annotations: '[owner+cardId], owner', logs: '[owner+operationId], owner', sessions: 'owner' })
+    this.version(2).stores({ progress: '[owner+cardId], owner', annotations: '[owner+cardId], owner', logs: '[owner+operationId], owner', sessions: 'owner', archivedCards: '[owner+cardId], owner' })
   }
 }
 export const readingDB = new ReadingDB()
@@ -54,11 +57,25 @@ function validateQuestion(raw: unknown, card?: ReadingCard, expressions?: Readon
 function sameSet(a: readonly string[], b: readonly string[]) { return [...a].sort().join('|') === [...b].sort().join('|') }
 export async function readReadingSnapshot(owner: string): Promise<ReadingSnapshot> {
   validText(owner)
-  return readingDB.transaction('r', readingDB.progress, readingDB.annotations, readingDB.logs, readingDB.sessions, async () => ({
+  return readingDB.transaction('r', [readingDB.progress, readingDB.annotations, readingDB.logs, readingDB.sessions, readingDB.archivedCards], async () => ({
     progress: await readingDB.progress.where('owner').equals(owner).toArray(),
     annotations: await readingDB.annotations.where('owner').equals(owner).toArray(),
-    logs: await readingDB.logs.where('owner').equals(owner).toArray(), session: await readingDB.sessions.get(owner),
+    logs: await readingDB.logs.where('owner').equals(owner).toArray(),
+    archivedCards: await readingDB.archivedCards.where('owner').equals(owner).toArray(),
+    session: await readingDB.sessions.get(owner),
   }))
+}
+export async function archiveReadingCard(owner: string, cardId: string): Promise<void> {
+  validText(owner); validText(cardId)
+  const updatedAt = Date.now()
+  await readingDB.transaction('rw', readingDB.archivedCards, readingDB.sessions, async () => {
+    await readingDB.archivedCards.put({ owner, cardId, archived: true, updatedAt })
+    await readingDB.sessions.delete(owner)
+  })
+}
+export async function restoreReadingCard(owner: string, cardId: string): Promise<void> {
+  validText(owner); validText(cardId)
+  await readingDB.archivedCards.put({ owner, cardId, archived: false, updatedAt: Date.now() })
 }
 export async function saveReadingAnnotation(owner: string, card: ReadingCard, patch: { note?: string; marked?: string[] }): Promise<void> {
   validText(owner); validText(card.id)
@@ -121,13 +138,13 @@ function validateSession(raw: unknown, cards?: ReadonlyMap<string, ReadingCard>)
   }
   return { owner: s.owner, id: s.id, mode: s.mode as ReadingMode, cardIds, cursor: s.cursor as number, selected, revealed: s.revealed, graded: s.graded, completed: s.completed as number, correct: s.correct as number, createdAt: s.createdAt as number, ...(question ? { question } : {}) }
 }
-export interface ReadingBackup extends ReadingSnapshot { format: 'ielts-reading-538-backup-v1'; exportedAt: string }
+export interface ReadingBackup extends ReadingSnapshot { format: 'ielts-reading-538-backup-v2'; exportedAt: string }
 export async function exportReadingBackup(owner: string): Promise<ReadingBackup> {
-  return { format: 'ielts-reading-538-backup-v1', exportedAt: new Date().toISOString(), ...await readReadingSnapshot(owner) }
+  return { format: 'ielts-reading-538-backup-v2', exportedAt: new Date().toISOString(), ...await readReadingSnapshot(owner) }
 }
 export async function restoreReadingBackup(owner: string, value: unknown, cards: readonly ReadingCard[]): Promise<void> {
   validText(owner); const input = record(value)
-  if (input.format !== 'ielts-reading-538-backup-v1') throw new Error('不是阅读 538 学习备份')
+  if (!['ielts-reading-538-backup-v1', 'ielts-reading-538-backup-v2'].includes(input.format as string)) throw new Error('不是阅读 538 学习备份')
   validDate(input.exportedAt)
   const byId = new Map(cards.map(c => [c.id, c]))
   const allExpressions = new Map(cards.flatMap(c => c.expressions).map(e => [e.id, e.text]))
@@ -147,6 +164,11 @@ export async function restoreReadingBackup(owner: string, value: unknown, cards:
     if (typeof r.note !== 'string' || r.note.length > 10000) throw new Error('备份笔记无效')
     return { owner, cardId: c.id, note: r.note, marked: expressionIds(r.marked, c) }
   })
+  const archivedCards = input.archivedCards === undefined ? [] : parseRows(input.archivedCards, (r, c): ReadingArchivedCard => {
+    if (typeof r.archived !== 'boolean') throw new Error('备份卡片状态无效')
+    finiteNumber(r.updatedAt, true)
+    return { owner, cardId: c.id, archived: r.archived, updatedAt: r.updatedAt }
+  })
   const logs = parseRows(input.logs, (r, c): ReadingLog => {
     validText(r.operationId); finiteNumber(r.reviewedAt, true)
     if (!['quiz', 'recall', 'retry'].includes(r.mode as string) || ![1, 2, 3, 4].includes(r.rating as number) || typeof r.passed !== 'boolean' || r.passed === (r.rating === Rating.Again)) throw new Error('备份日志无效')
@@ -159,14 +181,15 @@ export async function restoreReadingBackup(owner: string, value: unknown, cards:
     }
     return { owner, cardId: c.id, operationId: r.operationId, mode: r.mode as ReadingMode, rating: r.rating as Rating, selected, shown, missed, extra, passed: r.passed, reviewedAt: r.reviewedAt, ...(question ? { question } : {}) }
   })
-  for (const [rows, key] of [[progress, 'cardId'], [annotations, 'cardId'], [logs, 'operationId']] as const) {
+  for (const [rows, key] of [[progress, 'cardId'], [annotations, 'cardId'], [logs, 'operationId'], [archivedCards, 'cardId']] as const) {
     const ids = rows.map(row => key === 'operationId' ? (row as ReadingLog).operationId : row.cardId)
     if (new Set(ids).size !== ids.length) throw new Error('备份记录重复')
   }
   const session = input.session === undefined ? undefined : { ...validateSession(input.session, byId), owner }
-  await readingDB.transaction('rw', readingDB.progress, readingDB.annotations, readingDB.logs, readingDB.sessions, async () => {
-    await readingDB.progress.where('owner').equals(owner).delete(); await readingDB.annotations.where('owner').equals(owner).delete(); await readingDB.logs.where('owner').equals(owner).delete(); await readingDB.sessions.delete(owner)
+  await readingDB.transaction('rw', [readingDB.progress, readingDB.annotations, readingDB.logs, readingDB.sessions, readingDB.archivedCards], async () => {
+    await readingDB.progress.where('owner').equals(owner).delete(); await readingDB.annotations.where('owner').equals(owner).delete(); await readingDB.logs.where('owner').equals(owner).delete(); await readingDB.archivedCards.where('owner').equals(owner).delete(); await readingDB.sessions.delete(owner)
     await readingDB.progress.bulkPut(progress); await readingDB.annotations.bulkPut(annotations); await readingDB.logs.bulkPut(logs)
+    await readingDB.archivedCards.bulkPut(archivedCards)
     if (session) await readingDB.sessions.put(session)
   })
 }

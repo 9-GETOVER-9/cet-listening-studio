@@ -3,6 +3,7 @@ import hashlib
 import json
 import secrets
 import time
+from jiufen_audio_cache import JiufenAudioCache
 from urllib.parse import quote, unquote
 
 CONTENT_FIELDS = {'key','title','type','unordered','source','rightAnswer','options','sentences','clip','audioUrl','manualClip','imageUrl'}
@@ -38,6 +39,7 @@ class Jiufen:
             CREATE TABLE IF NOT EXISTS jiufen_records(owner TEXT,key TEXT,value TEXT,version INTEGER,modified_at REAL,PRIMARY KEY(owner,key));
             CREATE INDEX IF NOT EXISTS jiufen_cursor ON jiufen_records(owner,version);
             CREATE TABLE IF NOT EXISTS jiufen_operations(owner TEXT,operation TEXT,ack TEXT,PRIMARY KEY(owner,operation));''')
+        self.audio = JiufenAudioCache(store)
     def start(self, source, name):
         bounded(source,200); bounded(name,100)
         pair=secrets.token_urlsafe(24); secret=secrets.token_urlsafe(32); code=secrets.token_hex(5).upper(); expires=time.time()+600
@@ -88,6 +90,7 @@ class Jiufen:
         # Reuse wire validation without widening the original sync key allowlist.
         validate_changes([dict(v,key='card/'+str(i)) for i,v in enumerate(changes)])
         if type(cursor) is not int or cursor<0: raise ValueError('invalid cursor')
+        refresh_sources=set()
         with self.store.connect() as c:
             c.execute('BEGIN IMMEDIATE')
             if device_id is not None and not c.execute('SELECT 1 FROM jiufen_devices WHERE id=? AND owner=? AND source=? AND revoked=0',(device_id,owner,source)).fetchone(): raise ValueError('device revoked')
@@ -98,6 +101,8 @@ class Jiufen:
                 key=change['key']; src,kind=key_parts(key)
                 if len(key)>2000 or key in seen or src not in allowed or (source is not None and src!=source): raise ValueError('forbidden key')
                 seen.add(key); value=change['value']
+                if kind in {'content','deleted'}:
+                    refresh_sources.add(src)
                 if value is not None:
                     if not isinstance(value,dict): raise ValueError('invalid record')
                     reject_credentials(value)
@@ -124,4 +129,7 @@ class Jiufen:
             rows=c.execute('SELECT key,value,version,modified_at FROM jiufen_records WHERE owner=? AND version>? ORDER BY version LIMIT 1001',(owner,cursor)).fetchall()
             more=len(rows)>1000; rows=rows[:1000]
             visible=[self.store.record(r) for r in rows if key_parts(r[0])[0] in allowed and (source is None or key_parts(r[0])[0]==source)]
-            return dict(acks=acks,records=visible,cursor=rows[-1][2] if rows else cursor,more=more)
+            result=dict(acks=acks,records=visible,cursor=rows[-1][2] if rows else cursor,more=more)
+        for changed_source in refresh_sources:
+            self.audio.enqueue_changed_source(owner,changed_source)
+        return result

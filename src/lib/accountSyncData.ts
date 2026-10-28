@@ -5,6 +5,7 @@ import { readingDB } from './ieltsReadingStore'
 import { historyDB } from './ieltsHistory'
 import { listeningTimeDB } from './listeningTime'
 import { personalDB } from './ieltsPersonal'
+import { ieltsReviewDB } from './ieltsReview'
 import { createInitialFSRSState } from './fsrsScheduler'
 import { normalizeFSRSState } from './fsrsState'
 import { deserialize, serialize, sameValue } from './accountSyncProtocol'
@@ -16,7 +17,10 @@ const sources = [
   source('frequency/progress', frequencyDB.progress), source('frequency/receipts', frequencyDB.receipts),
   source('frequency/annotations', frequencyDB.annotations), source('frequency/practice', frequencyDB.practiceState),
   source('reading/progress', readingDB.progress), source('reading/annotations', readingDB.annotations),
+  source('reading/archived', readingDB.archivedCards),
   source('reading/logs', readingDB.logs), source('reading/sessions', readingDB.sessions),
+  source('ieltsReview/progress', ieltsReviewDB.progress), source('ieltsReview/logs', ieltsReviewDB.logs),
+  source('ieltsReview/sessions', ieltsReviewDB.sessions),
   source('history', historyDB.rounds), source('listeningTime', listeningTimeDB.slices),
   source('personal', personalDB.words), source('notebook', db.notebook, false),
   source('notebookReview', db.notebookReviews, false), source('study', db.studyLog, false),

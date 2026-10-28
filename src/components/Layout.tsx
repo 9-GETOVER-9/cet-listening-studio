@@ -20,18 +20,19 @@ export function Layout() {
   const location = useLocation()
   const owner = useAccountSyncStatus(s => s.owner)
   const practice = isPracticePath(location.pathname)
+  const focusedJiufenReview = location.pathname === '/jiufen/review'
   const mobileItems = NAV_ITEMS.filter((item) => item.mobile)
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0 })
   }, [location.pathname])
   // These exercises save their current sentence; their original URL may point to an older target.
-  useEffect(() => { if (!/^\/(card|nce\/shadowing)\//.test(location.pathname)) void saveLearningResume(owner, location.pathname + location.search) }, [owner, location.pathname, location.search])
+  useEffect(() => { if (!/^\/(card|nce\/shadowing)\//.test(location.pathname) && !location.pathname.startsWith('/jiufen')) void saveLearningResume(owner, location.pathname + location.search) }, [owner, location.pathname, location.search])
 
   return (
-    <div className="app-shell min-h-dvh bg-[var(--app-paper)] text-[var(--app-ink)] lg:grid lg:grid-cols-[224px_minmax(0,1fr)]">
+    <div className={cn('app-shell min-h-dvh bg-[var(--app-paper)] text-[var(--app-ink)]', !focusedJiufenReview && 'lg:grid lg:grid-cols-[224px_minmax(0,1fr)]')}>
       <a href="#content" className="fixed left-4 top-[-5rem] z-[100] bg-[var(--app-ink)] px-4 py-2 text-sm text-white focus:top-4">跳到主要内容</a>
-      <aside className="sticky top-0 hidden h-dvh flex-col border-r border-[var(--app-line)] bg-[var(--app-surface)] px-5 py-8 lg:flex">
+      {!focusedJiufenReview && <aside className="sticky top-0 hidden h-dvh flex-col border-r border-[var(--app-line)] bg-[var(--app-surface)] px-5 py-8 lg:flex">
         <NavLink to="/" className="mb-11 flex items-center gap-3" aria-label="Listening Studio 首页">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--app-accent)] font-serif text-sm font-bold text-white">LS</span>
           <span><strong className="block whitespace-nowrap font-serif text-sm leading-tight">Listening Studio</strong><small className="block text-[10px] uppercase tracking-[.16em] text-[var(--app-muted)]">Quiet Edition</small></span>
@@ -47,9 +48,9 @@ export function Layout() {
           <AccountSyncStatus compact />
           <p className="mt-3 font-serif text-sm text-[var(--app-ink)]">今天，也听清一个细节。</p>
         </div>
-      </aside>
+      </aside>}
       <main id="content" className={cn("app-main min-w-0", practice && "practice-main")}>
-        <div className="border-b border-[var(--app-line)] bg-[var(--app-surface)] px-4 py-3 text-[var(--app-muted)] lg:hidden"><AccountSyncStatus compact /></div>
+        {!practice && <div className="border-b border-[var(--app-line)] bg-[var(--app-surface)] px-4 py-3 text-[var(--app-muted)] lg:hidden"><AccountSyncStatus compact /></div>}
         <Suspense key={location.pathname} fallback={<PageLoading />}>
           <div className="page-enter"><Outlet /></div>
         </Suspense>

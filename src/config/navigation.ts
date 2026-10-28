@@ -10,10 +10,10 @@ export const NAV_ITEMS = [
 
 export function isNavigationActive(to: string, pathname: string) {
   if (to === '/') return pathname === '/'
-  if (to === '/courses') return /^\/(courses|cet|nce|ielts|walkman|card)(\/|$)/.test(pathname)
+  if (to === '/courses') return /^\/(courses|cet|nce|ielts|walkman|card|cambridge)(\/|$)/.test(pathname)
   return pathname === to || pathname.startsWith(`${to}/`)
 }
 
 export function isPracticePath(pathname: string) {
-  return /^\/(card\/|nce\/shadowing\/|word-practice(?:\/|$)|notebook\/review\/)/.test(pathname)
+  return /^\/(card\/|nce\/shadowing\/|word-practice(?:\/|$)|notebook\/review\/|jiufen\/review(?:\/|$)|cambridge\/listening(?:\/|$)|ielts\/listening-cards(?:\/|$))/.test(pathname)
 }

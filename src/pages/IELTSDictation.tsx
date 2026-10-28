@@ -18,13 +18,27 @@ import { AudioTimeTracker, getListeningOwner } from '@/lib/audioTimeTracker'
 import { createIELTSHistorySession, saveIELTSHistory, type IELTSHistorySession } from '@/lib/ieltsHistory'
 import { checkSpelling, summarizeResults, type IELTSCard, type IELTSCorpus, type IELTSBook } from '@/lib/ieltsDictation'
 import { emptyFrequencyRetry, frequencyRetryReducer, parseFrequencyShortcut } from '@/lib/ieltsFrequencyRetry'
-import { FREQUENCY_REASON_LABELS, saveFrequencyOutcome, selectFrequencyCards, selectFrequencyTestCards, summarizeFrequencyChapters, type FrequencyReason } from '@/lib/ieltsFrequencyProgress'
+import { FREQUENCY_REASON_LABELS, saveFrequencyOutcome, summarizeFrequencyChapters, type FrequencyReason } from '@/lib/ieltsFrequencyProgress'
 import { resolveFrequencyAnnotation, saveFrequencyAnnotation } from '@/lib/ieltsAnnotations'
 import { readDictationSession, saveDictationSession, type SavedDictationSession } from '@/lib/ieltsSession'
 import { saveLearningResume } from '@/lib/accountSync'
+import { Rating } from '@/types'
+import { createInitialFSRSState } from '@/lib/fsrsScheduler'
+import { listIELTSReviewProgress, migrateLegacyFrequencyProgress, previewIELTSReview, readIELTSReviewSession, recordIELTSReview, saveIELTSReviewSession, summarizeIELTSReviews, type IELTSReviewModule, type IELTSReviewProgress } from '@/lib/ieltsReview'
 
 const CHAPTERS = [3, 4, 5, 8, 11]
+const FREQUENCY_CHAPTERS = [1, 2, 3, 4, 5, 6, 7, 8]
+const REVIEW_RATINGS: Array<{ rating: Rating; label: string }> = [
+  { rating: Rating.Again, label: '重来' }, { rating: Rating.Hard, label: '困难' },
+  { rating: Rating.Good, label: '良好' }, { rating: Rating.Easy, label: '简单' },
+]
 const panel = 'quiet-surface p-5 md:p-8'
+function formatIELTSInterval(due: Date) {
+  const minutes = Math.max(1, Math.ceil((due.getTime() - Date.now()) / 60_000))
+  if (minutes < 60) return `${minutes} 分钟`
+  const hours = Math.ceil(minutes / 60)
+  return hours < 24 ? `${hours} 小时` : `${Math.ceil(hours / 24)} 天`
+}
 
 export default function IELTSDictation() {
   const { user, loading: authLoading } = useAuth()
@@ -52,6 +66,9 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
   const [questionReason, setQuestionReason] = useState<FrequencyReason | undefined>(undefined)
   const [questionSaving, setQuestionSaving] = useState(false)
   const [questionSaveError, setQuestionSaveError] = useState('')
+  const [reviewProgress, setReviewProgress] = useState<IELTSReviewProgress[]>([])
+  const [reviewLoadedModule, setReviewLoadedModule] = useState('')
+  const [reviewQueueMode, setReviewQueueMode] = useState<'all' | 'due' | 'new'>('all')
   const questionSavingRef = useRef(false)
   const confirmedFrequencyIdsRef = useRef(new Set<string>())
   const mountedRef = useRef(true)
@@ -69,7 +86,7 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
   const [mode, setMode] = useState<'dictation' | 'walkman' | 'notes'>('dictation')
   const [reviewImported, setReviewImported] = useState(false)
   const annotations = useIELTSAnnotations(owner, book === 'frequency')
-  const chapters = book === 'frequency' ? [1,2,3,4,5,6,7,8] : CHAPTERS
+  const chapters = book === 'frequency' ? FREQUENCY_CHAPTERS : CHAPTERS
   const groupName = (value: number) => book === 'frequency' ? `Unit ${value}` : `第 ${value} 章`
   const bookTitle = BOOK_TITLES[book]
   const [loadError, setLoadError] = useState('')
@@ -89,6 +106,7 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
   const inputRef = useRef<HTMLInputElement | null>(null)
   const formRef = useRef<HTMLFormElement | null>(null)
   const answerComposingRef = useRef(false)
+  const reviewModule: IELTSReviewModule = book === 'frequency' ? 'frequency' : 'wanglu'
   useEffect(() => {
     if (!state.queue.length) return
     void saveDictationSession({ owner, book, chapter, section, limit, rate, state, cards: [...roundCards.values()], history: sessionRef.current, updatedAt: Date.now() })
@@ -139,14 +157,48 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
   const chapterCards = useMemo(() => corpus?.cards.filter(card => card.chapter === chapter) ?? [], [corpus, chapter])
   const sections = useMemo(() => [...new Set(chapterCards.map(card => card.section))], [chapterCards])
   const available = useMemo(()=>chapterCards.filter(card => section === 'all' || card.section === section),[chapterCards,section])
-  const untested = useMemo(() => selectFrequencyCards(available, frequency.progress, 'untested'), [available, frequency.progress])
-  const pending = useMemo(() => selectFrequencyCards(available, frequency.progress, 'mistakes'), [available, frequency.progress])
-  const eligibleFrequencyCards = useMemo(() => selectFrequencyTestCards(available, frequency.progress), [available, frequency.progress])
-  const testCards = book === 'frequency' ? eligibleFrequencyCards : available
   const frequencyReady = !frequency.loading && !frequency.error && !annotations.loading && !annotations.error && !accountImport.loading && !accountImport.error
+  useEffect(() => {
+    if (book === 'frequency' && !frequencyReady) return
+    let active = true
+    setReviewLoadedModule('')
+    void (async () => {
+      if (book === 'frequency') await migrateLegacyFrequencyProgress(owner, frequency.progress)
+      const [rows, saved] = await Promise.all([listIELTSReviewProgress(owner, reviewModule), readIELTSReviewSession(owner, reviewModule)])
+      if (!active) return
+      setReviewProgress(rows)
+      if (saved && typeof saved === 'object') {
+        const state = saved as Record<string, unknown>
+        if (!sourceParams.has('chapter') && typeof state.chapter === 'number' && chapters.includes(state.chapter)) setChapter(state.chapter)
+        if (!sourceParams.has('section') && typeof state.section === 'string') setSection(state.section)
+        if (state.mode === 'all' || state.mode === 'due' || state.mode === 'new') setReviewQueueMode(state.mode)
+      }
+      setReviewLoadedModule(reviewModule)
+    })().catch(() => { if (active) { setQuestionSaveError('复习数据读取或旧词迁移失败，请稍后重试。'); setReviewLoadedModule('') } })
+    return () => { active = false }
+  }, [owner, reviewModule, book, frequencyReady, frequency.progress, sourceParams, chapters])
+  useEffect(() => {
+    if (reviewLoadedModule !== reviewModule) return
+    void saveIELTSReviewSession(owner, reviewModule, { book, chapter, section, mode: reviewQueueMode })
+      .catch(() => setQuestionSaveError('复习续学位置暂未保存，联网后会自动重试。'))
+    void saveLearningResume(owner, `/ielts/listening?source=${book}&chapter=${chapter}&section=${encodeURIComponent(section)}`)
+  }, [owner, reviewModule, reviewLoadedModule, book, chapter, section, reviewQueueMode])
+  const reviewById = useMemo(() => new Map(reviewProgress.filter(row => row.module === reviewModule).map(row => [row.itemId, row])), [reviewProgress, reviewModule])
+  const dueAvailable = useMemo(() => available.filter(card => { const row = reviewById.get(card.id); return !!row && row.fsrs.reps > 0 && row.fsrs.due.getTime() <= Date.now() }), [available, reviewById])
+  const newAvailable = useMemo(() => available.filter(card => { const row = reviewById.get(card.id); return !row || row.fsrs.reps === 0 }), [available, reviewById])
+  const reviewSummary = summarizeIELTSReviews(reviewProgress.filter(row => row.module === reviewModule), corpus?.cards.length ?? 0)
+  const testCards = reviewQueueMode === 'due' ? dueAvailable : reviewQueueMode === 'new' ? newAvailable : [...dueAvailable, ...newAvailable]
   const chapterProgress = useMemo(() => summarizeFrequencyChapters(owner, corpus?.cards ?? [], frequency.progress), [owner, corpus, frequency.progress])
   const reviewingImport = book === 'frequency' && mode === 'walkman' && reviewImported && !!accountImport.model
   const current = byId.get(state.queue[state.results.length])
+  const currentReviewRow = current ? reviewById.get(current.id) : undefined
+  const ratingPreviews = current ? previewIELTSReview(currentReviewRow ?? {
+    owner, module: reviewModule, itemId: current.id, fsrs: createInitialFSRSState(), lastRating: Rating.Good, updatedAt: 0,
+  }) : null
+  const importedDueCards = accountImport.model?.cards.filter(card => {
+    const row = reviewById.get(card.id)
+    return !!row && row.fsrs.reps > 0 && row.fsrs.due.getTime() <= Date.now()
+  }) ?? []
   const currentAnnotation = current ? resolveFrequencyAnnotation(current.id, annotations.seeds, annotations.local,
     frequency.progress.find(record => record.cardId === current.id)?.reason) : undefined
   const currentFrequencyReason = questionReason === undefined
@@ -203,7 +255,7 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
   }
 
   function start(cards: IELTSCard[], practice = false) {
-    if (!cards.length || !corpus || authLoading || questionSavingRef.current || (book === 'frequency' && !frequencyReady)) return
+    if (!cards.length || !corpus || authLoading || questionSavingRef.current || reviewLoadedModule !== reviewModule || (book === 'frequency' && !frequencyReady)) return
     setQuestionReason(undefined)
     setQuestionSaveError('')
     confirmedFrequencyIdsRef.current.clear()
@@ -214,32 +266,34 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
     play(cards[0])
   }
 
-  async function confirm(passed: boolean) {
+  async function confirm(rating: Rating) {
     if (!current || state.verdict === null || questionSavingRef.current) return
     if (book === 'frequency' && (state.verdict !== true || !state.firstAttempt)) return
     if (book === 'frequency' && confirmedFrequencyIdsRef.current.has(current.id)) return
-    const actualPassed = book === 'frequency' ? state.firstAttempt!.passed : passed
-    if (book === 'frequency') {
-      const session = sessionRef.current
-      if (!session) return
-      questionSavingRef.current = true
-      setQuestionSaving(true); setQuestionSaveError('')
-      try {
+    if (book === 'frequency' && (state.firstAttempt!.passed ? rating === Rating.Again : rating !== Rating.Again)) return
+    const actualPassed = book === 'frequency' ? state.firstAttempt!.passed : state.verdict === true && rating !== Rating.Again
+    questionSavingRef.current = true
+    setQuestionSaving(true); setQuestionSaveError('')
+    try {
+      if (book === 'frequency') {
+        const session = sessionRef.current
+        if (!session) throw new Error('当前听写批次已失效，请重新开始。')
         if (questionReason !== undefined) await saveFrequencyAnnotation(owner, current.id, { reason: questionReason })
         await saveFrequencyOutcome({ owner, sessionId: session.id, cardId: current.id, passed: actualPassed, reason: currentFrequencyReason })
-      } catch {
-        if (mountedRef.current) {
-          setQuestionSaveError('本题保存失败，答案和原因仍然保留。请重试保存后继续。')
-          setQuestionSaving(false)
-        }
-        questionSavingRef.current = false
-        return
       }
-      confirmedFrequencyIdsRef.current.add(current.id)
+      await recordIELTSReview(owner, reviewModule, current.id, rating)
+      setReviewProgress(await listIELTSReviewProgress(owner, reviewModule))
+    } catch (reason) {
+      if (mountedRef.current) setQuestionSaveError(reason instanceof Error ? reason.message : '本题保存失败，答案和原因仍然保留。请重试保存后继续。')
       questionSavingRef.current = false
-      if (!mountedRef.current) return
-      setQuestionSaving(false); setQuestionReason(undefined)
+      if (mountedRef.current) setQuestionSaving(false)
+      return
     }
+    if (book === 'frequency') confirmedFrequencyIdsRef.current.add(current.id)
+    questionSavingRef.current = false
+    if (!mountedRef.current) return
+    setQuestionSaving(false)
+    if (book === 'frequency') setQuestionReason(undefined)
     dispatch({ type: 'confirm', id: current.id, passed: actualPassed })
     const next = byId.get(state.queue[state.results.length + 1])
     if (next) play(next)
@@ -256,7 +310,7 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
     if (questionSavingRef.current) return
     if (state.verdict === null) formRef.current?.requestSubmit()
     else if (state.verdict === false) retryQuestion()
-    else void confirm(true)
+    else void confirm(state.firstAttempt?.passed === false ? Rating.Again : Rating.Good)
   }
 
   // Capture Enter before native form/button activation so one press has one action.
@@ -308,6 +362,7 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
           {BOOK_TITLES[value]}
         </Button>)}
       </div>}
+      {corpus && <p role="status" className="text-sm text-[var(--app-muted)]">账号进度：已学 {reviewSummary.learned} / {corpus.cards.length} 词 · 到期 {reviewSummary.due} 词 · 新词 {reviewSummary.fresh} 词{reviewLoadedModule === reviewModule ? '' : ' · 正在同步进度'}</p>}
       <label className="flex items-center gap-3 text-sm">播放速度
         <select aria-label="播放速度" value={rate} disabled={questionSaving} onChange={event => setRate(Number(event.target.value))} className="border border-[var(--app-line)] bg-[var(--app-surface)] p-2">
           {[0.5, 0.75, 1, 1.25, 1.5].map(value => <option key={value} value={value}>{value} 倍{value === 1 ? ' · 原速' : ''}</option>)}
@@ -325,9 +380,9 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
       {book === 'frequency' && corpus && !active && !state.finished && <section className={panel} aria-label="我的测试记录">
         <h2 className="text-xl font-semibold">我的测试记录</h2>
         {accountImport.model && frequencyReady ? <>
-          <p className="mt-3 text-sm">已导入 {accountImport.model.seed.total} 个词 · 正确 {accountImport.model.seed.correct} 词已跳过 · 导入时错词 {accountImport.model.seed.total - accountImport.model.seed.correct} 词</p>
-          <p className="mt-2 text-sm text-[var(--app-muted)]">下面汇总本次导入的全部单元，重复词只保留一次。登录后，之后的复习结果也会自动同步到同一账号的其他设备。</p>
-          <Button className="mt-4" variant="outline" onClick={() => { stopAudio(); setMode('walkman'); setReviewImported(true) }}>复习导入错词 · {selectFrequencyCards(accountImport.model.cards, frequency.progress, 'mistakes').length} 词</Button>
+          <p className="mt-3 text-sm">已导入 {accountImport.model.seed.total} 个词 · 原正确词按“良好”建立排程 · 原错词按“重来”进入复习</p>
+          <p className="mt-2 text-sm text-[var(--app-muted)]">重复词只保留一次；手机和电脑登录同一账号后可同步评分与续学位置。</p>
+          <Button className="mt-4" variant="outline" disabled={!reviewLoadedModule || !importedDueCards.length} onClick={() => start(importedDueCards, true)}>复习导入到期词 · {importedDueCards.length} 词</Button>
         </> : !accountImport.loading && !accountImport.error && <p className="mt-3 text-sm text-[var(--app-muted)]">可导入已有测试结果，已掌握的词会自动跳过。</p>}
         <FrequencyTestImport owner={owner} cards={corpus.cards} onImported={() => { accountImport.retry(); frequency.retry() }} />
       </section>}
@@ -360,18 +415,22 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
             </select>
           </label>}
         </div>}
-        {book === 'frequency' && frequencyReady && !reviewingImport && <p role="status" className="mt-5 text-sm">已掌握 {available.length - untested.length - pending.length}/{available.length} 词 · 未测 {untested.length} 词 · 待复习 {pending.length} 词</p>}
+        {mode === 'dictation' && <div className="mt-5 space-y-2" aria-label="间隔复习队列">
+          <p role="status" className="text-sm">本范围：已学 {available.length - newAvailable.length} / {available.length} 词 · 到期 {dueAvailable.length} 词 · 新词 {newAvailable.length} 词</p>
+          <div className="flex flex-wrap gap-2">{([['all', `到期优先 + 新词 · ${dueAvailable.length + newAvailable.length}`], ['due', `只复习到期 · ${dueAvailable.length}`], ['new', `只学新词 · ${newAvailable.length}`]] as const).map(([value, label]) => <Button key={value} variant={reviewQueueMode === value ? 'default' : 'outline'} aria-pressed={reviewQueueMode === value} disabled={reviewLoadedModule !== reviewModule || (book === 'frequency' && !frequencyReady)} onClick={() => setReviewQueueMode(value)}>{label}</Button>)}</div>
+          {reviewLoadedModule !== reviewModule && <p className="text-xs text-[var(--app-muted)]">正在读取账号进度并初始化旧词排程…</p>}
+        </div>}
         {mode === 'dictation' ? <><p className="my-5 text-sm leading-6 text-[var(--app-muted)]">{book === 'frequency' ? '优先测待复习错词，再测未测词，已掌握的词自动跳过。答错后反复重拼同一个词，首次判定计入准确率；以后新一轮首次答对才移出错词。' : '按原牌组顺序出题，提交后显示答案。'}忽略大小写、多余空格和末尾标点；拼写和词形需要正确。</p>
         <div className="flex flex-wrap gap-3"><Button size="lg" disabled={!testCards.length || authLoading || (book === 'frequency' && !frequencyReady)} onClick={() => start(limit === 'all' ? testCards : testCards.slice(0, Number(limit)))}>
           <Headphones className="mr-2 h-4 w-4" />开始听写 · {limit === 'all' ? testCards.length : Math.min(testCards.length, Number(limit))} 题
         </Button>
         <Button asChild size="lg" variant="outline"><a href={`/word-practice?${new URLSearchParams({ source: book, chapter: String(chapter), section, queue: 'all', mode: 'dictation', limit })}`}>进入专注单词练习</a></Button>
         {book === 'frequency' && <Button size="lg" variant="outline" disabled={!available.length || !frequencyReady} onClick={() => start(limit === 'all' ? available : available.slice(0, Number(limit)))}>重新测验所选内容</Button>}</div>
-        {book === 'frequency' && frequencyReady && !testCards.length && <p role="status" className="mt-4 text-sm">所选内容已全部掌握，可以重新测验。</p>}
+        {book === 'frequency' && frequencyReady && !testCards.length && <p role="status" className="mt-4 text-sm">当前队列没有到期词或新词。已掌握词会在下次到期时自动出现。</p>}
         </> : mode === 'notes' && book === 'frequency' ? frequencyReady && <IELTSNotesLibrary key={`${owner}:${chapter}:${section}`} owner={owner} cards={available}
           seeds={annotations.seeds} local={annotations.local} progress={frequency.progress} />
-          : book === 'frequency' ? frequencyReady && (reviewingImport && accountImport.model ? <IELTSFrequencyReview key={`${owner}:import`} owner={owner} cards={accountImport.model.cards} progress={frequency.progress} chineseById={personalChinese} rate={rate}
-            indexError="" onReload={accountImport.retry} onStart={cards => start(cards, true)} showFocusLink={false} seeds={annotations.seeds} local={annotations.local} /> : <IELTSFrequencyReview key={`${owner}:${chapter}:${section}`} owner={owner} cards={available} progress={frequency.progress}
+          : book === 'frequency' ? frequencyReady && (reviewingImport && accountImport.model ? <IELTSFrequencyReview key={`${owner}:import`} owner={owner} cards={accountImport.model.cards} progress={frequency.progress} reviewRows={reviewProgress} chineseById={personalChinese} rate={rate}
+            indexError="" onReload={accountImport.retry} onStart={cards => start(cards, true)} showFocusLink={false} seeds={annotations.seeds} local={annotations.local} /> : <IELTSFrequencyReview key={`${owner}:${chapter}:${section}`} owner={owner} cards={available} progress={frequency.progress} reviewRows={reviewProgress}
           seeds={annotations.seeds} local={annotations.local}
           chapter={chapter} section={section}
           chineseById={chineseById} rate={rate} indexError={indexError} onReload={() => setReload(value => value + 1)} onStart={cards => start(cards, true)} />)
@@ -432,14 +491,20 @@ function IELTSStudy({owner,restored}:{owner:string;restored:SavedDictationSessio
                   onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') event.preventDefault() }}>清除标签</Button>
               </div><p className="mt-2 text-[var(--app-muted)]">鼠标点击或 Ctrl+1 / 2 / 3 标注；Enter 只检查、重拼或进入下一词。标签不影响判定。</p>
             </div>}
-            <p className="mt-5 text-sm text-[var(--app-muted)]">{state.firstAttempt?.passed === false ? '首次答错仍计为错题；重拼不增加测试次数。' : '首次答对计入通过。'}{state.verdict ? ' Enter 保存并进入下一词。' : ' Enter 隐藏答案，在本词重新拼写。'}</p>
+            <p className="mt-5 text-sm text-[var(--app-muted)]">{state.firstAttempt?.passed === false ? '首次答错仍计为错题；重拼不增加测试次数，按“重来”重新排程。' : '首次答对计入通过，可选择困难、良好或简单。'}{state.verdict ? ' Enter 默认按良好保存并进入下一词。' : ' Enter 隐藏答案，在本词重新拼写。'}</p>
             {questionSaveError && <p role="alert" className="mt-3 text-sm text-red-600">{questionSaveError}</p>}
             <Button data-frequency-enter className="mt-4" disabled={questionSaving} onClick={frequencyEnter}>{questionSaving ? '正在保存本题…' : questionSaveError ? '重试保存本题' : state.verdict ? '保存并进入下一词 · Enter' : '隐藏答案，重新拼写 · Enter'}</Button>
+            {state.verdict === true && state.firstAttempt && <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="记忆程度评分">
+              {(state.firstAttempt.passed ? REVIEW_RATINGS.slice(1) : [REVIEW_RATINGS[0]]).map(({ rating, label }) => <Button data-frequency-enter key={rating} type="button" variant="outline" disabled={questionSaving || questionSaveError !== ''} onClick={() => void confirm(rating)} className="min-h-14 flex-col gap-0.5">
+                <span>{label}</span><small className="text-xs text-[var(--app-muted)]">{ratingPreviews ? `${formatIELTSInterval(ratingPreviews[rating].due)}后` : ''}</small>
+              </Button>)}
+            </div>}
           </> : <>
-            <p className="mt-5 text-sm text-[var(--app-muted)]">确认本题后进入下一题。可根据实际听音情况调整判定，准确率按你最终确认的结果计算。</p>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <Button variant={state.verdict ? 'default' : 'outline'} onClick={() => { void confirm(true) }}>通过 / 会</Button>
-              <Button variant={!state.verdict ? 'default' : 'outline'} onClick={() => { void confirm(false) }}>不通过 / 不会</Button>
+            <p className="mt-5 text-sm text-[var(--app-muted)]">按你实际记忆程度选择，系统会计算下一次复习间隔并保存到账号。</p>
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {(state.verdict ? REVIEW_RATINGS.slice(1) : [REVIEW_RATINGS[0]]).map(({ rating, label }) => <Button key={rating} variant="outline" disabled={questionSaving || questionSaveError !== ''} onClick={() => { void confirm(rating) }} className="min-h-14 flex-col gap-0.5">
+                <span>{label}</span><small className="text-xs text-[var(--app-muted)]">{ratingPreviews ? `${formatIELTSInterval(ratingPreviews[rating].due)}后` : ''}</small>
+              </Button>)}
             </div>
           </>}
         </div>}

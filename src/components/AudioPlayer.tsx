@@ -74,7 +74,7 @@ export function AudioPlayer({
 
       {/* 错误提示 */}
       {playState === 'error' && (
-        <p className="text-xs text-red-500">音频加载失败</p>
+        <p className="text-xs text-red-500">播放未成功，请点击播放重试</p>
       )}
     </div>
   )

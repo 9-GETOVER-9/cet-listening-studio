@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
 import { applyAudioSpeed } from '@/lib/audioSpeed'
 import { AudioTimeTracker, getListeningOwner } from '@/lib/audioTimeTracker'
@@ -37,14 +37,18 @@ export function useAudio(
 
   const currentTokenRef = useRef<number>(0)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const cancelRef = useRef<(() => void) | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const trackerRef = useRef<AudioTimeTracker | null>(null)
   const category = options.card ? getListeningCategory(options.card) : null
 
   useEffect(() => { trackerRef.current?.setCategory(category) }, [category])
   useEffect(() => () => {
     currentTokenRef.current += 1
+    cancelRef.current?.()
     audioRef.current?.pause()
     trackerRef.current?.checkpoint()
+    setPlayState('idle')
   }, [audioFile, options.card?.cardId])
 
   useEffect(() => {
@@ -60,6 +64,7 @@ export function useAudio(
   useEffect(() => {
     return () => {
       currentTokenRef.current += 1
+      cancelRef.current?.()
       trackerRef.current?.dispose()
       trackerRef.current = null
       if (audioRef.current) {
@@ -72,6 +77,7 @@ export function useAudio(
 
   const stopAndGetToken = useCallback((): number => {
     currentTokenRef.current += 1
+    cancelRef.current?.()
     if (audioRef.current) {
       audioRef.current.pause()
       // 不销毁 audio 元素，复用它以保持浏览器的播放权限
@@ -83,7 +89,7 @@ export function useAudio(
    * 获取或创建一个可复用的 Audio 元素。
    * 复用同一个元素可以避免浏览器 autoplay policy 拦截后续播放。
    * 用户首次交互时创建的 Audio 元素会被浏览器"解锁"，
-   * 后续切换 src 并 play() 不会触发 NotAllowedError。
+   * 后续切换 src 可沿用该元素；若浏览器仍拒绝播放，则显示错误并由用户点击重试。
    */
   const getOrCreateAudio = useCallback((): HTMLAudioElement => {
     if (audioRef.current) return audioRef.current
@@ -112,44 +118,59 @@ export function useAudio(
         return
       }
 
-      const onCanPlay = () => {
+      const clearWatch = () => clearTimeout(timeoutRef.current)
+      const watch = () => {
+        clearWatch()
+        timeoutRef.current = setTimeout(() => {
+          fail(new Error('Audio playback timed out'))
+        }, 15000)
+      }
+      const onPlaying = () => {
         if (currentTokenRef.current !== token) return
+        clearWatch()
         applyAudioSpeed(audio, speedRef.current)
         setPlayState('playing')
       }
-      const onEnded = () => {
-        cleanup()
+      const onWaiting = () => {
         if (currentTokenRef.current !== token) return
-        resolve()
+        setPlayState('loading')
+        watch()
       }
-      const onError = () => {
-        cleanup()
+      const onPause = () => {
+        if (currentTokenRef.current !== token || !audio.paused || audio.ended) return
+        clearWatch()
+        setPlayState('paused')
+      }
+      const onEnded = () => { if (currentTokenRef.current !== token) return; cleanup(); resolve() }
+      const onError = () => fail(new Error(`Audio load failed: ${audioUrl}`))
+      const fail = (err: unknown) => {
         if (currentTokenRef.current !== token) return
-        reject(new Error(`Audio load failed: ${audioUrl}`))
+        cleanup()
+        audio.pause()
+        reject(err)
       }
-
+      const cancel = () => { cleanup(); reject(new Error('cancelled')) }
       const cleanup = () => {
-        audio.removeEventListener('canplay', onCanPlay)
+        clearWatch()
+        audio.removeEventListener('playing', onPlaying)
+        audio.removeEventListener('waiting', onWaiting)
+        audio.removeEventListener('pause', onPause)
         audio.removeEventListener('ended', onEnded)
         audio.removeEventListener('error', onError)
+        if (cancelRef.current === cancel) cancelRef.current = null
       }
-
-      audio.addEventListener('canplay', onCanPlay)
+      cancelRef.current = cancel
+      audio.addEventListener('playing', onPlaying)
+      audio.addEventListener('waiting', onWaiting)
+      audio.addEventListener('pause', onPause)
       audio.addEventListener('ended', onEnded)
       audio.addEventListener('error', onError)
-
       audio.src = audioUrl
       audio.load()
-      audio.play()
-        .then(() => {
-          if (currentTokenRef.current !== token) return
-          applyAudioSpeed(audio, speedRef.current)
-        })
-        .catch((err) => {
-          cleanup()
-          if (currentTokenRef.current !== token) return
-          reject(err)
-        })
+      watch()
+      // Call synchronously inside the user's click, preserving mobile activation.
+      try { void audio.play().catch(fail) } catch (err) { fail(err) }
+
     })
   }, [getOrCreateAudio])
 
@@ -198,10 +219,7 @@ export function useAudio(
       } catch (err) {
         if (currentTokenRef.current !== token) return
         if ((err as Error)?.message === 'cancelled') return
-        console.error(`Audio ${index + 1} playback failed:`, err)
-        await new Promise(resolve => setTimeout(resolve, 50))
-        if (currentTokenRef.current !== token) return
-        await playNext(index + 1)
+        setPlayState('error')
       }
     }
 
@@ -210,17 +228,27 @@ export function useAudio(
 
   const pause = useCallback(() => {
     if (audioRef.current) {
+      clearTimeout(timeoutRef.current)
       audioRef.current.pause()
       setPlayState('paused')
     }
   }, [])
 
   const resume = useCallback(() => {
-    if (audioRef.current) {
-      applyAudioSpeed(audioRef.current, speedRef.current)
-      audioRef.current.play()
-      setPlayState('playing')
+    const audio = audioRef.current
+    if (!audio) return
+    const token = currentTokenRef.current
+    applyAudioSpeed(audio, speedRef.current)
+    setPlayState('loading')
+    const failed = () => {
+      if (currentTokenRef.current !== token) return
+      cancelRef.current?.()
+      audio.pause()
+      setPlayState('error')
     }
+    clearTimeout(timeoutRef.current)
+    timeoutRef.current = setTimeout(failed, 15000)
+    try { void audio.play().catch(failed) } catch { failed() }
   }, [])
 
   const changeSpeed = useCallback((newSpeed: number) => {

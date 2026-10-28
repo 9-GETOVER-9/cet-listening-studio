@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { liveQuery } from 'dexie'
 import { BookOpen, Lock } from 'lucide-react'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
@@ -147,6 +148,7 @@ export default function NCESelector() {
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {visibleModules.map((mod) => (
+              <div key={mod.moduleId} className="space-y-2">
               <ModuleCard
                 key={mod.moduleId}
                 module={mod}
@@ -154,6 +156,8 @@ export default function NCESelector() {
                 isPro={isPro}
                 onLockedClick={handleLockedClick}
               />
+              {isNCEBookAccessible(mod.book!, isPro) && <Button variant="outline" className="w-full" asChild><Link to={`/nce/shadowing/${encodeURIComponent(mod.moduleId)}`}>输入法跟读练习</Link></Button>}
+              </div>
             ))}
           </div>
         )}

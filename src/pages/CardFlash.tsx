@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMemo } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import type { CommitCardRatingResult } from '@/db/reviewRepository'
 import { AIPanel } from '@/components/AIPanel'
 import { AnnotatedSentence } from '@/components/AnnotatedSentence'
+import { NCEPracticeActions } from '@/components/NCEPracticeActions'
 import { FSRSButtons } from '@/components/FSRSButtons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -755,6 +756,7 @@ export default function CardFlash() {
               )}
             </CardContent>
           </Card>
+          <NCEPracticeActions card={currentCard} />
           <div className="mt-4 flex justify-center gap-4 pb-safe text-xs text-gray-400"><span>空格：播放</span><span>左右方向键：切换</span></div>
         </div>
       </div>

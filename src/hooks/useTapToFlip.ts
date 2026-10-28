@@ -19,7 +19,9 @@ const DEFAULT_MOVE_THRESHOLD = 12
 const POST_TAP_CLICK_GUARD_MS = 350
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && Boolean(
+  // Buttons often contain SVG icons. SVGElement is an Element, but not an HTMLElement;
+  // treating the icon path as non-interactive lets the parent card flip on pointer-up.
+  return target instanceof Element && Boolean(
     target.closest('button, input, textarea, select, a, [data-interactive]'),
   )
 }

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
 import { Rating } from '@/types'
 import { createInitialFSRSState } from '@/lib/fsrsScheduler'
-import { isIELTSReviewDue, isIELTSReviewNew, listIELTSReviewProgress, previewIELTSReview, readIELTSReviewSession, recordIELTSReview, saveIELTSReviewSession, summarizeIELTSReviews, type IELTSReviewProgress } from '@/lib/ieltsReview'
+import { setIELTSReviewHidden, isIELTSReviewDue, isIELTSReviewNew, listIELTSReviewProgress, previewIELTSReview, readIELTSReviewSession, recordIELTSReview, saveIELTSReviewSession, summarizeIELTSReviews, type IELTSReviewProgress } from '@/lib/ieltsReview'
 import { saveLearningResume } from '@/lib/accountSync'
 
 type Sentence = { id: string; sourceIndex: number; english: string; chinese: string; start: number; end: number }
@@ -26,6 +26,7 @@ async function request<T>(route: 'catalog' | 'ticket', sessionToken: string, bod
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
     body: JSON.stringify(body),
     cache: 'no-store',
+    signal: AbortSignal.timeout(15000),
   })
   const text = await response.text()
   let result: (T & { error?: string }) | null = null
@@ -55,6 +56,7 @@ export default function IELTSSentenceCards() {
   const articleId = searchParams.get('article') ?? ''
   const reviewMode = searchParams.get('mode') === 'due' ? 'due' : searchParams.get('mode') === 'new' ? 'new' : 'all'
   const player = useRef<HTMLAudioElement | null>(null)
+  const currentSentence = useRef<Sentence | undefined>(undefined)
   const [catalog, setCatalog] = useState<Catalog | null>(null)
   const [part, setPart] = useState(1)
   const [position, setPosition] = useState(0)
@@ -63,6 +65,7 @@ export default function IELTSSentenceCards() {
   const [ticketUrl, setTicketUrl] = useState('')
   const [audioStatus, setAudioStatus] = useState('')
   const [playing, setPlaying] = useState(false)
+  const [startingAudio, setStartingAudio] = useState(false)
   const [speed, setSpeed] = useState(1)
   const [loadingCatalog, setLoadingCatalog] = useState(false)
   const [catalogRevision, setCatalogRevision] = useState(0)
@@ -112,11 +115,12 @@ export default function IELTSSentenceCards() {
   const reviewSummary = summarizeIELTSReviews(reviewProgress, totalSentences)
   const visibleSentences = article?.sentences.filter(row => {
     const progress = progressById.get(row.id)
-    return reviewMode === 'all' || (reviewMode === 'due'
+    return !progress?.hidden && (reviewMode === 'all' || (reviewMode === 'due'
       ? !!progress && !isIELTSReviewNew(progress) && isIELTSReviewDue(progress)
-      : !progress || isIELTSReviewNew(progress))
+      : !progress || isIELTSReviewNew(progress)))
   }) ?? []
   const sentence = visibleSentences[position]
+  currentSentence.current = sentence
   const sentenceProgress = sentence ? progressById.get(sentence.id) : undefined
   const ratingPreviews = sentence && user ? previewIELTSReview(sentenceProgress ?? {
     owner: user.id, module: 'sentence', itemId: sentence.id, fsrs: createInitialFSRSState(), lastRating: Rating.Good, updatedAt: 0,
@@ -186,16 +190,23 @@ export default function IELTSSentenceCards() {
   }
 
   async function playSentence() {
-    if (!sentence) return
-    if (!ticketUrl) { await prepareAudio(); return }
+    if (!sentence || startingAudio) return
+    if (!ticketUrl) {
+      setStartingAudio(true)
+      try { await prepareAudio() } finally { setStartingAudio(false) }
+      return
+    }
+    setStartingAudio(true)
+    setAudioStatus('正在加载当前句音频…')
+    let timeout: ReturnType<typeof setTimeout> | undefined
     try {
       let audio = player.current
       if (!audio) {
         audio = new Audio(ticketUrl)
-        audio.preload = 'metadata'
+        audio.preload = 'auto'
         audio.addEventListener('timeupdate', () => {
           const current = player.current
-          if (current && sentence && current.currentTime >= sentence.end) {
+          if (current && currentSentence.current && current.currentTime >= currentSentence.current.end) {
             current.pause()
             setPlaying(false)
             setPlayedCurrent(true)
@@ -212,22 +223,44 @@ export default function IELTSSentenceCards() {
       }
       audio.currentTime = sentence.start
       audio.playbackRate = speed
-      await audio.play()
+      await Promise.race([audio.play(), new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('音频加载超时')), 20000)
+      })])
+      if (currentSentence.current?.id !== sentence.id) { audio.pause(); return }
       setPlaying(true)
       setError('')
+      setAudioStatus('')
     } catch {
+      player.current?.pause()
       setPlaying(false)
-      setError('浏览器没有开始播放，请再点一次播放。')
+      setAudioStatus('')
+      setError('音频未能及时开始播放，请检查网络后重试。')
+    } finally {
+      if (timeout) clearTimeout(timeout)
+      setStartingAudio(false)
     }
+  }
+
+  async function hideCurrent() {
+    if (!user || !sentence || !window.confirm('删除当前卡片？只影响你的账号，可通过“恢复已删除卡片”恢复。')) return
+    player.current?.pause()
+    setPlaying(false)
+    const row = await setIELTSReviewHidden(user.id, sentence.id, true)
+    setReviewProgress(rows => [...rows.filter(item => item.itemId !== row.itemId), row])
+    setPosition(value => Math.min(value, Math.max(0, visibleSentences.length - 2)))
+  }
+
+  async function restoreHidden() {
+    if (!user) return
+    const hidden = reviewProgress.filter(row => row.hidden)
+    await Promise.all(hidden.map(row => setIELTSReviewHidden(user.id, row.itemId, false)))
+    setReviewProgress(await listIELTSReviewProgress(user.id, 'sentence'))
   }
 
   function move(delta: number) {
     if (!article) return
     const current = player.current
     current?.pause()
-    current?.removeAttribute('src')
-    current?.load()
-    player.current = null
     setPlaying(false)
     setPosition(value => Math.max(0, Math.min(visibleSentences.length - 1, value + delta)))
     setShowOriginal(false)
@@ -336,7 +369,7 @@ export default function IELTSSentenceCards() {
     </section>
   </div>
 
-  if (!article || !sentence) return <div className="quiet-page mx-auto max-w-xl space-y-4"><p role="status" className="text-sm text-[var(--app-muted)]">{article && reviewMode !== 'all' ? (reviewMode === 'due' ? '本篇现在没有到期句子。' : '本篇的新句已经学完。') : '当前句子暂不可用，请返回文章列表重新选择。'}</p><Button onClick={leaveArticle}>返回文章列表</Button></div>
+  if (!article || !sentence) return <div className="quiet-page mx-auto max-w-xl space-y-4"><p role="status" className="text-sm text-[var(--app-muted)]">{article && reviewMode !== 'all' ? (reviewMode === 'due' ? '本篇现在没有到期句子。' : '本篇的新句已经学完。') : '当前句子暂不可用，请返回文章列表重新选择。'}</p><Button onClick={leaveArticle}>返回文章列表</Button>{reviewProgress.some(row => row.hidden) && <Button variant="outline" onClick={() => void restoreHidden()}>恢复已删除卡片</Button>}</div>
 
   const progress = (position + 1) / visibleSentences.length * 100
   return <div className="quiet-page mx-auto w-full max-w-6xl space-y-5 pb-8">
@@ -349,6 +382,10 @@ export default function IELTSSentenceCards() {
       </div>
     </header>
 
+    <div className="flex flex-wrap gap-2">
+      <Button variant="outline" className="min-h-11 text-red-600" onClick={() => void hideCurrent()}>删除当前卡片</Button>
+      {reviewProgress.some(row => row.hidden) && <Button variant="outline" className="min-h-11" onClick={() => void restoreHidden()}>恢复已删除卡片</Button>}
+    </div>
     <div className="flex items-center justify-between text-sm text-[var(--app-muted)]"><span>{reviewMode === 'due' ? '到期复习' : reviewMode === 'new' ? '学习新句' : '逐句精听'}</span><span>{position + 1} / {visibleSentences.length}</span></div>
     <div className="h-1.5 overflow-hidden rounded-full bg-[var(--app-paper-2)]" role="progressbar" aria-label="本篇练习进度" aria-valuemin={0} aria-valuemax={visibleSentences.length} aria-valuenow={position + 1}>
       <div className="h-full rounded-full bg-[var(--app-accent)] transition-[width]" style={{ width: `${progress}%` }} />
@@ -365,10 +402,10 @@ export default function IELTSSentenceCards() {
         <h1 className="mt-3 max-w-3xl font-serif text-2xl leading-snug sm:text-3xl">{article.title}</h1>
         <p className="mt-6 max-w-lg text-sm leading-6 text-[var(--app-muted)]">先听一遍，试着复述这句话；准备好后查看原文。</p>
 
-        <button type="button" aria-label={playing ? '暂停原音' : ticketUrl ? '播放原音' : '准备原音'} onClick={() => void playSentence()} disabled={loadingCatalog} className="mt-8 flex h-24 w-24 items-center justify-center rounded-full bg-[var(--app-accent)] text-white shadow-lg transition-transform hover:scale-[1.03] disabled:opacity-50 sm:h-28 sm:w-28">
+        <button type="button" aria-label={playing ? '暂停原音' : ticketUrl ? '播放原音' : '准备原音'} onClick={() => void playSentence()} disabled={loadingCatalog || startingAudio} className="mt-8 flex h-24 w-24 items-center justify-center rounded-full bg-[var(--app-accent)] text-white shadow-lg transition-transform hover:scale-[1.03] disabled:opacity-50 sm:h-28 sm:w-28">
           {playing ? <Square aria-hidden className="h-8 w-8 fill-current" /> : ticketUrl ? <Play aria-hidden className="ml-1 h-9 w-9 fill-current" /> : <Volume2 aria-hidden className="h-9 w-9" />}
         </button>
-        <span className="mt-3 text-sm font-medium">{playing ? '正在播放 · 点击暂停' : ticketUrl ? '播放这一句' : '准备原音'}</span>
+        <span className="mt-3 text-sm font-medium">{startingAudio ? '正在加载音频…' : playing ? '正在播放 · 点击暂停' : ticketUrl ? '播放这一句' : '准备原音'}</span>
 
         <div className="mt-6 inline-flex flex-wrap justify-center gap-1 rounded-full bg-[var(--app-paper-2)] p-1" aria-label="播放速度">
           {speeds.map(value => <button key={value} type="button" aria-pressed={speed === value} onClick={() => { setSpeed(value); if (player.current) player.current.playbackRate = value }} className={`min-h-10 min-w-14 rounded-full px-3 text-sm font-medium transition-colors ${speed === value ? 'bg-[var(--app-surface)] text-[var(--app-accent)] shadow-sm' : 'text-[var(--app-muted)] hover:text-[var(--app-ink)]'}`}>{value}×</button>)}

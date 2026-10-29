@@ -10,6 +10,7 @@ export interface IELTSReviewProgress {
   itemId: string
   fsrs: FSRSState
   lastRating: Rating
+  hidden?: boolean
   updatedAt: number
 }
 export interface IELTSReviewLog {
@@ -57,8 +58,18 @@ export async function getIELTSReviewProgress(owner: string, module: IELTSReviewM
   return ieltsReviewDB.progress.get([owner, module, itemId])
 }
 
+export async function setIELTSReviewHidden(owner: string, itemId: string, hidden: boolean) {
+  validate(owner, 'sentence', itemId)
+  const prior = await getIELTSReviewProgress(owner, 'sentence', itemId)
+  const row: IELTSReviewProgress = { ...prior, owner, module: 'sentence', itemId,
+    fsrs: prior?.fsrs ?? createInitialFSRSState(), lastRating: prior?.lastRating ?? Rating.Good,
+    hidden, updatedAt: Date.now() }
+  await ieltsReviewDB.progress.put(row)
+  return row
+}
+
 export function isIELTSReviewDue(row: IELTSReviewProgress, now = Date.now()) {
-  return row.fsrs.due.getTime() <= now
+  return !row.hidden && row.fsrs.due.getTime() <= now
 }
 
 export function isIELTSReviewNew(row: IELTSReviewProgress) {
@@ -113,8 +124,8 @@ export async function readIELTSReviewSession(owner: string, module: IELTSReviewM
 
 export function summarizeIELTSReviews(rows: readonly IELTSReviewProgress[], total: number, now = Date.now()) {
   const due = rows.filter(row => !isIELTSReviewNew(row) && isIELTSReviewDue(row, now)).length
-  const learned = rows.filter(row => !isIELTSReviewNew(row)).length
-  return { learned, due, fresh: Math.max(0, total - learned) }
+  const learned = rows.filter(row => !row.hidden && !isIELTSReviewNew(row)).length
+  return { learned, due, fresh: Math.max(0, total - rows.filter(row => row.hidden).length - learned) }
 }
 
 /** Seed legacy binary IELTS word outcomes once per item; existing FSRS progress always wins. */

@@ -10,6 +10,7 @@ import { getNCEModulesByBook, isNCEBookAccessible } from '@/db/crud'
 import { ModuleCard } from '@/components/ModuleCard'
 import type { Module, NCEBook } from '@/types'
 import { usePro } from '@/hooks/usePro'
+import { matchesNCELesson } from '@/lib/nceLessonSearch'
 
 const BOOKS: { value: NCEBook; label: string }[] = [
   { value: 'Book1', label: 'Book 1' },
@@ -32,6 +33,7 @@ export default function NCESelector() {
   const [showLockSheet, setShowLockSheet] = useState(false)
   const [lockedBook, setLockedBook] = useState<NCEBook>('Book3')
   const [completionFilter, setCompletionFilter] = useState<CompletionFilter>('incomplete')
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     const subscription = liveQuery(() => getNCEModulesByBook(selectedBook)).subscribe({
@@ -64,8 +66,8 @@ export default function NCESelector() {
   ).length
   const visibleModules = useMemo(() => modules.filter((module) => {
     const isCompleted = module.totalCards > 0 && module.studiedCards >= module.totalCards
-    return completionFilter === 'completed' ? isCompleted : !isCompleted
-  }), [completionFilter, modules])
+    return (completionFilter === 'completed' ? isCompleted : !isCompleted) && matchesNCELesson(module, query)
+  }), [completionFilter, modules, query])
 
   return (
     <div className="quiet-page flex min-h-dvh flex-col">
@@ -133,6 +135,10 @@ export default function NCESelector() {
         </ToggleGroup>
       </div>
 
+      <label className="mt-5 block text-sm font-medium" htmlFor="nce-search">查找课程</label>
+      <input id="nce-search" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="输入课号或英文标题" className="mt-2 w-full rounded-lg border border-[var(--app-line)] bg-[var(--app-surface)] px-4 py-3 text-base" />
+      {query.trim() && <p className="mt-2 text-sm text-[var(--app-muted)]" role="status">找到 {visibleModules.length} 课 · 当前册和学习状态</p>}
+
       {/* 课程列表 */}
       <div className="flex-1 py-6">
         {loading ? (
@@ -150,7 +156,7 @@ export default function NCESelector() {
         ) : visibleModules.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <BookOpen className="h-12 w-12 mb-3" />
-            <p className="text-sm">{completionFilter === 'completed' ? '还没有已完成课程' : '本册课程已全部完成'}</p>
+            <p className="text-sm">{query.trim() ? '当前册和学习状态下没有匹配的课程' : completionFilter === 'completed' ? '还没有已完成课程' : '本册课程已全部完成'}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

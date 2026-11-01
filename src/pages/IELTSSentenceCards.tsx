@@ -7,6 +7,7 @@ import { Rating } from '@/types'
 import { createInitialFSRSState } from '@/lib/fsrsScheduler'
 import { setIELTSReviewHidden, isIELTSReviewDue, isIELTSReviewNew, listIELTSReviewProgress, previewIELTSReview, readIELTSReviewSession, recordIELTSReview, saveIELTSReviewSession, summarizeIELTSReviews, type IELTSReviewProgress } from '@/lib/ieltsReview'
 import { saveLearningResume } from '@/lib/accountSync'
+import { sentenceArticleListParams, shouldRestoreSentenceArticle } from '@/lib/sentenceCardNavigation'
 
 type Sentence = { id: string; sourceIndex: number; english: string; chinese: string; start: number; end: number }
 type Article = { id: string; part: number; number: number; title: string; sentences: Sentence[] }
@@ -98,7 +99,7 @@ export default function IELTSSentenceCards() {
     void Promise.all([listIELTSReviewProgress(user.id, 'sentence'), readIELTSReviewSession(user.id, 'sentence')]).then(([rows, saved]) => {
       if (!active) return
       setReviewProgress(rows)
-      if (!articleId && saved && typeof saved.articleId === 'string') {
+      if (shouldRestoreSentenceArticle(searchParams, saved) && saved && typeof saved.articleId === 'string') {
         const next = new URLSearchParams(searchParams)
         next.set('article', saved.articleId)
         if (saved.mode === 'due' || saved.mode === 'new') next.set('mode', saved.mode)
@@ -288,7 +289,7 @@ export default function IELTSSentenceCards() {
     current?.load()
     player.current = null
     setPlaying(false)
-    setSearchParams({})
+    setSearchParams(sentenceArticleListParams())
   }
 
   async function rateSentence(rating: Rating) {

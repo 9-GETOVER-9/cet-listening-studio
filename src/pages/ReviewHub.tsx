@@ -1,7 +1,19 @@
-import { BookOpenCheck, ChevronRight, Headphones } from 'lucide-react'
+import { BookOpenCheck, ChevronRight, Headphones, Radio } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 const entries = [
+  {
+    to: '/walkman',
+    title: '到期卡片随身听',
+    description: '连续听今天到期的课程卡片，不会消耗复习任务。',
+    icon: Radio,
+  },
+  {
+    to: '/ielts/listening?source=frequency&mode=walkman',
+    title: '雅思到期词复习',
+    description: '查看雅思高频到期词，听写或连续播放。',
+    icon: Headphones,
+  },
   {
     to: '/review/session',
     title: '常规到期复习',
@@ -24,11 +36,10 @@ export default function ReviewHub() {
       <p className="max-w-2xl text-[var(--app-muted)]">选择今天要继续的复习内容。</p>
     </header>
     <section className="grid gap-5 md:grid-cols-2" aria-label="复习类型">
-      {entries.map(({ to, title, description, icon: Icon }) => <Link key={to} to={to} className="group flex min-h-56 flex-col rounded-[var(--app-radius)] border border-[var(--app-line)] bg-[var(--app-surface)] p-7 shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--app-accent)] hover:shadow-[var(--app-shadow)]">
-        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[var(--app-accent-soft)] text-[var(--app-accent)]"><Icon className="h-6 w-6" aria-hidden="true" /></span>
-        <h2 className="mt-7 font-serif text-2xl text-[var(--app-ink)]">{title}</h2>
-        <p className="mt-2 flex-1 text-sm leading-7 text-[var(--app-muted)]">{description}</p>
-        <span className="mt-6 flex items-center justify-between text-sm font-semibold text-[var(--app-accent)]">进入复习 <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden="true" /></span>
+      {entries.map(({ to, title, description, icon: Icon }) => <Link key={to} to={to} className="group flex items-center gap-4 rounded-[var(--app-radius)] border border-[var(--app-line)] bg-[var(--app-surface)] p-5 transition-colors hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)]">
+        <Icon className="h-5 w-5 shrink-0 text-[var(--app-accent)]" aria-hidden="true" />
+        <span className="min-w-0 flex-1"><h2 className="font-semibold text-[var(--app-ink)]">{title}</h2><p className="mt-1 text-sm leading-6 text-[var(--app-muted)]">{description}</p></span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-[var(--app-accent)]" aria-hidden="true" />
       </Link>)}
     </section>
   </div>

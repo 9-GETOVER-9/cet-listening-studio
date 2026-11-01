@@ -341,11 +341,10 @@ export default function Walkman() {
       </div>
 
       <Card className="flex-1">
-        <CardContent className="flex min-h-[520px] flex-col p-5">
+        <CardContent className="flex flex-col p-5">
           <div className="mb-4">
-            <p className="quiet-kicker">Today Walkman</p>
-            <h1 className="quiet-display mt-2 text-4xl">
-              {source === 'notebook-pronunciation' ? '把难发音的句子，多听几遍。' : '今天，把句子放进耳朵里。'}
+            <h1 className="quiet-display text-2xl sm:text-3xl">
+              {source === 'notebook-pronunciation' ? '发音难点随身听' : '到期卡片随身听'}
             </h1>
           </div>
 
@@ -375,14 +374,14 @@ export default function Walkman() {
             <Progress value={progressPct} className="h-1 bg-gray-100" />
 
             <div className="grid grid-cols-[48px_1fr_48px] items-center gap-3">
-              <Button size="icon" variant="outline" onClick={() => jumpTo(currentIndex - 1)} disabled={tracks.length <= 1}>
+              <Button size="icon" aria-label="上一句" variant="outline" onClick={() => jumpTo(currentIndex - 1)} disabled={tracks.length <= 1}>
                 <ChevronLeft className="h-5 w-5" />
               </Button>
               <Button className="h-14 text-base" onClick={handlePlayPause}>
                 {isPlaying ? <Pause className="mr-2 h-5 w-5" /> : <Play className="mr-2 h-5 w-5" />}
                 {isPlaying ? '暂停' : '播放'}
               </Button>
-              <Button size="icon" variant="outline" onClick={() => jumpTo(currentIndex + 1)} disabled={tracks.length <= 1}>
+              <Button size="icon" aria-label="下一句" variant="outline" onClick={() => jumpTo(currentIndex + 1)} disabled={tracks.length <= 1}>
                 <ChevronRight className="h-5 w-5" />
               </Button>
             </div>

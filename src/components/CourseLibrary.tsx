@@ -8,12 +8,12 @@ const COURSES = [
   { to: '/nce', key: 'nce', label: '新概念英语', tag: 'BOOK 1–4', description: '听力卡片 · 输入法跟读', detail: '系统学习，也开口表达' },
 ] as const
 
-export function CourseLibrary() {
-  return <div className="grid gap-3 sm:grid-cols-3">
-    {COURSES.map(course => <Link key={course.key} to={course.to} className="study-link group flex gap-4 p-4 sm:block sm:p-5">
-      <img src={COURSE_COVERS[course.key]} alt="" width="600" height="800" loading="lazy" decoding="async" className="h-32 w-24 shrink-0 rounded-md object-cover shadow-sm sm:mx-auto sm:h-44 sm:w-33 xl:h-52 xl:w-39" />
-      <div className="flex min-w-0 flex-1 flex-col justify-center sm:mt-5">
-        <p className="quiet-kicker">{course.tag}</p>
+export function CourseLibrary({ compact = false }: { compact?: boolean }) {
+  return <div className={compact ? 'grid gap-2 lg:grid-cols-3' : 'grid gap-3 sm:grid-cols-3'}>
+    {COURSES.map(course => <Link key={course.key} to={course.to} className={compact ? 'study-link group flex min-w-0 items-center gap-3 p-3' : 'study-link group flex gap-4 p-4 sm:block sm:p-5'}>
+      <img src={COURSE_COVERS[course.key]} alt="" width="600" height="800" loading="lazy" decoding="async" className={compact ? 'h-20 w-15 shrink-0 rounded-md object-cover' : 'h-32 w-24 shrink-0 rounded-md object-cover shadow-sm sm:mx-auto sm:h-44 sm:w-33 xl:h-52 xl:w-39'} />
+      <div className={compact ? 'flex min-w-0 flex-1 flex-col justify-center' : 'flex min-w-0 flex-1 flex-col justify-center sm:mt-5'}>
+        <p className="text-xs font-semibold tracking-wide text-[var(--app-accent)]">{course.tag}</p>
         <div className="mt-1 flex items-center justify-between gap-2"><h3 className="text-lg font-semibold">{course.label}</h3><ArrowUpRight className="h-4 w-4 text-[var(--app-accent)]" aria-hidden="true" /></div>
         <p className="mt-2 text-xs leading-5 text-[var(--app-muted)]">{course.description}</p>
         <p className="mt-1 hidden text-xs leading-5 text-[var(--app-muted)] lg:block">{course.detail}</p>

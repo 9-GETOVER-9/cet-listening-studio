@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "design:check": "npx --yes impeccable@4.8.0 detect src/pages/Home.tsx src/pages/Courses.tsx src/components/CourseLibrary.tsx src/components/Layout.tsx",
     "test": "vitest run",
     "test:watch": "vitest",
     "preview": "vite preview",

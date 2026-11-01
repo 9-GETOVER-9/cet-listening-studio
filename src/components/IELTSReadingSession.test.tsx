@@ -10,9 +10,9 @@ it('shows a missed correct answer in red alongside wrong selections, reserving g
   const html = renderToStaticMarkup(<IELTSReadingSession cards={[card]} session={session} data={{ progress: [], annotations: [], logs: [] }} onEnd={async () => {}} onNotesBlocked={() => {}} notesBlocked={false} />)
   const rows = [...html.matchAll(/<label class="([^"]*)">(.*?)<\/label>/gs)]
   const row = (text: string) => rows.find(value => value[2].includes(text))!
-  expect(row('>like<span')[2]).toContain('漏选')
-  expect(row('>like<span')[1]).toContain('bg-red-100')
-  expect(row('perceive')[1]).toContain('bg-red-100')
-  expect(row('look like')[1]).toContain('bg-emerald-100')
-  expect(row('acknowledge')[1]).not.toMatch(/bg-(red|emerald)-100/)
+  expect(row('>like</span>')[2]).toContain('漏选')
+  expect(row('>like</span>')[1]).toContain('bg-red-50')
+  expect(row('perceive')[1]).toContain('bg-red-50')
+  expect(row('look like')[1]).toContain('bg-emerald-50')
+  expect(row('acknowledge')[1]).not.toMatch(/bg-(red|emerald)-50/)
 })

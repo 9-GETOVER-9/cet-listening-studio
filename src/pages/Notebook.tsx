@@ -148,14 +148,13 @@ export default function Notebook() {
   return (
     <div className="quiet-page flex min-h-dvh flex-col">
       <div className="mb-5 border-b border-[var(--app-line)] pb-5">
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <div>
-            <p className="quiet-kicker mb-2">Listening Notes</p>
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="quiet-display text-3xl md:text-4xl">难点收集本。</h1>
             <p className="mt-1 text-sm text-gray-500">共 {totalCount} 条收藏</p>
           </div>
           {/* ✅ 修复问题6：专项复习改为从第一条开始连续复习 */}
-          <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row">
             {activeTab === 'vocabulary' && <Button size="sm" disabled={!counts.vocabulary} onClick={() => navigate('/word-practice?source=notebook&queue=all&mode=dictation')}>专注单词练习</Button>}
             {activeTab === 'pronunciation' && (
               <Button
@@ -218,7 +217,7 @@ export default function Notebook() {
                 <div className="flex flex-col items-center justify-center py-12 text-gray-400">
                   <BookOpen className="mb-2 h-12 w-12" />
                   <p>暂无收藏</p>
-                  <p className="mt-1 text-center text-sm leading-6">练习时点击单词、短语或收藏整句，记录听不清的地方。</p><Button className="mt-5" variant="outline" onClick={() => navigate('/courses')}>选择课程，添加第一条难点</Button>
+                  <p className="mt-1 text-center text-sm leading-6">练习时点击单词、短语或收藏整句，记录听不清的地方。</p><Button className="mt-5 h-auto max-w-full whitespace-normal text-center" variant="outline" onClick={() => navigate('/courses')}>选择课程，添加第一条难点</Button>
                 </div>
               ) : (
                 <div className="space-y-3 pb-6">
@@ -272,13 +271,13 @@ export default function Notebook() {
                           </div>
                         )}
 
-                        <div className="mt-2 flex items-center justify-between">
-                          <p className="text-xs text-gray-400">来源：{item.sourceTag}</p>
+                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                          <p className="min-w-0 break-words text-xs text-gray-400">来源：{item.sourceTag}</p>
                           {/* 单条复习入口 */}
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 text-xs text-brand"
+                            className="h-auto max-w-full whitespace-normal text-xs text-brand"
                             onClick={() => item.type === 'vocabulary' ? navigate(`/word-practice?${new URLSearchParams({ source: 'notebook', queue: 'all', mode: 'dictation', targetId: item.notebookId })}`) : handleStartReview(item, items)}
                           >
                             从这里开始复习

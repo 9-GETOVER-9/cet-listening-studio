@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Send, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { badgeVariants } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 
@@ -35,7 +35,7 @@ export default function Feedback() {
       })
       if (error) throw error
       toast.success('感谢你的反馈！')
-      navigate(-1)
+      navigate('/profile')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '提交失败')
     } finally {
@@ -47,9 +47,9 @@ export default function Feedback() {
     <div className="quiet-page flex min-h-dvh flex-col">
       {/* 顶部导航 */}
       <div className="mb-6 flex items-center gap-3 border-b border-[var(--app-line)] pb-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/profile')}>
           <ArrowLeft className="mr-1 h-4 w-4" />
-          返回
+          返回我的
         </Button>
         <h1 className="quiet-display text-3xl">意见反馈。</h1>
       </div>
@@ -62,14 +62,15 @@ export default function Feedback() {
               <p className="text-sm font-medium text-gray-700">反馈类型</p>
               <div className="flex gap-2">
                 {CATEGORIES.map(({ value, label }) => (
-                  <Badge
+                  <button
+                    type="button"
                     key={value}
-                    variant={category === value ? 'default' : 'outline'}
-                    className="cursor-pointer px-3 py-1.5 text-sm"
+                    aria-pressed={category === value}
+                    className={badgeVariants({ variant: category === value ? 'default' : 'outline', className: 'cursor-pointer px-3 py-1.5 text-sm' })}
                     onClick={() => setCategory(value)}
                   >
                     {label}
-                  </Badge>
+                  </button>
                 ))}
               </div>
             </div>

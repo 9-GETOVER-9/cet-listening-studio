@@ -331,9 +331,9 @@ export default function Walkman() {
     <div className="quiet-page flex min-h-dvh flex-col gap-5">
       <audio ref={audioRef} preload="metadata" />
       <div className="flex items-center justify-between">
-        <Button size="sm" variant="ghost" onClick={() => navigate(-1)}>
+        <Button size="sm" variant="ghost" onClick={() => navigate(source === 'notebook-pronunciation' ? '/notebook' : '/review')}>
           <ArrowLeft className="mr-1 h-4 w-4" />
-          返回
+          {source === 'notebook-pronunciation' ? '返回难点本' : '返回复习'}
         </Button>
         <Badge variant="outline">
           {source === 'notebook-pronunciation' ? '发音随身听' : '随身听'} · {currentIndex + 1} / {tracks.length}

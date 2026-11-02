@@ -27,23 +27,30 @@ export default function Admin() {
   const [generating, setGenerating] = useState(false)
   const [codes, setCodes] = useState<ActivationCode[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const { user, loading: authLoading } = useAuth()
 
   const loadCodes = useCallback(async () => {
     setLoading(true)
+    setLoadError(false)
     const { data, error } = await supabase.functions.invoke('manage-activation-codes', {
       body: { action: 'list' },
     })
 
     if (!error && data?.success && Array.isArray(data.codes)) setCodes(data.codes)
-    else if (error || data?.error) toast.error(data?.error || '读取激活码失败')
+    else {
+      setLoadError(true)
+      toast.error(data?.error || '读取激活码失败')
+    }
     setLoading(false)
   }, [])
 
   useEffect(() => {
-    void Promise.resolve().then(loadCodes)
-  }, [loadCodes])
+    if (!authLoading && user?.email && DEVELOPER_EMAILS.includes(user.email.toLowerCase())) {
+      void Promise.resolve().then(loadCodes)
+    }
+  }, [authLoading, user?.email, loadCodes])
 
   const handleGenerate = async () => {
     setGenerating(true)
@@ -102,7 +109,7 @@ export default function Admin() {
         <div>
           <h1 className="text-2xl font-bold">🔑 激活码管理</h1>
           <p className="text-gray-400 text-sm mt-1">
-            未使用 {unusedCount} 个 · 已使用 {usedCount} 个
+            {loadError ? '激活码暂时无法读取' : `未使用 ${unusedCount} 个 · 已使用 ${usedCount} 个`}
           </p>
         </div>
 
@@ -169,7 +176,7 @@ export default function Admin() {
             <Button
               className="w-full bg-green-600 hover:bg-green-700 text-white"
               onClick={handleGenerate}
-              disabled={generating}
+              disabled={generating || loading || loadError}
             >
               {generating ? '生成中...' : `生成 ${quantity} 个${type === 'monthly' ? '月付' : type === 'yearly' ? '年付' : '终身'}激活码`}
             </Button>
@@ -197,6 +204,11 @@ export default function Admin() {
           <CardContent>
             {loading ? (
               <p className="text-gray-400 text-sm text-center py-8">加载中...</p>
+            ) : loadError ? (
+              <div role="alert" className="py-8 text-center">
+                <p className="text-sm text-gray-300">激活码读取失败，请检查权限或网络后重试。</p>
+                <Button className="mt-4" variant="outline" onClick={loadCodes}>重新读取</Button>
+              </div>
             ) : codes.length === 0 ? (
               <p className="text-gray-400 text-sm text-center py-8">暂无激活码，点上方生成</p>
             ) : (

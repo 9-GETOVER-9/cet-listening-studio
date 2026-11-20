@@ -43,11 +43,32 @@ function runWhenIdle(task: () => void): void {
   globalThis.setTimeout(task, 250)
 }
 
+async function measureStartup<T>(stage: string, work: () => Promise<T>): Promise<T> {
+  const start = performance.now()
+  performance.mark(`startup:${stage}:start`)
+  try {
+    const result = await work()
+    performance.measure(`startup:${stage}:complete`, { start })
+    return result
+  } catch (error) {
+    performance.measure(`startup:${stage}:failed`, { start })
+    throw error
+  }
+}
+
 export function AppInitializer({ onPageReady }: { onPageReady?: () => void }) {
   const [appState, setAppState] = useState<'checking' | 'init' | 'ready'>('checking')
   const [initProgress, setInitProgress] = useState(0)
   const [initError, setInitError] = useState<string | null>(null)
+  const [startupDelay, setStartupDelay] = useState(false)
   const accountReady = useAccountSyncStatus(s => s.ready)
+  const startupPending = appState !== 'ready' || !accountReady
+
+  useEffect(() => {
+    if (!startupPending) return
+    const timer = window.setTimeout(() => setStartupDelay(true), 15000)
+    return () => window.clearTimeout(timer)
+  }, [startupPending])
 
   const { onboardingCompleted, setInitialized, setOnboardingCompleted } = useSettingsStore()
   const { initInviteCode } = usePro()
@@ -137,9 +158,9 @@ export function AppInitializer({ onPageReady }: { onPageReady?: () => void }) {
       setInitError(null)
 
       try {
-        await initializeModuleIndex((loaded, total) => {
+        await measureStartup('course-index-load', () => initializeModuleIndex((loaded, total) => {
           if (!cancelled) setInitProgress(Math.round((loaded / total) * 100))
-        })
+        }))
       } catch (err) {
         console.warn('Module index init failed, falling back to full import:', err)
         runFullDataInit(true)
@@ -152,11 +173,15 @@ export function AppInitializer({ onPageReady }: { onPageReady?: () => void }) {
 
     const restoreSession = async () => {
       try {
-        const result = await withTimeout(supabase.auth.getSession(), 5000)
-        if (!result) { await activateLearningAccount('guest'); return }
+        const result = await measureStartup('session-restore', () => withTimeout(supabase.auth.getSession(), 5000))
+        if (!result) {
+          performance.mark('startup:session-restore:timeout')
+          await measureStartup('account-activation', () => activateLearningAccount('guest'))
+          return
+        }
 
         session = result.data.session ?? null
-        await activateLearningAccount(session?.user.id ?? 'guest')
+        await measureStartup('account-activation', () => activateLearningAccount(session?.user.id ?? 'guest'))
 
         if (session?.user) {
           initInviteCode(session.user.id)
@@ -178,20 +203,20 @@ export function AppInitializer({ onPageReady }: { onPageReady?: () => void }) {
     const checkInit = async () => {
       await restoreSession()
 
-      const hasFullData = await isDataInitialized()
+      const hasFullData = await measureStartup('local-data-check', isDataInitialized)
       if (hasFullData) {
-        const upgradeNeeded = await needsDataUpgrade()
+        const upgradeNeeded = await measureStartup('local-version-check', needsDataUpgrade)
         if (!upgradeNeeded) {
           finishReadyState(true)
           return
         }
       }
 
-      const hasModuleIndex = await isModuleIndexInitialized()
+      const hasModuleIndex = await measureStartup('course-index-check', isModuleIndexInitialized)
       // These pages don't read the CET/NCE catalog to render their main content.
       // Reserve the import before exposing links, so a quick lesson navigation can await it.
       if (window.location.pathname === '/' || /^\/ielts(?:\/|$)/.test(window.location.pathname)) {
-        const indexReady = hasModuleIndex ? Promise.resolve() : initializeModuleIndex().catch(err => {
+        const indexReady = hasModuleIndex ? Promise.resolve() : measureStartup('course-index-load', () => initializeModuleIndex()).catch(err => {
           console.warn('Module index unavailable; full import will rebuild it:', err)
         })
         runFullDataInit(false, Promise.all([initialPageReady, indexReady]))
@@ -259,7 +284,7 @@ export function AppInitializer({ onPageReady }: { onPageReady?: () => void }) {
       <InitLoader
         autoStart={false}
         progress={0}
-        error={initError}
+        error={initError ?? (startupDelay ? '账号或本机学习记录读取超时，请重试。' : null)}
         onComplete={() => {}}
       />
     )
@@ -270,7 +295,7 @@ export function AppInitializer({ onPageReady }: { onPageReady?: () => void }) {
       <InitLoader
         autoStart={false}
         progress={initProgress}
-        error={initError}
+        error={initError ?? (startupDelay ? '课程加载超过预期时间，请重试。' : null)}
         onComplete={() => {
           setAppState('ready')
           setInitialized(false)

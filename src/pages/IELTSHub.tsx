@@ -1,25 +1,40 @@
 import { ArrowUpRight, BookOpen, Headphones, LibraryBig, ListMusic, PenLine, RotateCcw } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useLearningResume } from '@/hooks/useLearningResume'
 
 const groups = [
-  { title: '听词与复习', items: [
-    { to: '/ielts/listening?source=frequency&mode=walkman', title: '复习雅思到期词', description: '查看到期词，可听写或连续播放。', icon: RotateCcw },
+  { title: '随身听', items: [
     { to: '/ielts/listening?mode=walkman', title: '王陆语料随身听', description: '按章节连续播放英文和中文。', icon: Headphones },
+  ] },
+  { title: '听写练词', items: [
     { to: '/ielts/listening', title: '王陆语料听写', description: '听发音，拼写单词与短语。', icon: PenLine },
     { to: '/ielts/listening?source=frequency', title: '雅思高频词听写', description: '练高频词，记录错词和学习进度。', icon: PenLine },
   ] },
-  { title: '真题与阅读', items: [
+  { title: '原音与精听', items: [
     { to: '/cambridge/listening', title: '剑桥雅思原音', description: '选择书册、Test 和 Part 听原音。', icon: LibraryBig },
     { to: '/ielts/listening-cards', title: '雅思逐句听力卡', description: '一句一句精听，对照原文和翻译。', icon: ListMusic },
+  ] },
+  { title: '阅读词汇', items: [
     { to: '/ielts/reading-538', title: '阅读 538 同义替换', description: '练习考点词与同义表达。', icon: BookOpen },
+    { to: '/ielts/reading-538/match', title: '考点对应消消乐', description: '选齐同组表达，通关后回顾词义。', icon: BookOpen },
   ] },
 ] as const
 
 export default function IELTSHub() {
+  const resume = useLearningResume()
+  const lastPractice = resume?.path.startsWith('/ielts/') ? resume : null
   return <div className="quiet-page max-w-4xl space-y-7">
     <header className="border-b border-[var(--app-line)] pb-5">
-      <h1 className="quiet-display text-3xl sm:text-4xl">今天想练什么？</h1>
-      <p className="mt-3 text-sm leading-6 text-[var(--app-muted)]">选择一个目标，直接开始雅思学习。</p>
+      <h1 className="quiet-display text-3xl sm:text-4xl">雅思学习</h1>
+      <p className="mt-3 text-sm leading-6 text-[var(--app-muted)]">{lastPractice ? lastPractice.label : '第一次来？选一章语料，边听边熟悉考点词。'}</p>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Link to={lastPractice?.path ?? '/ielts/listening?mode=walkman'} className="inline-flex min-h-11 items-center rounded-lg bg-[var(--app-accent)] px-4 font-semibold text-white">
+          {lastPractice ? '继续上次学习' : '开始随身听'}
+        </Link>
+        <Link to="/ielts/listening?source=frequency&mode=walkman" className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--app-line)] px-4 font-semibold">
+          <RotateCcw className="h-4 w-4" aria-hidden="true" />复习雅思到期词
+        </Link>
+      </div>
     </header>
     {groups.map(group => <section key={group.title} aria-label={group.title}>
       <h2 className="mb-3 text-base font-semibold text-[var(--app-ink)]">{group.title}</h2>

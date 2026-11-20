@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
 import { checkSelection, matchStorageKey, matchWaves, waveTiles } from '@/lib/readingMatch'
@@ -17,10 +17,10 @@ function newRound(wave: number): Round {
   return { wave, order, cleared: [], errors: 0, seconds: 0, score: 0 }
 }
 
-function restore(owner: string): Progress {
+function restore(storageKey: string, demo: boolean): Progress {
   try {
-    const saved = JSON.parse(localStorage.getItem(matchStorageKey(owner)) ?? 'null') as Progress | null
-    if (saved && matchWaves[saved.round.wave] && Array.isArray(saved.favorites) && saved.results) {
+    const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null') as Progress | null
+    if (saved && (!demo || saved.round.wave === 0) && matchWaves[saved.round.wave] && Array.isArray(saved.favorites) && saved.results) {
       const { order, cleared, wave } = saved.round
       const tiles = waveTiles(wave)
       const groups = matchWaves[wave]
@@ -37,16 +37,19 @@ function restore(owner: string): Progress {
 
 export default function IELTSReadingMatch() {
   const { user, loading } = useAuth()
+  const [params] = useSearchParams()
+  const demo = params.get('play') === 'demo'
   const owner = user?.id ?? 'guest'
+  const storageKey = demo ? 'ielts-reading-match-demo-v1' : matchStorageKey(owner)
   return <div className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
     <Link to="/ielts/reading-538" className="inline-flex min-h-11 items-center underline underline-offset-4">← 返回同义替换</Link>
     <h1 className="my-4 font-serif text-3xl sm:text-4xl">考点对应消消乐</h1>
-    {loading ? <p role="status">正在读取账号…</p> : <MatchGame key={owner} owner={owner} />}
+    {loading && !demo ? <p role="status">正在读取账号…</p> : <MatchGame key={storageKey} storageKey={storageKey} demo={demo} />}
   </div>
 }
 
-function MatchGame({ owner }: { owner: string }) {
-  const [progress, setProgress] = useState(() => restore(owner))
+function MatchGame({ storageKey, demo }: { storageKey: string; demo: boolean }) {
+  const [progress, setProgress] = useState(() => restore(storageKey, demo))
   const [selected, setSelected] = useState<string[]>([])
   const [hint, setHint] = useState('')
   const [message, setMessage] = useState('')
@@ -59,12 +62,12 @@ function MatchGame({ owner }: { owner: string }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(matchStorageKey(owner), JSON.stringify(progress))
+      localStorage.setItem(storageKey, JSON.stringify(progress))
     } catch {
       const timer = window.setTimeout(() => setSaveError(true), 0)
       return () => window.clearTimeout(timer)
     }
-  }, [owner, progress])
+  }, [storageKey, progress])
 
   useEffect(() => {
     if (done || panel) return
@@ -134,17 +137,17 @@ function MatchGame({ owner }: { owner: string }) {
   const renderGroup = (group: typeof groups[number]) => <li key={group.id} className="rounded-lg border p-3">
     <p className="font-semibold">{group.words.join(' · ')}</p>
     <p className="my-1 text-sm">{group.meaning}</p>
-    <Button size="sm" variant="outline" aria-pressed={progress.favorites.includes(group.id)}
-      onClick={() => toggleFavorite(group.id)}>{progress.favorites.includes(group.id) ? '取消收藏' : '收藏词组'}</Button>
+    {!demo && <Button size="sm" variant="outline" aria-pressed={progress.favorites.includes(group.id)}
+      onClick={() => toggleFavorite(group.id)}>{progress.favorites.includes(group.id) ? '取消收藏' : '收藏词组'}</Button>}
   </li>
 
   return <div className="space-y-4">
     <p className="text-sm text-[var(--app-muted)]">选齐属于同一组的全部词条。部分表达只在阅读语境中对应。进度保存在当前浏览器。</p>
-    <p>第 {round.wave + 1} / {matchWaves.length} 波 · {round.wave < 5 ? '示例' : '阅读 538'} · 已消除 {round.cleared.length} / {groups.length} 组</p>
+    <p>{demo ? '免登录试玩 · 示例第 1 波' : `第 ${round.wave + 1} / ${matchWaves.length} 波 · ${round.wave < 5 ? '示例' : '阅读 538'}`} · 已消除 {round.cleared.length} / {groups.length} 组</p>
     <p>{round.score} 分 · 错选 {round.errors} 次 · {round.seconds} 秒</p>
     <div className="flex flex-wrap gap-2">
-      <Button variant="outline" aria-expanded={panel === 'waves'} onClick={() => setPanel(panel === 'waves' ? undefined : 'waves')}>选择波次</Button>
-      <Button variant="outline" aria-expanded={panel === 'favorites'} onClick={() => setPanel(panel === 'favorites' ? undefined : 'favorites')}>收藏词组（{progress.favorites.length}）</Button>
+      {!demo && <Button variant="outline" aria-expanded={panel === 'waves'} onClick={() => setPanel(panel === 'waves' ? undefined : 'waves')}>选择波次</Button>}
+      {!demo && <Button variant="outline" aria-expanded={panel === 'favorites'} onClick={() => setPanel(panel === 'favorites' ? undefined : 'favorites')}>收藏词组（{progress.favorites.length}）</Button>}
       <Button variant="outline" disabled={done || Boolean(panel)} onClick={showHint}>提示</Button>
       <Button variant="outline" disabled={!selected.length} onClick={() => { setSelected([]); setHint(''); setMessage('已取消选择。') }}>取消选择</Button>
     </div>
@@ -174,7 +177,9 @@ function MatchGame({ owner }: { owner: string }) {
     {!panel && done && <section aria-label="本波回顾" className="space-y-3">
       <h2 className="text-xl font-semibold">{round.wave === matchWaves.length - 1 ? '最后一波完成' : '本波完成'} · 词组回顾</h2>
       <div className="flex flex-wrap gap-2">
-        {round.wave + 1 < matchWaves.length && <Button onClick={() => openWave(round.wave + 1)}>下一波</Button>}
+        {demo ? <Button asChild><Link to="/ielts/reading-538/match">继续完整练习</Link></Button>
+          : round.wave + 1 < matchWaves.length && <Button onClick={() => openWave(round.wave + 1)}>下一波</Button>}
+        <Button asChild variant="outline"><Link to="/ielts/reading-538">去阅读 538 复习</Link></Button>
         <Button variant="outline" onClick={() => openWave(round.wave)}>重玩本波</Button>
       </div>
       <ul className="space-y-2">{groups.map(renderGroup)}</ul>

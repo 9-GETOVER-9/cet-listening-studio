@@ -6,7 +6,7 @@ export function readMatchReview(owner: string): ReviewQueue {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(reviewKey(owner)) ?? '{}')
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-    return Object.fromEntries(Object.entries(value).filter(([, due]) => Number.isFinite(due)))
+    return Object.fromEntries(Object.entries(value).filter(([id, due]) => id !== 'early' && Number.isFinite(due)))
   } catch {
     return {}
   }

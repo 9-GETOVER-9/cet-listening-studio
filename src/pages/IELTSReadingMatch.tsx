@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
-import { checkSelection, matchStorageKey, matchWaves, waveTiles } from '@/lib/readingMatch'
+import { checkSelection, matchStorageKey, matchWaves, migrateMatchRound, waveTiles } from '@/lib/readingMatch'
 import { getDueMatchGroups, saveMatchReview } from '@/lib/readingMatchReview'
 
 type Round = { wave: number; order: string[]; cleared: string[]; errors: number; seconds: number; score: number; missed?: string[] }
@@ -22,6 +22,8 @@ function restore(storageKey: string, demo: boolean): Progress {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null') as Progress | null
     if (saved && (!demo || saved.round.wave === 0) && matchWaves[saved.round.wave] && Array.isArray(saved.favorites) && saved.results) {
+      saved.round = migrateMatchRound(saved.round)
+      saved.favorites = saved.favorites.filter(id => id !== 'early')
       const { order, cleared, wave } = saved.round
       const tiles = waveTiles(wave)
       const groups = matchWaves[wave]

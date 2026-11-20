@@ -1,5 +1,12 @@
 import { expect, it } from 'vitest'
-import { checkSelection, matchWaves, waveTiles } from './readingMatch'
+import { checkSelection, matchWaves, migrateMatchRound, waveTiles } from './readingMatch'
+
+it('uses the source group in wave two and preserves unrelated progress', () => {
+  expect(matchWaves[1].find(group => group.id === 'example-original')?.words).toEqual(['original', 'initial', 'first'])
+  expect(matchWaves.flat().find(group => group.coreWord === 'fundamental')?.words).toEqual(['fundamental', 'rudimentary', 'preliminary', 'basic'])
+  const old = { wave: 1, order: ['assess:0', 'early:0'], cleared: ['assess', 'early'], score: 200, missed: ['early', 'assess'] }
+  expect(migrateMatchRound(old)).toEqual({ wave: 1, order: ['assess:0', 'example-original:0'], cleared: ['assess'], score: 100, missed: ['assess'] })
+})
 
 it('preserves all reference waves and avoids duplicate labels within a wave', () => {
   expect(matchWaves).toHaveLength(84)

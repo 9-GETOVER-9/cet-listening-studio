@@ -3,8 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
 import { checkSelection, matchStorageKey, matchWaves, waveTiles } from '@/lib/readingMatch'
+import { getDueMatchGroups, saveMatchReview } from '@/lib/readingMatchReview'
 
-type Round = { wave: number; order: string[]; cleared: string[]; errors: number; seconds: number; score: number }
+type Round = { wave: number; order: string[]; cleared: string[]; errors: number; seconds: number; score: number; missed?: string[] }
 type Result = Pick<Round, 'score' | 'seconds' | 'errors'>
 type Progress = { round: Round; results: Record<number, Result[]>; favorites: string[] }
 
@@ -42,10 +43,12 @@ export default function IELTSReadingMatch() {
   if (demo) return <PublicReadingMatchDemo />
   const owner = user?.id ?? 'guest'
   const storageKey = matchStorageKey(owner)
+  if (params.get('play') === 'review') return loading ? <p role="status" className="p-6">正在读取账号…</p>
+    : <MatchRecall key={owner} owner={owner} ids={getDueMatchGroups(owner)} />
   return <div className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
     <Link to="/ielts/reading-538" className="inline-flex min-h-11 items-center underline underline-offset-4">← 返回同义替换</Link>
     <h1 className="my-4 font-serif text-3xl sm:text-4xl">考点对应消消乐</h1>
-    {loading ? <p role="status">正在读取账号…</p> : <MatchGame key={storageKey} storageKey={storageKey} demo={false} />}
+    {loading ? <p role="status">正在读取账号…</p> : <MatchGame key={storageKey} storageKey={storageKey} owner={owner} demo={false} />}
   </div>
 }
 
@@ -57,17 +60,26 @@ export function PublicReadingMatchDemo() {
   </main>
 }
 
-function MatchGame({ storageKey, demo }: { storageKey: string; demo: boolean }) {
+function MatchGame({ storageKey, demo, owner }: { storageKey: string; demo: boolean; owner?: string }) {
   const [progress, setProgress] = useState(() => restore(storageKey, demo))
   const [selected, setSelected] = useState<string[]>([])
   const [hint, setHint] = useState('')
   const [message, setMessage] = useState('')
   const [panel, setPanel] = useState<'waves' | 'favorites'>()
   const [saveError, setSaveError] = useState(false)
+  const [wrong, setWrong] = useState<{ id: string }>()
+  const [retrying, setRetrying] = useState(false)
   const { round } = progress
   const groups = matchWaves[round.wave]
   const tiles = waveTiles(round.wave)
   const done = round.cleared.length === groups.length
+  const missed = groups.filter(group => round.missed?.includes(group.id)).map(group => group.id)
+
+  useEffect(() => {
+    if (!wrong) return
+    const timer = window.setTimeout(() => setWrong(undefined), 400)
+    return () => window.clearTimeout(timer)
+  }, [wrong])
 
   useEffect(() => {
     try {
@@ -95,7 +107,7 @@ function MatchGame({ storageKey, demo }: { storageKey: string; demo: boolean }) 
     setPanel(undefined)
   }
 
-  function choose(id: string) {
+  function choose(id: string, button: HTMLButtonElement) {
     setHint('')
     if (selected.includes(id)) {
       setSelected(selected.filter(tile => tile !== id))
@@ -105,7 +117,18 @@ function MatchGame({ storageKey, demo }: { storageKey: string; demo: boolean }) 
     const next = [...selected, id]
     const outcome = checkSelection(tiles, next)
     if (outcome === 'wrong') {
-      setProgress(previous => ({ ...previous, round: { ...previous.round, errors: previous.round.errors + 1 } }))
+      setWrong({ id })
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        button.animate?.([{ transform: 'translateX(0)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }], { duration: 180 })
+      }
+      const anchor = tiles.find(item => item.id === selected[0])
+      const ids = anchor ? [anchor.group, tile.group] : [tile.group]
+      setProgress(previous => ({ ...previous, round: {
+        ...previous.round, errors: previous.round.errors + 1, missed: [...new Set([...(previous.round.missed ?? []), ...ids])],
+      } }))
+      if (owner) {
+        try { saveMatchReview(owner, ids) } catch { setSaveError(true) }
+      }
       setMessage('这些词不属于同一组，请重新尝试。')
       return
     }
@@ -150,6 +173,8 @@ function MatchGame({ storageKey, demo }: { storageKey: string; demo: boolean }) 
       onClick={() => toggleFavorite(group.id)}>{progress.favorites.includes(group.id) ? '取消收藏' : '收藏词组'}</Button>}
   </li>
 
+  if (retrying) return <MatchRecall owner={owner} ids={missed} onBack={() => setRetrying(false)} />
+
   return <div className="space-y-4">
     <p className="text-sm text-[var(--app-muted)]">选齐属于同一组的全部词条。部分表达只在阅读语境中对应。进度保存在当前浏览器。</p>
     <p>{demo ? '免登录试玩 · 示例第 1 波' : `第 ${round.wave + 1} / ${matchWaves.length} 波 · ${round.wave < 5 ? '示例' : '阅读 538'}`} · 已消除 {round.cleared.length} / {groups.length} 组</p>
@@ -179,13 +204,14 @@ function MatchGame({ storageKey, demo }: { storageKey: string; demo: boolean }) 
         const pressed = selected.includes(id)
         return <Button key={id} variant={pressed || tile.core ? 'default' : 'outline'}
           aria-pressed={pressed}
-          className={`h-auto min-h-12 whitespace-normal px-2 py-2 [overflow-wrap:anywhere] ${pressed || hint === id ? 'ring-2 ring-offset-2 ring-[var(--app-accent)]' : ''} ${tile.core && !pressed ? 'opacity-90' : ''}`}
-          onClick={() => choose(id)}>{tile.text}</Button>
+          className={`h-auto min-h-12 whitespace-normal px-2 py-2 [overflow-wrap:anywhere] ${pressed || hint === id ? 'ring-2 ring-offset-2 ring-[var(--app-accent)]' : ''} ${tile.core && !pressed ? 'opacity-90' : ''} ${wrong?.id === id ? 'ring-2 ring-red-500 bg-red-50 text-red-900 dark:bg-red-950 dark:text-red-100' : ''}`}
+          onClick={event => choose(id, event.currentTarget)}>{tile.text}</Button>
       })}
     </div>}
     {!panel && done && <section aria-label="本波回顾" className="space-y-3">
       <h2 className="text-xl font-semibold">{round.wave === matchWaves.length - 1 ? '最后一波完成' : '本波完成'} · 词组回顾</h2>
       <div className="flex flex-wrap gap-2">
+        {missed.length > 0 && <Button onClick={() => setRetrying(true)}>重练这 {missed.length} 组错题</Button>}
         {demo ? <Button asChild><Link reloadDocument to="/ielts/reading-538/match">继续完整练习</Link></Button>
           : round.wave + 1 < matchWaves.length && <Button onClick={() => openWave(round.wave + 1)}>下一波</Button>}
         <Button asChild variant="outline"><Link reloadDocument={demo} to="/ielts/reading-538">去阅读 538 复习</Link></Button>
@@ -194,4 +220,44 @@ function MatchGame({ storageKey, demo }: { storageKey: string; demo: boolean }) 
       <ul className="space-y-2">{groups.map(renderGroup)}</ul>
     </section>}
   </div>
+}
+
+function MatchRecall({ owner, ids, onBack }: { owner?: string; ids: string[]; onBack?: () => void }) {
+  const [groups] = useState(() => ids.flatMap(id => {
+    const group = matchWaves.flat().find(item => item.id === id)
+    return group ? [group] : []
+  }))
+  const [index, setIndex] = useState(0)
+  const [revealed, setRevealed] = useState(false)
+  const [error, setError] = useState(false)
+  const group = groups[index]
+
+  function rate(recalled: boolean) {
+    if (owner && !onBack) {
+      try { saveMatchReview(owner, [group.id], recalled) }
+      catch { setError(true); return }
+    }
+    setError(false)
+    setRevealed(false)
+    setIndex(index + 1)
+  }
+
+  return <section className="mx-auto max-w-xl space-y-4 px-4 py-6" aria-label="主动回忆">
+    <h2 className="font-serif text-2xl">消消乐错题 · 主动回忆</h2>
+    {group ? <>
+      <p className="text-sm">第 {index + 1} / {groups.length} 组</p>
+      <p className="text-xl font-semibold break-words">{group.coreWord ?? group.words[0]}</p>
+      <p>先想想它的中文意思，以及有哪些对应表达。</p>
+      {revealed ? <>
+        <p role="status">{group.meaning} · {group.words.join(' · ')}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => rate(true)}>{onBack ? '想起来了' : '已记住'}</Button>
+          <Button variant="outline" onClick={() => rate(false)}>{onBack ? '没想起来' : '明天再复习'}</Button>
+        </div>
+      </> : <Button onClick={() => setRevealed(true)}>查看答案</Button>}
+    </> : <p role="status">{groups.length ? '本轮错题已复习完。' : '今天没有到期的消消乐错题。'}</p>}
+    {error && <p role="alert">复习进度未保存，请重试。</p>}
+    {onBack ? <Button variant="outline" onClick={onBack}>返回本波回顾</Button>
+      : <Button asChild variant="outline"><Link to="/">返回首页</Link></Button>}
+  </section>
 }

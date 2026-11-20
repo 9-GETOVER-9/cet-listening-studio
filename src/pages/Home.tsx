@@ -12,6 +12,8 @@ import { useSettingsStore } from '@/store/settingsStore'
 import { usePro } from '@/hooks/usePro'
 import { useAccountSyncStatus } from '@/lib/accountSync'
 import { shouldShowProReminder } from '@/lib/membershipPolicy'
+import { useLocalDay } from '@/hooks/useLocalDay'
+import { getDueMatchGroups } from '@/lib/readingMatchReview'
 
 interface Stats {
   totalCards: number
@@ -28,6 +30,8 @@ export default function Home() {
   const resume = useLearningResume()
   const lastCourse = resume ? resumeCourse(resume.path) : null
   const owner = useAccountSyncStatus(s => s.owner)
+  useLocalDay()
+  const dueMatchCount = getDueMatchGroups(owner).length
   const lastSynced = useAccountSyncStatus(s => s.lastSynced)
   const initialized = useSettingsStore(s => s.initialized)
   const { isGuestTrial, isPro, proDaysLeft, proExpiresAt } = usePro()
@@ -81,6 +85,10 @@ export default function Home() {
         <div><h1 id="home-title" className="quiet-display text-3xl sm:text-4xl">今天，听清一个细节。</h1></div>
         <Headphones className="hidden h-7 w-7 text-[var(--app-accent)] sm:block" aria-hidden="true" />
       </header>
+      {dueMatchCount > 0 && <section aria-label="消消乐到期复习" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--app-line)] p-4">
+        <p className="font-semibold">你有 {dueMatchCount} 组消消乐错题该复习了</p>
+        <Button onClick={() => navigate('/ielts/reading-538/match?play=review')}>开始主动回忆</Button>
+      </section>}
       <section className="grid gap-4 lg:grid-cols-[1.5fr_1fr]" aria-label="今日学习安排">
         <div className="relative flex min-h-44 items-center gap-4 overflow-hidden rounded-[var(--app-radius)] bg-[var(--app-accent)] p-5 text-white sm:p-6">
           <div className="relative z-10 min-w-0 flex-1">

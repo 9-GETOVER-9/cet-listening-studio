@@ -13,6 +13,7 @@ const NCESelector = lazyWithRecovery(() => import('@/pages/NCESelector'))
 const IELTSDictation = lazyWithRecovery(() => import('@/pages/IELTSDictation'))
 const IELTSHub = lazyWithRecovery(() => import('@/pages/IELTSHub'))
 const IELTSReading = lazyWithRecovery(() => import('@/pages/IELTSReading'))
+const IELTSReadingMatch = lazyWithRecovery(() => import('@/pages/IELTSReadingMatch'))
 const IELTSSentenceCards = lazyWithRecovery(() => import('@/pages/IELTSSentenceCards'))
 const CardFlash = lazyWithRecovery(() => import('@/pages/CardFlash'))
 const ReviewHub = lazyWithRecovery(() => import('@/pages/ReviewHub'))
@@ -58,6 +59,7 @@ export const router = createBrowserRouter([
       { path: 'ielts/listening-cards', element: <IELTSSentenceCards /> },
       { path: 'cambridge/listening', element: <CambridgeListening /> },
       { path: 'ielts/reading-538', element: <IELTSReading /> },
+      { path: 'ielts/reading-538/match', element: <IELTSReadingMatch /> },
       { path: 'card/:moduleId', element: <CardFlash /> },
       { path: 'review', element: <ReviewHub /> },
       { path: 'review/session', element: <Review /> },

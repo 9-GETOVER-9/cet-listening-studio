@@ -3,9 +3,11 @@ import { checkSelection, matchWaves, migrateMatchRound, waveTiles } from './read
 
 it('uses the source group in wave two and preserves unrelated progress', () => {
   expect(matchWaves[1].find(group => group.id === 'example-original')?.words).toEqual(['original', 'initial', 'first'])
-  expect(matchWaves.flat().find(group => group.coreWord === 'fundamental')?.words).toEqual(['fundamental', 'rudimentary', 'preliminary', 'basic'])
+  expect(matchWaves.slice(5).flat().find(group => group.coreWord === 'fundamental')?.words).toEqual(['fundamental', 'rudimentary', 'preliminary', 'basic'])
   const old = { wave: 1, order: ['assess:0', 'early:0'], cleared: ['assess', 'early'], score: 200, missed: ['early', 'assess'] }
-  expect(migrateMatchRound(old)).toEqual({ wave: 1, order: ['assess:0', 'example-original:0'], cleared: ['assess'], score: 100, missed: ['assess'] })
+  const migrated = migrateMatchRound({ ...old, order: [...old.order, 'example-original:0'], cleared: [...old.cleared, 'example-original'], score: 300 })
+  expect(migrated.order).toEqual(waveTiles(1).map(tile => tile.id).sort((a, b) => Number(b === 'example-original:0') - Number(a === 'example-original:0')))
+  expect(migrated).toMatchObject({ cleared: ['example-original'], score: 100, missed: [] })
 })
 
 it('preserves all reference waves and avoids duplicate labels within a wave', () => {

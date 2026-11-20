@@ -1,12 +1,17 @@
 type ReviewQueue = Record<string, number>
 
 const reviewKey = (owner: string) => `ielts-match-review-v1:${owner}`
+const retiredGroups = new Set(['early', 'basic', 'start', 'assess', 'home', 'cause', 'rapid', 'abundant', 'important', 'accurate', 'obtain', 'reduce', 'method', 'result'])
+
+export function isRetiredMatchGroup(id: string) {
+  return retiredGroups.has(id)
+}
 
 export function readMatchReview(owner: string): ReviewQueue {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(reviewKey(owner)) ?? '{}')
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-    return Object.fromEntries(Object.entries(value).filter(([id, due]) => id !== 'early' && Number.isFinite(due)))
+    return Object.fromEntries(Object.entries(value).filter(([id, due]) => !isRetiredMatchGroup(id) && Number.isFinite(due)))
   } catch {
     return {}
   }

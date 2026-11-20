@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
-import { checkSelection, matchStorageKey, matchWaves, migrateMatchRound, waveTiles } from '@/lib/readingMatch'
-import { getDueMatchGroups, saveMatchReview } from '@/lib/readingMatchReview'
+import { checkSelection, matchRelationNote, matchStorageKey, matchWaves, migrateMatchRound, waveTiles } from '@/lib/readingMatch'
+import { getDueMatchGroups, isRetiredMatchGroup, saveMatchReview } from '@/lib/readingMatchReview'
 
 type Round = { wave: number; order: string[]; cleared: string[]; errors: number; seconds: number; score: number; missed?: string[] }
 type Result = Pick<Round, 'score' | 'seconds' | 'errors'>
@@ -23,7 +23,7 @@ function restore(storageKey: string, demo: boolean): Progress {
     const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null') as Progress | null
     if (saved && (!demo || saved.round.wave === 0) && matchWaves[saved.round.wave] && Array.isArray(saved.favorites) && saved.results) {
       saved.round = migrateMatchRound(saved.round)
-      saved.favorites = saved.favorites.filter(id => id !== 'early')
+      saved.favorites = saved.favorites.filter(id => !isRetiredMatchGroup(id))
       const { order, cleared, wave } = saved.round
       const tiles = waveTiles(wave)
       const groups = matchWaves[wave]
@@ -171,6 +171,7 @@ function MatchGame({ storageKey, demo, owner }: { storageKey: string; demo: bool
   const renderGroup = (group: typeof groups[number]) => <li key={group.id} className="rounded-lg border p-3">
     <p className="font-semibold">{group.words.join(' · ')}</p>
     <p className="my-1 text-sm">{group.meaning}</p>
+    {matchRelationNote(group.coreWord) && <p className="my-1 text-sm text-[var(--app-muted)]">{matchRelationNote(group.coreWord)}</p>}
     {!demo && <Button size="sm" variant="outline" aria-pressed={progress.favorites.includes(group.id)}
       onClick={() => toggleFavorite(group.id)}>{progress.favorites.includes(group.id) ? '取消收藏' : '收藏词组'}</Button>}
   </li>
@@ -252,6 +253,7 @@ function MatchRecall({ owner, ids, onBack }: { owner?: string; ids: string[]; on
       <p>先想想它的中文意思，以及有哪些对应表达。</p>
       {revealed ? <>
         <p role="status">{group.meaning} · {group.words.join(' · ')}</p>
+        {matchRelationNote(group.coreWord) && <p className="text-sm text-[var(--app-muted)]">{matchRelationNote(group.coreWord)}</p>}
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => rate(true)}>{onBack ? '想起来了' : '已记住'}</Button>
           <Button variant="outline" onClick={() => rate(false)}>{onBack ? '没想起来' : '明天再复习'}</Button>

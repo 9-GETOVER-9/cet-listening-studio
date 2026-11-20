@@ -39,13 +39,22 @@ export default function IELTSReadingMatch() {
   const { user, loading } = useAuth()
   const [params] = useSearchParams()
   const demo = params.get('play') === 'demo'
+  if (demo) return <PublicReadingMatchDemo />
   const owner = user?.id ?? 'guest'
-  const storageKey = demo ? 'ielts-reading-match-demo-v1' : matchStorageKey(owner)
+  const storageKey = matchStorageKey(owner)
   return <div className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
     <Link to="/ielts/reading-538" className="inline-flex min-h-11 items-center underline underline-offset-4">← 返回同义替换</Link>
     <h1 className="my-4 font-serif text-3xl sm:text-4xl">考点对应消消乐</h1>
-    {loading && !demo ? <p role="status">正在读取账号…</p> : <MatchGame key={storageKey} storageKey={storageKey} demo={demo} />}
+    {loading ? <p role="status">正在读取账号…</p> : <MatchGame key={storageKey} storageKey={storageKey} demo={false} />}
   </div>
+}
+
+export function PublicReadingMatchDemo() {
+  return <main className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
+    <Link reloadDocument to="/ielts/reading-538" className="inline-flex min-h-11 items-center underline underline-offset-4">← 返回同义替换</Link>
+    <h1 className="my-4 font-serif text-3xl sm:text-4xl">考点对应消消乐</h1>
+    <MatchGame storageKey="ielts-reading-match-demo-v1" demo />
+  </main>
 }
 
 function MatchGame({ storageKey, demo }: { storageKey: string; demo: boolean }) {
@@ -177,9 +186,9 @@ function MatchGame({ storageKey, demo }: { storageKey: string; demo: boolean }) 
     {!panel && done && <section aria-label="本波回顾" className="space-y-3">
       <h2 className="text-xl font-semibold">{round.wave === matchWaves.length - 1 ? '最后一波完成' : '本波完成'} · 词组回顾</h2>
       <div className="flex flex-wrap gap-2">
-        {demo ? <Button asChild><Link to="/ielts/reading-538/match">继续完整练习</Link></Button>
+        {demo ? <Button asChild><Link reloadDocument to="/ielts/reading-538/match">继续完整练习</Link></Button>
           : round.wave + 1 < matchWaves.length && <Button onClick={() => openWave(round.wave + 1)}>下一波</Button>}
-        <Button asChild variant="outline"><Link to="/ielts/reading-538">去阅读 538 复习</Link></Button>
+        <Button asChild variant="outline"><Link reloadDocument={demo} to="/ielts/reading-538">去阅读 538 复习</Link></Button>
         <Button variant="outline" onClick={() => openWave(round.wave)}>重玩本波</Button>
       </div>
       <ul className="space-y-2">{groups.map(renderGroup)}</ul>

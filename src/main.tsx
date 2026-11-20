@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
 import { registerSW } from 'virtual:pwa-register'
 import { AppInitializer } from '@/components/AppInitializer'
 import { applyAppTheme } from '@/config/theme'
@@ -42,8 +43,16 @@ function registerOfflineSupport() {
   })
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <AppInitializer onPageReady={registerOfflineSupport} />
-  </StrictMode>,
-)
+const isPublicDemo = window.location.pathname === '/ielts/reading-538/match'
+  && new URLSearchParams(window.location.search).get('play') === 'demo'
+const root = createRoot(document.getElementById('root')!)
+if (isPublicDemo) {
+  root.render(<p className="p-6" role="status">正在打开试玩…</p>)
+  void import('@/pages/IELTSReadingMatch').then(({ PublicReadingMatchDemo }) => {
+    root.render(<StrictMode><BrowserRouter><PublicReadingMatchDemo /></BrowserRouter></StrictMode>)
+  }).catch(() => {
+    root.render(<div className="p-6" role="alert">试玩加载失败。 <button className="underline" onClick={() => window.location.reload()}>刷新重试</button></div>)
+  })
+} else {
+  root.render(<StrictMode><AppInitializer onPageReady={registerOfflineSupport} /></StrictMode>)
+}

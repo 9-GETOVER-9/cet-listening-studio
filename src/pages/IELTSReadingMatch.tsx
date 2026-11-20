@@ -2,93 +2,60 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
-import { loadReadingCorpus } from '@/lib/ieltsReadingLoader'
-import { buildMatchLevels, matchStorageKey, type MatchPair } from '@/lib/readingMatch'
+import { checkSelection, matchStorageKey, matchWaves, waveTiles } from '@/lib/readingMatch'
 
-type Side = 'words' | 'answers'
-type Selection = { side: Side; index: number }
-type Round = {
-  level: number; signature: string; words: number[]; answers: number[]
-  matched: number[]; mistakes: number; seconds: number; done: boolean
-}
-type Progress = { round: Round; completed: string[] }
+type Round = { wave: number; order: string[]; cleared: string[]; errors: number; seconds: number; score: number }
+type Result = Pick<Round, 'score' | 'seconds' | 'errors'>
+type Progress = { round: Round; results: Record<number, Result[]>; favorites: string[] }
 
-function shuffle(size: number) {
-  const order = Array.from({ length: size }, (_, index) => index)
-  for (let i = size - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[order[i], order[j]] = [order[j], order[i]]
+function newRound(wave: number): Round {
+  const order = waveTiles(wave).map(tile => tile.id)
+  for (let index = order.length - 1; index > 0; index--) {
+    const other = Math.floor(Math.random() * (index + 1))
+    ;[order[index], order[other]] = [order[other], order[index]]
   }
-  return order
+  return { wave, order, cleared: [], errors: 0, seconds: 0, score: 0 }
 }
 
-const signature = (pairs: MatchPair[]) => JSON.stringify(pairs.map(({ card, answer }) => [card.id, card.word, answer]))
-
-function startRound(levels: MatchPair[][], level: number): Round {
-  const pairs = levels[level]
-  return { level, signature: signature(pairs), words: shuffle(pairs.length), answers: shuffle(pairs.length), matched: [], mistakes: 0, seconds: 0, done: false }
-}
-
-function restore(levels: MatchPair[][], owner: string) {
-  const fallback: Progress = { round: startRound(levels, 0), completed: [] }
+function restore(owner: string): Progress {
   try {
-    const saved: Progress | null = JSON.parse(localStorage.getItem(matchStorageKey(owner)) ?? 'null')
-    if (!saved) return { progress: fallback, message: '' }
-    const round = saved.round
-    const pairs = levels[round.level]
-    const validIndices = (items: number[], count: number) => Array.isArray(items)
-      && items.length === count && new Set(items).size === count
-      && items.every(index => Number.isInteger(index) && index >= 0 && index < pairs.length)
-    if (pairs && round.signature === signature(pairs)
-      && validIndices(round.words, pairs.length) && validIndices(round.answers, pairs.length)
-      && validIndices(round.matched, round.matched.length)
-      && round.done === (round.matched.length === pairs.length)
-      && Number.isSafeInteger(round.mistakes) && round.mistakes >= 0
-      && Number.isSafeInteger(round.seconds) && round.seconds >= 0
-      && Array.isArray(saved.completed)) return { progress: saved, message: '' }
-    fallback.round = startRound(levels, pairs ? round.level : 0)
-    if (Array.isArray(saved.completed)) fallback.completed = saved.completed.filter(key => levels.some(level => signature(level) === key))
+    const saved = JSON.parse(localStorage.getItem(matchStorageKey(owner)) ?? 'null') as Progress | null
+    if (saved && matchWaves[saved.round.wave] && Array.isArray(saved.favorites) && saved.results) {
+      const { order, cleared, wave } = saved.round
+      const tiles = waveTiles(wave)
+      const groups = matchWaves[wave]
+      if (order.length === tiles.length && new Set(order).size === tiles.length
+        && tiles.every(tile => order.includes(tile.id)) && new Set(cleared).size === cleared.length
+        && cleared.every(id => groups.some(group => group.id === id))
+        && [saved.round.score, saved.round.seconds, saved.round.errors].every(value => Number.isSafeInteger(value) && value >= 0)) return saved
+    }
   } catch {
-    return { progress: fallback, message: '无法恢复上次牌局，已开始新一关。' }
+    // Start a fresh round if stored progress cannot be read.
   }
-  return { progress: fallback, message: '词库已更新，已重新开始本关。' }
+  return { round: newRound(0), results: {}, favorites: [] }
 }
 
 export default function IELTSReadingMatch() {
   const { user, loading } = useAuth()
-  const [levels, setLevels] = useState<MatchPair[][]>()
-  const [error, setError] = useState('')
-  const [attempt, setAttempt] = useState(0)
-  useEffect(() => {
-    const controller = new AbortController()
-    void loadReadingCorpus(controller.signal).then(corpus => {
-      if (!controller.signal.aborted) setLevels(buildMatchLevels(corpus.cards))
-    }).catch(() => {
-      if (!controller.signal.aborted) setError('词库加载失败，请重试。')
-    })
-    return () => controller.abort()
-  }, [attempt])
-
   const owner = user?.id ?? 'guest'
-  return <main className="mx-auto max-w-3xl px-4 py-8 sm:px-8">
+  return <div className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
     <Link to="/ielts/reading-538" className="inline-flex min-h-11 items-center underline underline-offset-4">← 返回同义替换</Link>
-    <h1 className="my-4 font-serif text-3xl sm:text-4xl">阅读 538 消消乐</h1>
-    {error ? <div role="alert">{error} <Button onClick={() => { setError(''); setAttempt(n => n + 1) }}>重新加载</Button></div>
-      : loading || !levels ? <p role="status">正在准备牌组…</p>
-        : !levels.length ? <p>当前词库没有可配对的词条。</p>
-          : <MatchGame key={owner} owner={owner} levels={levels} />}
-  </main>
+    <h1 className="my-4 font-serif text-3xl sm:text-4xl">考点对应消消乐</h1>
+    {loading ? <p role="status">正在读取账号…</p> : <MatchGame key={owner} owner={owner} />}
+  </div>
 }
 
-function MatchGame({ owner, levels }: { owner: string; levels: MatchPair[][] }) {
-  const [initial] = useState(() => restore(levels, owner))
-  const [progress, setProgress] = useState(initial.progress)
-  const [message, setMessage] = useState(initial.message)
-  const [selected, setSelected] = useState<Selection>()
-  const [choosing, setChoosing] = useState(false)
+function MatchGame({ owner }: { owner: string }) {
+  const [progress, setProgress] = useState(() => restore(owner))
+  const [selected, setSelected] = useState<string[]>([])
+  const [hint, setHint] = useState('')
+  const [message, setMessage] = useState('')
+  const [panel, setPanel] = useState<'waves' | 'favorites'>()
   const [saveError, setSaveError] = useState(false)
   const { round } = progress
-  const pairs = levels[round.level]
+  const groups = matchWaves[round.wave]
+  const tiles = waveTiles(round.wave)
+  const done = round.cleared.length === groups.length
 
   useEffect(() => {
     try {
@@ -100,83 +67,117 @@ function MatchGame({ owner, levels }: { owner: string; levels: MatchPair[][] }) 
   }, [owner, progress])
 
   useEffect(() => {
-    if (round.done) return
+    if (done || panel) return
     const timer = window.setInterval(() => {
       if (document.visibilityState !== 'visible') return
-      setProgress(previous => previous.round.done ? previous : {
-        ...previous, round: { ...previous.round, seconds: previous.round.seconds + 1 },
-      })
+      setProgress(previous => ({ ...previous, round: { ...previous.round, seconds: previous.round.seconds + 1 } }))
     }, 1000)
     return () => window.clearInterval(timer)
-  }, [round.done, round.level])
+  }, [done, panel, round.wave])
 
-  function openLevel(level: number) {
-    setProgress(previous => ({ ...previous, round: startRound(levels, level) }))
-    setSelected(undefined)
+  function openWave(wave: number) {
+    setProgress(previous => ({ ...previous, round: newRound(wave) }))
+    setSelected([])
+    setHint('')
     setMessage('')
-    setChoosing(false)
+    setPanel(undefined)
   }
 
-  function choose(side: Side, index: number) {
-    if (!selected || selected.side === side) {
-      setSelected(selected?.index === index ? undefined : { side, index })
+  function choose(id: string) {
+    setHint('')
+    if (selected.includes(id)) {
+      setSelected(selected.filter(tile => tile !== id))
       return
     }
-    setSelected(undefined)
-    if (selected.index !== index) {
-      setProgress(previous => ({ ...previous, round: { ...previous.round, mistakes: previous.round.mistakes + 1 } }))
-      setMessage('这组不匹配，请再试一次。')
+    const tile = tiles.find(item => item.id === id)!
+    const next = [...selected, id]
+    const outcome = checkSelection(tiles, next)
+    if (outcome === 'wrong') {
+      setProgress(previous => ({ ...previous, round: { ...previous.round, errors: previous.round.errors + 1 } }))
+      setMessage('这些词不属于同一组，请重新尝试。')
       return
     }
-    const { card, answer } = pairs[index]
+    if (outcome === 'partial') {
+      setSelected(next)
+      setMessage(`已选 ${next.length} 张，继续找齐同组词条。`)
+      return
+    }
+
+    const group = groups.find(item => item.id === tile.group)!
+    setSelected([])
+    setMessage(`配对正确，+100 分。 ${group.words.join(' · ')}。 ${group.meaning}`)
     setProgress(previous => {
-      const matched = [...previous.round.matched, index]
-      const done = matched.length === pairs.length
-      const completed = done ? [...new Set([...previous.completed, round.signature])] : previous.completed
-      return { completed, round: { ...previous.round, matched, done } }
+      const cleared = [...previous.round.cleared, group.id]
+      const updated = { ...previous.round, cleared, score: previous.round.score + 100 }
+      if (cleared.length !== groups.length) return { ...previous, round: updated }
+      const { score, seconds, errors } = updated
+      return { ...previous, round: updated, results: {
+        ...previous.results, [round.wave]: [...(previous.results[round.wave] ?? []), { score, seconds, errors }],
+      } }
     })
-    setMessage(`配对正确：${card.word} ↔ ${answer}，${card.meaning}。${card.relation === 'context' ? ' 此替换适用于阅读语境。' : ''}`)
   }
 
-  function renderColumn(side: Side, title: string) {
-    return <section aria-label={title} className="min-w-0 space-y-2">
-      <h2 className="text-sm font-semibold">{title}</h2>
-      {round[side].map(index => {
-        const matched = round.matched.includes(index)
-        const pressed = selected?.side === side && selected.index === index
-        return <Button key={index} variant={pressed ? 'default' : 'outline'}
-          className="h-auto min-h-12 w-full whitespace-normal break-words px-2 py-3 [overflow-wrap:anywhere]"
-          aria-pressed={pressed} aria-disabled={matched}
-          onClick={() => { if (!matched) choose(side, index) }}>
-          {matched ? '已消除' : side === 'words' ? pairs[index].card.word : pairs[index].answer}
-        </Button>
-      })}
-    </section>
+  function showHint() {
+    const anchor = tiles.find(tile => tile.id === selected[0])
+    const candidate = tiles.find(tile => !round.cleared.includes(tile.group) && !selected.includes(tile.id)
+      && (!anchor || tile.group === anchor.group))
+    if (!candidate) return
+    setHint(candidate.id)
+    setMessage(`提示：试试「${candidate.text}」。`)
   }
 
-  return <div className="space-y-5">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <p>第 {round.level + 1} / {levels.length} 关 · 已配对 {round.matched.length} / {pairs.length}</p>
-      <Button variant="outline" aria-expanded={choosing} onClick={() => setChoosing(value => !value)}>选择关卡</Button>
+  function toggleFavorite(id: string) {
+    setProgress(previous => ({ ...previous, favorites: previous.favorites.includes(id)
+      ? previous.favorites.filter(item => item !== id) : [...previous.favorites, id] }))
+  }
+
+  const renderGroup = (group: typeof groups[number]) => <li key={group.id} className="rounded-lg border p-3">
+    <p className="font-semibold">{group.words.join(' · ')}</p>
+    <p className="my-1 text-sm">{group.meaning}</p>
+    <Button size="sm" variant="outline" aria-pressed={progress.favorites.includes(group.id)}
+      onClick={() => toggleFavorite(group.id)}>{progress.favorites.includes(group.id) ? '取消收藏' : '收藏词组'}</Button>
+  </li>
+
+  return <div className="space-y-4">
+    <p className="text-sm text-[var(--app-muted)]">选齐属于同一组的全部词条。部分表达只在阅读语境中对应。进度保存在当前浏览器。</p>
+    <p>第 {round.wave + 1} / {matchWaves.length} 波 · {round.wave < 5 ? '示例' : '阅读 538'} · 已消除 {round.cleared.length} / {groups.length} 组</p>
+    <p>{round.score} 分 · 错选 {round.errors} 次 · {round.seconds} 秒</p>
+    <div className="flex flex-wrap gap-2">
+      <Button variant="outline" aria-expanded={panel === 'waves'} onClick={() => setPanel(panel === 'waves' ? undefined : 'waves')}>选择波次</Button>
+      <Button variant="outline" aria-expanded={panel === 'favorites'} onClick={() => setPanel(panel === 'favorites' ? undefined : 'favorites')}>收藏词组（{progress.favorites.length}）</Button>
+      <Button variant="outline" disabled={done || Boolean(panel)} onClick={showHint}>提示</Button>
+      <Button variant="outline" disabled={!selected.length} onClick={() => { setSelected([]); setHint(''); setMessage('已取消选择。') }}>取消选择</Button>
     </div>
-    {choosing && <div className="grid max-h-64 grid-cols-2 gap-2 overflow-auto sm:grid-cols-4">
-      {levels.map((level, index) => <Button key={signature(level)} variant={index === round.level ? 'default' : 'outline'}
-        aria-current={index === round.level ? 'step' : undefined}
-        onClick={() => { if (index === round.level) setChoosing(false); else openLevel(index) }}>
-        第 {index + 1} 关{progress.completed.includes(signature(level)) ? ' ✓' : ''}
+    {panel === 'waves' && <div aria-label="选择波次" className="grid max-h-64 grid-cols-2 gap-2 overflow-auto sm:grid-cols-4">
+      {matchWaves.map((_, index) => <Button key={index} variant={round.wave === index ? 'default' : 'outline'}
+        aria-current={round.wave === index ? 'step' : undefined}
+        onClick={() => index === round.wave ? setPanel(undefined) : openWave(index)}>
+        第 {index + 1} 波{progress.results[index]?.length ? ' ✓' : ''}
       </Button>)}
     </div>}
-    {!round.done && <p className="text-sm text-[var(--app-muted)]">从两列各选一张牌，找出可以互相替换的表达。</p>}
+    {panel === 'favorites' && <section aria-label="收藏词组">
+      {progress.favorites.length ? <ul className="space-y-2">{matchWaves.flat().filter(group => progress.favorites.includes(group.id)).map(renderGroup)}</ul> : <p>还没有收藏。完成一波后可以收藏词组。</p>}
+    </section>}
     {saveError && <p role="alert">浏览器无法保存游戏进度。</p>}
     <p role="status" aria-atomic="true" className="min-h-6 text-sm">{message}</p>
-    <div className="grid grid-cols-2 gap-3 sm:gap-6">{renderColumn('words', '考点词')}{renderColumn('answers', '替换表达')}</div>
-    {round.done && <section aria-label="本关成绩" className="space-y-3 rounded-xl border border-[var(--app-line)] p-4">
-      <h2 className="text-lg font-semibold">{round.level + 1 === levels.length ? '最后一关完成' : '本关完成'}</h2>
-      <p>正确 {pairs.length} 组 · 错配 {round.mistakes} 次 · 用时 {round.seconds} 秒</p>
+    {!panel && !done && <div aria-label="混排词牌" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+      {round.order.map(id => {
+        const tile = tiles.find(item => item.id === id)!
+        if (round.cleared.includes(tile.group)) return null
+        const pressed = selected.includes(id)
+        return <Button key={id} variant={pressed || tile.core ? 'default' : 'outline'}
+          aria-pressed={pressed}
+          className={`h-auto min-h-12 whitespace-normal px-2 py-2 [overflow-wrap:anywhere] ${pressed || hint === id ? 'ring-2 ring-offset-2 ring-[var(--app-accent)]' : ''} ${tile.core && !pressed ? 'opacity-90' : ''}`}
+          onClick={() => choose(id)}>{tile.text}</Button>
+      })}
+    </div>}
+    {!panel && done && <section aria-label="本波回顾" className="space-y-3">
+      <h2 className="text-xl font-semibold">{round.wave === matchWaves.length - 1 ? '最后一波完成' : '本波完成'} · 词组回顾</h2>
       <div className="flex flex-wrap gap-2">
-        {round.level + 1 < levels.length && <Button onClick={() => openLevel(round.level + 1)}>下一关</Button>}
-        <Button variant="outline" onClick={() => openLevel(round.level)}>重玩本关</Button>
+        {round.wave + 1 < matchWaves.length && <Button onClick={() => openWave(round.wave + 1)}>下一波</Button>}
+        <Button variant="outline" onClick={() => openWave(round.wave)}>重玩本波</Button>
       </div>
+      <ul className="space-y-2">{groups.map(renderGroup)}</ul>
     </section>}
   </div>
 }

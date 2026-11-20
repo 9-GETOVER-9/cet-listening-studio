@@ -121,7 +121,7 @@ function ReadingStudy({ owner }: { owner: string }) {
   return <div data-practice={active ? '' : undefined} className="quiet-page">
     <Link to="/ielts" className="mb-6 inline-block text-sm text-[var(--app-muted)]">← 雅思专区</Link>
     {!active && <QuietPageHeader eyebrow="IELTS · READING 538" title="雅思阅读同义替换。" description="第一章 · 538 个考点词，按 FSRS 间隔复习。" />}
-    {!active && <Button asChild className="mb-5"><Link to="/ielts/reading-538/match">{hasMatchProgress(owner) ? '继续消消乐' : '开始消消乐'}</Link></Button>}
+    {!active && <Button asChild className="mb-5"><Link to="/ielts/reading-538/match">{hasMatchProgress(owner) ? '继续考点对应消消乐' : '开始考点对应消消乐'}</Link></Button>}
     {error && <div role="alert" className="mb-5 rounded-xl border border-red-300 p-4 text-sm text-red-700">{error}{!active && <Button variant="outline" className="ml-3" onClick={() => setReload(n => n + 1)}>重新加载</Button>}</div>}
     {blocker.state === 'blocked' && <div role="alert" className="mb-4 text-sm">批注尚未保存，请先在编辑区重试。<Button variant="outline" className="ml-3" onClick={() => blocker.reset()}>取消跳转</Button></div>}
     {!corpus || !data ? <ReadingLoadStatus corpusReady={Boolean(corpus)} recordsReady={Boolean(data)} error={error} /> : active && data.session ? <IELTSReadingSession key={data.session.id} cards={sourceCards} session={data.session} data={data} onEnd={end} onArchive={archive} notesBlocked={notesBlocked} onNotesBlocked={onNotesBlocked} /> : <>

@@ -1,19 +1,21 @@
 import { expect, it } from 'vitest'
-import type { ReadingCard } from './ieltsReading'
-import { buildMatchLevels } from './readingMatch'
+import { checkSelection, matchWaves, waveTiles } from './readingMatch'
 
-it('does not put an alternative valid answer on the same board', () => {
-  function card(order: number, word: string, ...answers: string[]): ReadingCard {
-    return {
-      id: String(order), category: 1, order, sourceRow: order, word, meaning: word,
-      relation: 'lexical', status: 'verified',
-      expressions: answers.map(text => ({ id: text, text })),
-    }
+it('preserves all reference waves and avoids duplicate labels within a wave', () => {
+  expect(matchWaves).toHaveLength(84)
+  expect(matchWaves.slice(5).flat()).toHaveLength(376)
+  for (const [wave] of matchWaves.entries()) {
+    const tiles = waveTiles(wave)
+    expect(new Set(tiles.map(tile => tile.id)).size).toBe(tiles.length)
+    expect(new Set(tiles.map(tile => tile.text.trim().toLowerCase())).size).toBe(tiles.length)
   }
-  const first = card(1, 'large', 'big', 'huge')
-  const second = card(2, 'enormous', ' HUGE ')
-  const pending = { ...card(3, 'tiny', 'small'), status: 'pending' as const }
-  const cause = { ...card(4, 'rain', 'flood'), relation: 'cause' as const }
-  expect(buildMatchLevels([second, pending, first, cause]).map(level => level.map(pair => pair.card.word)))
-    .toEqual([['large'], ['enormous']])
+})
+
+it('requires every tile in the group and rejects a tile from another group', () => {
+  const tiles = waveTiles(0)
+  const group = tiles.filter(tile => tile.group === tiles[0].group).map(tile => tile.id)
+  const outsider = tiles.find(tile => tile.group !== tiles[0].group)!
+  expect(checkSelection(tiles, group.slice(0, -1))).toBe('partial')
+  expect(checkSelection(tiles, [...group.slice(0, -1), outsider.id])).toBe('wrong')
+  expect(checkSelection(tiles, group)).toBe('complete')
 })

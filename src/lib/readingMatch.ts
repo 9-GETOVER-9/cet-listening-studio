@@ -26,8 +26,6 @@ export function matchRelationNote(coreWord?: string) {
     case 'that': return '指代关系：要结合上下文判断代词指向什么。'
     case 'fertiliser': return '真题语境对应：这些词在相关语境中可作为线索，不是 fertiliser 的同义词。'
     case 'exchange': return '真题语境对应：这些表达需结合原句判断，不能直接互换。'
-    case 'principle':
-    case 'potential': return '原书转录的对应栏有粘连，当前拆分待原页核实。'
     default: return ''
   }
 }

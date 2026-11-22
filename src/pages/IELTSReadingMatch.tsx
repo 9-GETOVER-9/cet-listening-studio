@@ -47,17 +47,17 @@ export default function IELTSReadingMatch() {
   const storageKey = matchStorageKey(owner)
   if (params.get('play') === 'review') return loading ? <p role="status" className="p-6">正在读取账号…</p>
     : <MatchRecall key={owner} owner={owner} ids={getDueMatchGroups(owner)} />
-  return <div className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
-    <Link to="/ielts/reading-538" className="inline-flex min-h-11 items-center underline underline-offset-4">← 返回同义替换</Link>
-    <h1 className="my-4 font-serif text-3xl sm:text-4xl">考点对应消消乐</h1>
+  return <div className="mx-auto max-w-4xl px-4 py-4 sm:px-8 sm:py-6">
+    <Link to="/ielts/reading-538" className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">← 返回同义替换</Link>
+    <h1 className="mb-3 font-serif text-2xl leading-tight sm:text-4xl">考点对应消消乐</h1>
     {loading ? <p role="status">正在读取账号…</p> : <MatchGame key={storageKey} storageKey={storageKey} owner={owner} demo={false} />}
   </div>
 }
 
 export function PublicReadingMatchDemo() {
-  return <main className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
-    <Link reloadDocument to="/ielts/reading-538" className="inline-flex min-h-11 items-center underline underline-offset-4">← 返回同义替换</Link>
-    <h1 className="my-4 font-serif text-3xl sm:text-4xl">考点对应消消乐</h1>
+  return <main className="mx-auto max-w-4xl px-4 py-4 sm:px-8 sm:py-6">
+    <Link reloadDocument to="/ielts/reading-538" className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">← 返回同义替换</Link>
+    <h1 className="mb-3 font-serif text-2xl leading-tight sm:text-4xl">考点对应消消乐</h1>
     <MatchGame storageKey="ielts-reading-match-demo-v1" demo />
   </main>
 }
@@ -178,16 +178,19 @@ function MatchGame({ storageKey, demo, owner }: { storageKey: string; demo: bool
 
   if (retrying) return <MatchRecall owner={owner} ids={missed} onBack={() => setRetrying(false)} />
 
-  return <div className="space-y-4">
-    <p className="text-sm text-[var(--app-muted)]">选齐属于同一组的全部词条。部分表达只在阅读语境中对应。进度保存在当前浏览器。</p>
-    <p>{demo ? '免登录试玩 · 示例第 1 波' : `第 ${round.wave + 1} / ${matchWaves.length} 波 · ${round.wave < 5 ? '示例' : '阅读 538'}`} · 已消除 {round.cleared.length} / {groups.length} 组</p>
-    <p>{round.score} 分 · 错选 {round.errors} 次 · {round.seconds} 秒</p>
+  return <div className="space-y-3">
+    <section className="quiet-surface space-y-2 p-3 sm:p-4" aria-label="本波进度与操作">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+        <p className="font-semibold">{demo ? '试玩 · 示例第 1 波' : `第 ${round.wave + 1} / ${matchWaves.length} 波`} · 已消除 {round.cleared.length} / {groups.length} 组</p>
+        <p className="text-[var(--app-muted)]">{round.score} 分 · 错选 {round.errors} 次 · {round.seconds} 秒</p>
+      </div>
     <div className="flex flex-wrap gap-2">
       {!demo && <Button variant="outline" aria-expanded={panel === 'waves'} onClick={() => setPanel(panel === 'waves' ? undefined : 'waves')}>选择波次</Button>}
       {!demo && <Button variant="outline" aria-expanded={panel === 'favorites'} onClick={() => setPanel(panel === 'favorites' ? undefined : 'favorites')}>收藏词组（{progress.favorites.length}）</Button>}
       <Button variant="outline" disabled={done || Boolean(panel)} onClick={showHint}>提示</Button>
-      <Button variant="outline" disabled={!selected.length} onClick={() => { setSelected([]); setHint(''); setMessage('已取消选择。') }}>取消选择</Button>
+      {selected.length > 0 && <Button variant="outline" onClick={() => { setSelected([]); setHint(''); setMessage('已取消选择。') }}>取消选择</Button>}
     </div>
+    </section>
     {panel === 'waves' && <div aria-label="选择波次" className="grid max-h-64 grid-cols-2 gap-2 overflow-auto sm:grid-cols-4">
       {matchWaves.map((_, index) => <Button key={index} variant={round.wave === index ? 'default' : 'outline'}
         aria-current={round.wave === index ? 'step' : undefined}
@@ -199,24 +202,27 @@ function MatchGame({ storageKey, demo, owner }: { storageKey: string; demo: bool
       {progress.favorites.length ? <ul className="space-y-2">{matchWaves.flat().filter(group => progress.favorites.includes(group.id)).map(renderGroup)}</ul> : <p>还没有收藏。完成一波后可以收藏词组。</p>}
     </section>}
     {saveError && <p role="alert">浏览器无法保存游戏进度。</p>}
-    <p role="status" aria-atomic="true" className="min-h-6 text-sm">{message}</p>
-    {!panel && !done && <div aria-label="混排词牌" className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+    {!panel && !done && <section className="rounded-xl border border-[#426071] bg-[#102b3c] p-3 text-[#f7fbfa] sm:p-4">
+      <h2 className="mb-2 text-sm font-semibold">选齐同组的全部词条</h2>
+      <div aria-label="混排词牌" className="grid grid-cols-2 gap-2 min-[380px]:grid-cols-3 lg:grid-cols-4">
       {round.order.map(id => {
         const tile = tiles.find(item => item.id === id)!
         if (round.cleared.includes(tile.group)) return null
         const pressed = selected.includes(id)
-        return <Button key={id} variant={pressed || tile.core ? 'default' : 'outline'}
+        return <button type="button" key={id}
           aria-pressed={pressed}
-          className={`h-auto min-h-12 whitespace-normal px-2 py-2 [overflow-wrap:anywhere] ${pressed || hint === id ? 'ring-2 ring-offset-2 ring-[var(--app-accent)]' : ''} ${tile.core && !pressed ? 'opacity-90' : ''} ${wrong?.id === id ? 'ring-2 ring-red-500 bg-red-50 text-red-900 dark:bg-red-950 dark:text-red-100' : ''}`}
-          onClick={event => choose(id, event.currentTarget)}>{tile.text}</Button>
+          className={`min-h-12 rounded-lg border border-[#527282] px-2 py-2 text-sm font-semibold [overflow-wrap:anywhere] focus-visible:outline-[#bcece2] ${tile.text.split(' ').some(word => word.length > 10) ? 'min-[380px]:col-span-2 sm:col-span-1' : ''} ${wrong?.id === id ? 'ring-2 ring-red-400 bg-[#ffe9e2] text-red-950' : pressed || hint === id ? 'bg-[#bcece2] text-[#102b3c]' : tile.core ? 'bg-[#31586b]' : 'bg-[#19384a]'}`}
+          onClick={event => choose(id, event.currentTarget)}>{tile.text}</button>
       })}
-    </div>}
-    {!panel && done && <section aria-label="本波回顾" className="space-y-3">
+      </div>
+      <p role="status" aria-atomic="true" className="mt-2 break-words text-sm text-[#d7e6e9]">{message || '部分表达只在特定阅读语境中对应。'}</p>
+    </section>}
+    {!panel && done && <section aria-label="本波回顾" className="quiet-surface space-y-3 p-4">
       <h2 className="text-xl font-semibold">{round.wave === matchWaves.length - 1 ? '最后一波完成' : '本波完成'} · 词组回顾</h2>
       <div className="flex flex-wrap gap-2">
         {missed.length > 0 && <Button onClick={() => setRetrying(true)}>重练这 {missed.length} 组错题</Button>}
-        {demo ? <Button asChild><Link reloadDocument to="/ielts/reading-538/match">继续完整练习</Link></Button>
-          : round.wave + 1 < matchWaves.length && <Button onClick={() => openWave(round.wave + 1)}>下一波</Button>}
+        {demo ? <Button asChild variant={missed.length ? 'outline' : 'default'}><Link reloadDocument to="/ielts/reading-538/match">继续完整练习</Link></Button>
+          : round.wave + 1 < matchWaves.length && <Button variant={missed.length ? 'outline' : 'default'} onClick={() => openWave(round.wave + 1)}>下一波</Button>}
         <Button asChild variant="outline"><Link reloadDocument={demo} to="/ielts/reading-538">去阅读 538 复习</Link></Button>
         <Button variant="outline" onClick={() => openWave(round.wave)}>重玩本波</Button>
       </div>

@@ -120,54 +120,65 @@ function ReadingStudy({ owner }: { owner: string }) {
   }
   return <div data-practice={active ? '' : undefined} className="quiet-page">
     <Link to="/ielts" className="mb-6 inline-block text-sm text-[var(--app-muted)]">← 雅思专区</Link>
-    {!active && <QuietPageHeader eyebrow="IELTS · READING 538" title="雅思阅读同义替换。" description="第一章 · 538 个考点词，按 FSRS 间隔复习。" />}
-    {!active && <Button asChild className="mb-5"><Link to="/ielts/reading-538/match">{hasMatchProgress(owner) ? '继续考点对应消消乐' : '开始考点对应消消乐'}</Link></Button>}
+    {!active && <QuietPageHeader eyebrow="IELTS · READING 538" title="雅思阅读同义替换。" description="阅读 538 第一章。练习考点词，并按间隔复习。" />}
+    {!active && <div className="mb-5 flex flex-wrap gap-2">
+      <Button asChild className="h-auto min-h-11 max-w-full whitespace-normal"><Link to="/ielts/reading-538/match">{hasMatchProgress(owner) ? '继续考点对应消消乐' : '开始考点对应消消乐'}</Link></Button>
+      {corpus && data && <Button asChild variant="outline"><a href="#reading-lookup">查找词条</a></Button>}
+    </div>}
     {error && <div role="alert" className="mb-5 rounded-xl border border-red-300 p-4 text-sm text-red-700">{error}{!active && <Button variant="outline" className="ml-3" onClick={() => setReload(n => n + 1)}>重新加载</Button>}</div>}
     {blocker.state === 'blocked' && <div role="alert" className="mb-4 text-sm">批注尚未保存，请先在编辑区重试。<Button variant="outline" className="ml-3" onClick={() => blocker.reset()}>取消跳转</Button></div>}
     {!corpus || !data ? <ReadingLoadStatus corpusReady={Boolean(corpus)} recordsReady={Boolean(data)} error={error} /> : active && data.session ? <IELTSReadingSession key={data.session.id} cards={sourceCards} session={data.session} data={data} onEnd={end} onArchive={archive} notesBlocked={notesBlocked} onNotesBlocked={onNotesBlocked} /> : <>
-      <div className="mb-6 grid grid-cols-3 gap-3 text-center"><div className="quiet-surface p-4"><strong className="block font-serif text-3xl">{studied}</strong><span className="text-xs text-[var(--app-muted)]">已学 / {scope.length} 组</span></div><div className="quiet-surface p-4"><strong className="block font-serif text-3xl">{due.length}</strong><span className="text-xs text-[var(--app-muted)]">当前到期</span></div><div className="quiet-surface p-4"><strong className="block font-serif text-3xl">{newCards.length}</strong><span className="text-xs text-[var(--app-muted)]">可学新词</span></div></div>
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+      <div className="min-w-0">
+      <div className="mb-4 flex flex-wrap gap-x-5 gap-y-1 text-sm text-[var(--app-muted)]" aria-label="阅读学习进度">
+        <span>已学 <strong className="text-[var(--app-ink)]">{studied} / {scope.length}</strong> 组</span>
+        <span>当前到期 <strong className="text-[var(--app-ink)]">{due.length}</strong> 组</span>
+        <span>可学新词 <strong className="text-[var(--app-ink)]">{newCards.length}</strong> 组</span>
+      </div>
       {data.session && <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--app-accent)] p-4 text-sm"><span>上次练习 · 第 {data.session.cursor + 1} / {data.session.cardIds.length} 题 · 已评分 {data.session.completed} 组</span><Button disabled={busy || notesBlocked} onClick={() => setActive(true)}>继续上次练习</Button></div>}
+      <div className="quiet-surface mb-5 flex flex-wrap items-center gap-3 p-4 [&>button]:h-auto [&>button]:min-h-11 [&>button]:max-w-full [&>button]:whitespace-normal" aria-label="开始词汇练习">
+        <h2 className="w-full font-serif text-xl">开始词汇练习</h2>
+        <Button variant={due.length ? 'default' : 'outline'} disabled={busy || notesBlocked || !due.length} onClick={() => start('due')}>复习到期词 · {due.length}</Button><Button variant={due.length ? 'outline' : 'default'} disabled={busy || notesBlocked || !newCards.length} onClick={() => start('new')}>学习新词 · {newCards.length}</Button><Button variant="outline" disabled={busy || notesBlocked || !scope.some(c => c.status !== 'pending')} onClick={() => start('all')}>练习所选类别</Button><Button variant="outline" disabled={busy || notesBlocked || !mistakes.length} onClick={() => start('retry')}>错题重做 · {mistakes.length}</Button>
+        <label className="flex items-center gap-2 text-sm">练习方式 <select aria-label="阅读练习方式" disabled={notesBlocked || busy} value={mode} onChange={e => setMode(e.target.value as Exclude<ReadingMode, 'retry'>)} className="rounded-xl border border-[var(--app-line)] bg-[var(--app-surface)] p-2"><option value="quiz">多选辨认</option><option value="recall">主动回忆</option></select></label>
+        <label className="flex flex-wrap items-center gap-2 text-sm">每轮 <input aria-label="每轮题数" type="number" min={1} max={376} value={roundSize} disabled={notesBlocked || busy} onChange={e => setRoundSize(Math.min(376, Math.max(1, Math.floor(Number(e.target.value) || 1))))} className="w-20 rounded-lg border border-[var(--app-line)] bg-[var(--app-surface)] p-2" /> 组</label>
+      </div>
       <section className="quiet-surface mb-4 p-4 md:p-6" aria-label="选择词条类别">
         <p className="mb-3 text-sm text-[var(--app-muted)]">选择类别</p>
-        <div className="grid gap-3 sm:grid-cols-3">{visibleCategories.map(item => {
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-1">{visibleCategories.map(item => {
           const all = item.entries.length
           const percent = all ? Math.round(item.learned / all * 100) : 0
           return <article key={item.value} className="rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface)] p-4 md:p-5">
-            <p className="quiet-kicker">READING 538 · CATEGORY {item.value}</p>
-            <h2 className="mt-3 font-serif text-2xl">第 {item.value} 类</h2>
+            <h2 className="font-serif text-xl">第 {item.value} 类</h2>
             <p className="mt-1 text-sm text-[var(--app-muted)]">{item.total} 组{item.total !== all ? ` · ${all} 组可练` : ''} · {item.value === 1 ? '优先熟记' : item.value === 2 ? '重点积累' : '继续拓展'}</p>
             <div className="mt-5 h-2 overflow-hidden rounded-full bg-[var(--app-line)]"><div className="h-full bg-[var(--app-accent)] transition-all" style={{ width: `${percent}%` }} /></div>
             <div className="mt-2 flex justify-between text-sm text-[var(--app-muted)]"><span>{item.learned}/{all} 组已学习</span><span>{percent}%</span></div>
-            <div className="mt-5 grid grid-cols-2 gap-2"><Button variant={category === String(item.value) ? 'default' : 'outline'} onClick={() => { setCategory(String(item.value)); setExpanded(undefined); setListLimit(20) }}>查看词条</Button><Button disabled={busy || notesBlocked || !all} onClick={() => { setCategory(String(item.value)); start('all', String(item.value)) }}>进入练习</Button></div>
+            <div className="mt-4 flex flex-wrap gap-2"><Button variant={category === String(item.value) ? 'default' : 'outline'} onClick={() => { setCategory(String(item.value)); setExpanded(undefined); setListLimit(20) }}>查看词条</Button><Button disabled={busy || notesBlocked || !all} onClick={() => { setCategory(String(item.value)); start('all', String(item.value)) }}>进入练习</Button></div>
           </article>
         })}</div>
         {visibleCategories.length === 0 && <p className="py-5 text-sm text-[var(--app-muted)]">这一状态下暂无类别。</p>}
       </section>
       <div className="quiet-surface mb-7 flex flex-wrap items-center gap-4 p-4 md:px-6">
         <div className="min-w-0 flex-1"><p className="text-sm font-medium">学习状态</p><p className="text-xs text-[var(--app-muted)]">{completedCategories}/3 类已完成 · 已隐藏 {archivedCards.length} 张</p></div>
-        <ToggleGroup type="single" value={completionFilter} onValueChange={value => { if (value === 'incomplete' || value === 'completed') setCompletionFilter(value) }} aria-label="类别完成状态">
+        <ToggleGroup type="single" value={completionFilter} onValueChange={value => { if (value === 'incomplete' || value === 'completed') setCompletionFilter(value) }} aria-label="类别完成状态" className="flex-wrap justify-start">
           <ToggleGroupItem value="incomplete">未完成 ({categoryStats.length - completedCategories})</ToggleGroupItem><ToggleGroupItem value="completed">已完成 ({completedCategories})</ToggleGroupItem>
         </ToggleGroup>
       </div>
-      <div className="quiet-surface mb-7 flex flex-wrap items-center gap-3 p-4 md:px-6">
-        <Button disabled={busy || notesBlocked || !due.length} onClick={() => start('due')}>复习到期词 · {due.length}</Button><Button variant="outline" disabled={busy || notesBlocked || !newCards.length} onClick={() => start('new')}>学习新词 · {newCards.length}</Button><Button variant="outline" disabled={busy || notesBlocked || !scope.some(c => c.status !== 'pending')} onClick={() => start('all')}>练习所选类别</Button><Button variant="outline" disabled={busy || notesBlocked || !mistakes.length} onClick={() => start('retry')}>错题重做 · {mistakes.length}</Button>
-        <label className="flex items-center gap-2 text-sm">练习方式 <select aria-label="阅读练习方式" disabled={notesBlocked || busy} value={mode} onChange={e => setMode(e.target.value as Exclude<ReadingMode, 'retry'>)} className="rounded-xl border border-[var(--app-line)] bg-[var(--app-surface)] p-2"><option value="quiz">多选辨认</option><option value="recall">主动回忆</option></select></label>
-        <label className="ml-auto flex items-center gap-2 text-sm">每轮 <input aria-label="每轮题数" type="number" min={1} max={376} value={roundSize} disabled={notesBlocked || busy} onChange={e => setRoundSize(Math.min(376, Math.max(1, Math.floor(Number(e.target.value) || 1))))} className="w-20 rounded-lg border border-[var(--app-line)] bg-[var(--app-surface)] p-2" /> 组</label>
       </div>
-      <section aria-label="阅读词条查阅" className="space-y-4">
+      <section id="reading-lookup" aria-label="阅读词条查阅" className="min-w-0 scroll-mt-4 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-serif text-2xl">词条卡片</h2><span className="text-xs text-[var(--app-muted)]">按主词条组记录进度，保留完整对应表达</span></div>
         <div className="flex flex-col gap-3 sm:flex-row"><input aria-label="搜索阅读词条" value={query} disabled={notesBlocked || busy} onChange={e => { setQuery(e.target.value); setListLimit(20) }} placeholder="搜索主词、替换表达或笔记" className="min-w-0 flex-1 rounded-xl border border-[var(--app-line)] bg-[var(--app-surface)] p-3 text-sm" /><select aria-label="阅读词条筛选" disabled={notesBlocked || busy} value={filter} onChange={e => { setFilter(e.target.value); setListLimit(20) }} className="rounded-xl border border-[var(--app-line)] bg-[var(--app-surface)] p-3 text-sm"><option value="all">全部词条</option><option value="notes">有笔记</option><option value="marked">有标记表达</option><option value="due">当前到期</option></select></div>
-        <div className="grid gap-3 sm:grid-cols-2">{shownCards.map(card => {
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">{shownCards.map(card => {
           const p = data.progress.find(p => p.cardId === card.id)
           return <article key={card.id} className="quiet-surface p-4 sm:p-5"><button className="flex min-h-11 w-full items-center justify-between gap-4 text-left" disabled={notesBlocked || busy} aria-expanded={expanded === card.id} onClick={() => setExpanded(expanded === card.id ? undefined : card.id)}>
-            <span className="min-w-0"><span className="quiet-kicker">第 {card.category} 类</span><strong className="mt-2 block break-words font-serif text-2xl">{card.word.replace(/\*$/, '')}</strong><span className="mt-1 block text-sm text-[var(--app-muted)]">{card.meaning}</span></span><span className="shrink-0 text-right text-xs text-[var(--app-muted)]">{card.status === 'pending' ? '待核验 · 仅查阅' : p ? `已学 · 覆盖 ${p.covered.length}/${card.expressions.length}` : '未学习'}<br />{expanded === card.id ? '收起' : '查看'}</span>
+            <span className="min-w-0"><span className="quiet-kicker">第 {card.category} 类</span><strong className="mt-2 block font-serif text-2xl [overflow-wrap:anywhere]">{card.word.replace(/\*$/, '')}</strong><span className="mt-1 block text-sm text-[var(--app-muted)]">{card.meaning}</span></span><span className="max-w-[45%] text-right text-xs text-[var(--app-muted)]">{card.status === 'pending' ? '待核验 · 仅查阅' : p ? `已学 · 覆盖 ${p.covered.length}/${card.expressions.length}` : '未学习'}<br />{expanded === card.id ? '收起' : '查看'}</span>
           </button>{expanded === card.id && <div className="mt-4 border-t border-[var(--app-line)] pt-4"><p className="text-xs text-[var(--app-muted)]">{READING_RELATIONS[card.relation]}{p && ` · 下次复习 ${new Date(p.fsrs.due).toLocaleString('zh-CN')}`}</p><p className="mt-3 break-words leading-7">{card.expressions.map(e => e.text).join(' · ')}</p><div className="mt-4"><IELTSReadingNotes key={`${owner}:${card.id}`} owner={owner} card={card} annotation={annotations.get(card.id)} onBlocked={onNotesBlocked} /></div></div>}</article>
         })}</div>
         <p className="text-xs text-[var(--app-muted)]">显示 {shownCards.length} / {visible.length} 组</p>
         {shownCards.length < visible.length && <Button className="w-full" variant="outline" onClick={() => setListLimit(value => value + 20)}>继续加载词条</Button>}
         {!visible.length && <p className="py-8 text-center text-sm text-[var(--app-muted)]">当前筛选下没有词条。</p>}
       </section>
-      <section className="mt-7 border-t border-[var(--app-line)] pt-5">
+      </div>
+      <section className="mt-7 border-t border-[var(--app-line)] pt-5 [&>button]:h-auto [&>button]:min-h-11 [&>button]:max-w-full [&>button]:whitespace-normal">
         <Button variant="outline" onClick={() => setShowArchived(value => !value)} aria-expanded={showArchived}>已隐藏卡片 · {archivedCards.length} {showArchived ? '收起' : '查看 / 恢复'}</Button>
         {showArchived && <div className="mt-4 grid gap-3 sm:grid-cols-2">{archivedCards.map(card => <article key={card.id} className="quiet-surface flex items-center justify-between gap-4 p-4"><div><p className="font-serif text-xl">{card.word.replace(/\*$/, '')}</p><p className="text-sm text-[var(--app-muted)]">{card.meaning}</p></div><Button variant="outline" disabled={busy || notesBlocked} onClick={() => void perform(async () => { await restoreReadingCard(owner, card.id); setNotice(`“${card.word.replace(/\*$/, '')}”已恢复。`) })}>恢复</Button></article>)}</div>}
       </section>

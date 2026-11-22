@@ -19,7 +19,7 @@ const BOOKS: { value: NCEBook; label: string }[] = [
   { value: 'Book4', label: 'Book 4' },
 ]
 
-type CompletionFilter = 'incomplete' | 'completed'
+type CompletionFilter = 'all' | 'incomplete' | 'completed'
 
 export default function NCESelector() {
   const { isPro } = usePro()
@@ -66,7 +66,7 @@ export default function NCESelector() {
   ).length
   const visibleModules = useMemo(() => modules.filter((module) => {
     const isCompleted = module.totalCards > 0 && module.studiedCards >= module.totalCards
-    return (completionFilter === 'completed' ? isCompleted : !isCompleted) && matchesNCELesson(module, query)
+    return (completionFilter === 'all' || (completionFilter === 'completed') === isCompleted) && matchesNCELesson(module, query)
   }), [completionFilter, modules, query])
 
   return (
@@ -74,7 +74,7 @@ export default function NCESelector() {
       {/* 顶部标题 */}
       <div className="mb-6 border-b border-[var(--app-line)] pb-6">
         <div className="flex items-center gap-2 mb-1">
-          <BookOpen className="h-5 w-5 text-purple-600" />
+          <BookOpen className="h-5 w-5 shrink-0 text-[var(--app-accent)]" aria-hidden="true" />
           <h1 className="quiet-display text-3xl md:text-4xl">新概念英语。</h1>
         </div>
         <p className="text-sm text-gray-500">
@@ -85,7 +85,12 @@ export default function NCESelector() {
       </div>
 
       {/* 册数选择器 */}
-      <div className="quiet-surface px-4 py-4 md:px-6">
+      <section className="quiet-surface grid min-w-0 gap-4 p-4 lg:grid-cols-2" aria-label="选择新概念课程">
+        <div className="min-w-0">
+          <label className="block text-sm font-semibold" htmlFor="nce-search">查找课文</label>
+          <input id="nce-search" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="输入课号或英文标题" className="mt-2 min-h-11 w-full rounded-lg border border-[var(--app-line)] bg-[var(--app-surface)] px-3 text-base" />
+        </div>
+        <div className="min-w-0">
         <p className="text-xs font-medium text-gray-500 mb-2">选择册数</p>
         <ToggleGroup
           type="single"
@@ -97,7 +102,8 @@ export default function NCESelector() {
             setLoading(true)
             setSelectedBook(v as NCEBook)
           }}
-          className="justify-start"
+          className="flex-wrap justify-start"
+          aria-label="选择册数"
         >
           {BOOKS.map(({ value, label }) => {
             const locked = !isNCEBookAccessible(value, isPro)
@@ -105,7 +111,7 @@ export default function NCESelector() {
               <ToggleGroupItem
                 key={value}
                 value={value}
-                className="flex-1 sm:flex-initial"
+                className="min-h-11"
                 aria-label={`${label}${locked ? ' · 需要 Pro，查看解锁方式' : ''}`}
               >
                 {locked && <Lock className="h-3 w-3 mr-1" />}
@@ -114,18 +120,19 @@ export default function NCESelector() {
             )
           })}
         </ToggleGroup>
-      </div>
-
-      <div className="mt-4 quiet-surface px-4 py-4 md:px-6">
+        </div>
+        <div className="min-w-0 lg:col-span-2">
         <p className="text-xs font-medium text-gray-500 mb-2">学习状态</p>
         <ToggleGroup
           type="single"
           value={completionFilter}
           onValueChange={(value) => {
-            if (value === 'incomplete' || value === 'completed') setCompletionFilter(value)
+            if (value === 'all' || value === 'incomplete' || value === 'completed') setCompletionFilter(value)
           }}
-          className="justify-start"
+          className="flex-wrap justify-start"
+          aria-label="学习状态"
         >
+          <ToggleGroupItem value="all">全部 ({totalModules})</ToggleGroupItem>
           <ToggleGroupItem value="incomplete" className="flex-1 sm:flex-initial">
             未完成 ({totalModules - completedModules})
           </ToggleGroupItem>
@@ -133,10 +140,8 @@ export default function NCESelector() {
             已完成 ({completedModules})
           </ToggleGroupItem>
         </ToggleGroup>
-      </div>
-
-      <label className="mt-5 block text-sm font-medium" htmlFor="nce-search">查找课程</label>
-      <input id="nce-search" type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="输入课号或英文标题" className="mt-2 w-full rounded-lg border border-[var(--app-line)] bg-[var(--app-surface)] px-4 py-3 text-base" />
+        </div>
+      </section>
       {query.trim() && <p className="mt-2 text-sm text-[var(--app-muted)]" role="status">找到 {visibleModules.length} 课 · 当前册和学习状态</p>}
 
       {/* 课程列表 */}
